@@ -7,6 +7,7 @@ App de Javi (wiia) para su casa con José y Josu. Hablar siempre en castellano d
 - **Los eventos no se editan ni se borran**: para corregir algo se apunta otro evento (`gasto_anulado`, `pago_anulado`…). Las reglas del juego viven en `src/core/` y se recalculan desde los eventos.
 - Un tipo de evento nuevo no necesita tocar la base de datos (acepta cualquier `tipo` en minúsculas y guiones bajos). Un cambio de tablas o permisos sí: va en `supabase/esquema.sql` (que se puede volver a ejecutar) y Javi lo pega en el SQL Editor.
 - Colores fijos: Javi naranja, José verde, Josu azul. Cada uno tiene su silueta del icono (`figura`).
+- El menú de abajo es azul noche (`#13233a`) en modo claro y oscuro: en la app instalada, Chrome pinta la barra de gestos de Android con el `theme_color` del manifiesto (un solo color, se actualiza en el móvil en un día o dos). Si cambia el color del menú, cambian también `theme_color` y `background_color` en `public/manifest.webmanifest`. La barra de arriba sí sigue al `<meta name="theme-color">` (coral en Hoy).
 - Las zonas se llaman Piso de abajo, Piso del medio y Piso de arriba.
 
 ## Antes de dar algo por terminado

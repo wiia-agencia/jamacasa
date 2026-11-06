@@ -131,7 +131,8 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
 
   const estado = useMemo(() => derivar(config, eventos, ahora), [config, eventos, ahora]);
 
-  // Color de la barra del móvil: el cielo en la portada, el fondo en el resto
+  // Color de la barra de arriba del móvil (la de la hora): el cielo en la portada, el fondo en el resto.
+  // La barra de gestos de abajo no la cambia esto: sale del theme_color del manifiesto (ver .nav en styles.css).
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) return;

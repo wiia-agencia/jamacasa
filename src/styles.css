@@ -452,15 +452,21 @@ p { margin: 0; }
 .noticia .cuando { font-size: var(--t-xs); color: var(--texto-3); margin-top: 2px; }
 .noticia .avatar { margin-top: 2px; }
 
-/* ——— Navegación inferior ——— */
+/* ——— Navegación inferior ———
+   Azul noche en los dos modos, a propósito: en la app instalada, Chrome pinta la barra
+   de gestos de Android (la de la rayita) con el theme_color del manifiesto, que es un
+   solo color fijo. Si el menú es de ese mismo color, llega hasta abajo del todo.
+   Si se cambia este color, hay que cambiar también theme_color y background_color
+   en public/manifest.webmanifest. */
 .nav {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 20;
-  background: var(--papel);
-  border-top: 1px solid var(--linea);
+  background: #13233a;
+  border-top: 1px solid #233853;
+  color-scheme: dark;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
@@ -478,10 +484,10 @@ p { margin: 0; }
   gap: 4px;
   font-size: 0.72rem;
   font-weight: 650;
-  color: var(--texto-3);
+  color: #8da2bc;
   position: relative;
 }
-.nav button[aria-current='page'] { color: var(--texto); }
+.nav button[aria-current='page'] { color: #eaf1f8; }
 .nav button[aria-current='page']::before {
   content: '';
   position: absolute;
@@ -499,7 +505,7 @@ p { margin: 0; }
   min-width: 17px;
   height: 17px;
   border-radius: 9px;
-  background: var(--vermello);
+  background: #d93d42;
   color: #fff;
   font-size: 0.68rem;
   display: grid;
