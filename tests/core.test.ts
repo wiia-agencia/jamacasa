@@ -231,7 +231,21 @@ describe('mes de ejemplo', () => {
     expect(e.medallas[b].chapuzas).toBe(1);
     expect(e.medallas[cc].rompe).toBe(1);
     expect(paraPuntuar(e, a).map((x) => x.tarea.miembro)).toEqual([b]);
-    expect(e.racha.actual).toBe(1);
+    expect(e.racha.actual).toBe(2); // el suspenso de la semana 3 no rompe la racha: se marcó a tiempo
     expect(e.cuentas.alquiler.filter((x) => x.mes === '2026-10' && x.diasTarde > 0)).toHaveLength(1);
+  });
+});
+
+describe('racha', () => {
+  it('cuenta si los tres marcan dentro de su semana, aunque luego suspendan', () => {
+    const s = semanaInicial(config);
+    const ev2: Evento[] = [];
+    for (const m of ['a', 'b', 'c']) ev2.push(ev('zona_hecha', m, inicioSemana(s) + 20 * HORA, { semana: s }));
+    ev2.push(ev('puntuacion', 'a', inicioSemana(s) + 22 * HORA, { semana: s, de: 'b', intento: 1, nota: 2, faltan: ['x'] }));
+    ev2.push(ev('puntuacion', 'c', inicioSemana(s) + 23 * HORA, { semana: s, de: 'b', intento: 1, nota: 3, faltan: ['x'] }));
+    for (const m of ['a', 'b']) ev2.push(ev('zona_hecha', m, inicioSemana(s + 1) + 20 * HORA, { semana: s + 1 }));
+    const e = derivar(config, ev2, inicioSemana(s + 2) + HORA);
+    expect(e.racha.historial.map((h) => h.estado)).toEqual(['ok', 'rota']);
+    expect(e.racha.historial[1].culpables).toEqual(['c']);
   });
 });

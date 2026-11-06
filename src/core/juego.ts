@@ -117,6 +117,7 @@ export const TITULOS: DefMedalla[] = [
 
 export interface SemanaRacha { semana: number; estado: 'ok' | 'rota' | 'pendiente'; culpables: MiembroId[] }
 
+/** Racha: semanas seguidas en las que los tres marcáis vuestro piso dentro de la semana (da igual la nota). */
 export function calcularRacha(config: Config, tareas: Tarea[], semanaActual: number): { actual: number; historial: SemanaRacha[] } {
   const porSemana = new Map<number, Tarea[]>();
   for (const t of tareas) (porSemana.get(t.semana) ?? porSemana.set(t.semana, []).get(t.semana)!).push(t);
@@ -124,23 +125,11 @@ export function calcularRacha(config: Config, tareas: Tarea[], semanaActual: num
   for (const [w, ts] of [...porSemana.entries()].sort((a, b) => a[0] - b[0])) {
     if (w >= semanaActual) continue;
     const fin = finSemana(w);
-    const culpables: MiembroId[] = [];
-    let pendiente = false;
-    for (const t of ts) {
-      const primero = t.intentos[0];
-      if (!primero || primero.hecho.ts > fin) { culpables.push(t.miembro); continue; }
-      if (!primero.resuelto) { pendiente = true; continue; }
-      if (!primero.aprobado) culpables.push(t.miembro);
-    }
-    historial.push({ semana: w, estado: culpables.length ? 'rota' : pendiente ? 'pendiente' : 'ok', culpables });
+    const culpables = ts.filter((t) => t.primerHecho === undefined || t.primerHecho > fin).map((t) => t.miembro);
+    historial.push({ semana: w, estado: culpables.length ? 'rota' : 'ok', culpables });
   }
   let actual = 0;
-  for (let i = historial.length - 1; i >= 0; i--) {
-    const h = historial[i];
-    if (h.estado === 'pendiente' && i === historial.length - 1) continue;
-    if (h.estado !== 'ok') break;
-    actual++;
-  }
+  for (let i = historial.length - 1; i >= 0 && historial[i].estado === 'ok'; i--) actual++;
   return { actual, historial };
 }
 

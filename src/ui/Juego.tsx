@@ -73,7 +73,7 @@ export function Juego() {
           <div className="fila">
             <Flame size={28} className="oro" />
             <span className="cifra" style={{ fontSize: '2.4rem' }}>{estado.racha.actual}</span>
-            <p className="crece peq suave">{estado.racha.actual === 1 ? 'semana seguida' : 'semanas seguidas'} con los tres pisos a tiempo y aprobados a la primera</p>
+            <p className="crece peq suave">{estado.racha.actual === 1 ? 'semana seguida' : 'semanas seguidas'} con los tres pisos marcados dentro de su semana</p>
           </div>
           {ultimas.length > 0 && (
             <div className="pila-s" style={{ marginTop: 14 }}>
