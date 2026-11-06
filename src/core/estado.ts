@@ -46,7 +46,8 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
   const s = semanaInicial(config);
   const tareas = calcularTareas(config, normas, ordenados, ahora);
   const semanasBasura = calcularBasura(config, normas, ordenados, ahora);
-  const tuyos = calcularEstoEsTuyo(normas, ordenados, ahora);
+  // «Esto es tuyo» cuenta desde que arranca la casa, como la basura: lo de antes del primer lunes no resta
+  const tuyos = calcularEstoEsTuyo(normas, ordenados.filter((e) => semana(e.ts) >= s), ahora);
   const cuentas = calcularCuentas(config, ordenados, ahora);
   const apuntes = calcularApuntes(config, normas, tareas, semanasBasura, tuyos, ahora);
   const puntosMes = puntosPorMes(config, apuntes);

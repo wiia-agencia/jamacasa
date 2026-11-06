@@ -176,6 +176,12 @@ describe('basura y esto es tuyo', () => {
     expect(e.tuyos.find((x) => x.id === ok.id)!.estado).toBe('recogido');
     expect(e.titulos['2026-10'].calcetin.sort()).toEqual(['b', 'c']);
   });
+  it('antes del primer lunes no cuenta: «Esto es tuyo» empieza con la casa, como la basura', () => {
+    const antes = ev('esto_es_tuyo', 'a', lunes - 2 * HORA, { para: 'b', que: 'la mochila' });
+    const e = derivar(config, [antes], lunes + 20 * HORA);
+    expect(e.tuyos).toHaveLength(0);
+    expect(e.apuntes.filter((a) => a.clase === 'tuyo')).toHaveLength(0);
+  });
 });
 
 describe('cuentas', () => {

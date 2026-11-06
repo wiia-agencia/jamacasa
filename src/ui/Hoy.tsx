@@ -213,6 +213,29 @@ function Atrasadas() {
 
 function Atajos() {
   const { estado, yo, abrir, acciones, avisar } = useCasa();
+  if (!estado.empezado) {
+    // Hasta el primer sorteo no hay nadie de basura ni cuenta nada: se dice, para que no parezcan botones de adorno
+    return (
+      <div className="atajos">
+        <div className="atajo">
+          <span className="emoji" aria-hidden="true">🗑️</span>
+          <strong>La basura, desde el lunes</strong>
+          <span className="peq">Ese día sale el primero de la bolsa. Cuando se llene, le avisas desde aquí.</span>
+          <button type="button" className="boton mini" style={{ marginTop: 'auto' }} disabled>
+            Desde el lunes
+          </button>
+        </div>
+        <div className="atajo">
+          <span className="emoji" aria-hidden="true">🧦</span>
+          <strong>¿Algo tirado por ahí?</strong>
+          <span className="peq">Desde el lunes, le haces una foto y avisas a su dueño.</span>
+          <button type="button" className="boton mini" style={{ marginTop: 'auto' }} disabled>
+            Desde el lunes
+          </button>
+        </div>
+      </div>
+    );
+  }
   const resp = estado.basura;
   const abiertos = avisosBasuraAbiertos(estado);
   const aviso = abiertos[0];
