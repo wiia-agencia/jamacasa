@@ -133,11 +133,15 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
 
   // Avisos al móvil: cómo están en este móvil y, si ya hay permiso, renovar su dirección
   const [avisos, setAvisos] = useState<EstadoAvisos>('no');
+  const casaAvisos = useMemo(
+    () => (almacen.suscribir && almacen.llaveAvisos ? { guardar: almacen.suscribir, llave: almacen.llaveAvisos } : null),
+    [almacen],
+  );
   useEffect(() => {
-    if (!almacen.suscribir) return;
+    if (!casaAvisos) return;
     estadoAvisos().then(setAvisos);
-    renovarAvisos(almacen.suscribir);
-  }, [almacen]);
+    renovarAvisos(casaAvisos);
+  }, [casaAvisos]);
 
   // Al tocar un aviso se abre la app en su pantalla (#limpieza…) o, si ya estaba abierta, el service worker lo dice
   useEffect(() => {
@@ -231,9 +235,9 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     salir,
     avisos,
     async activarAvisos() {
-      if (!almacen.suscribir) return;
+      if (!casaAvisos) return;
       try {
-        const e = await pedirAvisos(almacen.suscribir);
+        const e = await pedirAvisos(casaAvisos);
         setAvisos(e);
         if (e === 'activos') avisar('Avisos activados en este móvil.');
         if (e === 'bloqueados') avisar('El móvil tiene bloqueados los avisos de la app.');

@@ -114,6 +114,10 @@ export async function abrirCasa(): Promise<Almacen | null> {
       urls.set(ref, { url, caduca: Date.now() + 50 * 60 * 1000 });
       return url;
     },
+    async llaveAvisos() {
+      const { data, error } = await sb().rpc('jc_vapid_publica');
+      return error ? null : ((data as string | null) ?? null);
+    },
     async suscribir(x) {
       const { error } = await sb().rpc('jc_suscribir', { p_endpoint: x.endpoint, p_p256dh: x.p256dh, p_auth: x.auth });
       // PGRST202: la casa aún no tiene la parte de los avisos (falta pegar el SQL). Este móvil ya

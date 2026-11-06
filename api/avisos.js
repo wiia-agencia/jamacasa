@@ -1,5 +1,6 @@
 // Generado desde servidor/avisos.ts con «npm run servidor». No se edita a mano.
 import { createRequire } from "node:module";
+import { createECDH } from "node:crypto";
 // \0rolldown/runtime.js
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -7666,7 +7667,6 @@ const SUPABASE = {
 	url: "https://sxecthlpgtjbynbimbos.supabase.co",
 	clave: "sb_publishable_Y1yB3x7MQ9-4KSJ-Awy04Q_3s5dD9l-"
 };
-const VAPID_PUBLICA = "BFthnBi28hOeDlR4wjdCmKF5p63ch3OYrWrRVvLdV7e0WDFMp5k3voPI9Fpk6ePuZZ1SZiRuZlGMfKjwqOS-iT0";
 // servidor/avisos.ts
 async function rpc(fn, args) {
 	const r = await fetch(`${SUPABASE.url}/rest/v1/rpc/${fn}`, {
@@ -7681,7 +7681,7 @@ async function rpc(fn, args) {
 	const t = await r.text();
 	return t ? JSON.parse(t) : null;
 }
-const enviarWebPush = async (s, cuerpo, privada) => {
+const enviarWebPush = async (s, cuerpo, llaves) => {
 	await import_src.default.sendNotification({
 		endpoint: s.endpoint,
 		keys: {
@@ -7691,15 +7691,15 @@ const enviarWebPush = async (s, cuerpo, privada) => {
 	}, cuerpo, {
 		vapidDetails: {
 			subject: "https://jamacasa.vercel.app",
-			publicKey: VAPID_PUBLICA,
-			privateKey: privada
+			publicKey: llaves.publica,
+			privateKey: llaves.privada
 		},
 		TTL: 86400,
 		urgency: "high"
 	});
 };
 /** Manda cada aviso a todos los móviles de esa persona. Devuelve las direcciones que ya no existen. */
-async function mandar(avisos, suscripciones, privada, enviar = enviarWebPush) {
+async function mandar(avisos, suscripciones, llaves, enviar = enviarWebPush) {
 	let enviados = 0;
 	let fallidos = 0;
 	const muertas = [];
@@ -7710,7 +7710,7 @@ async function mandar(avisos, suscripciones, privada, enviar = enviarWebPush) {
 				texto: a.texto,
 				pantalla: a.pantalla,
 				etiqueta: a.etiqueta
-			}), privada);
+			}), llaves);
 			enviados++;
 		} catch (e) {
 			if (e?.statusCode === 404 || e?.statusCode === 410) muertas.push(s.endpoint);
@@ -7723,6 +7723,44 @@ async function mandar(avisos, suscripciones, privada, enviar = enviarWebPush) {
 		muertas
 	};
 }
+/** La pública que corresponde a una privada (las dos en base64url, como las da web-push). */
+function publicaDe(privada) {
+	const e = createECDH("prime256v1");
+	e.setPrivateKey(Buffer.from(privada, "base64url"));
+	return e.getPublicKey().toString("base64url");
+}
+/** Las llaves para firmar: las que hay en Supabase o, la primera vez, unas nuevas que se guardan allí. */
+async function llavesDe(clave, datos) {
+	if (datos.vapid) {
+		if (datos.vapid_publica) return {
+			publica: datos.vapid_publica,
+			privada: datos.vapid
+		};
+		return {
+			publica: await rpc("jc_avisos_poner_vapid", {
+				p_clave: clave,
+				p_publica: publicaDe(datos.vapid),
+				p_privada: datos.vapid
+			}),
+			privada: datos.vapid
+		};
+	}
+	const nuevas = import_src.default.generateVAPIDKeys();
+	const publica = await rpc("jc_avisos_poner_vapid", {
+		p_clave: clave,
+		p_publica: nuevas.publicKey,
+		p_privada: nuevas.privateKey
+	});
+	if (publica === nuevas.publicKey) return {
+		publica,
+		privada: nuevas.privateKey
+	};
+	const otra = await rpc("jc_avisos_datos", { p_clave: clave });
+	return {
+		publica: otra.vapid_publica,
+		privada: otra.vapid
+	};
+}
 async function handler(req, res) {
 	if (req.method !== "POST") return res.status(405).json({ error: "solo POST" });
 	const clave = String(req.headers?.["x-clave"] ?? "");
@@ -7733,10 +7771,16 @@ async function handler(req, res) {
 	} catch (e) {
 		return res.status(e?.estado && e.estado < 500 ? 401 : 502).json({ error: "datos" });
 	}
-	if (!datos?.config || !datos.vapid) return res.status(200).json({
+	if (!datos?.config) return res.status(200).json({
 		avisos: 0,
 		nota: "sin configurar"
 	});
+	let llaves;
+	try {
+		llaves = await llavesDe(clave, datos);
+	} catch {
+		return res.status(502).json({ error: "llaves" });
+	}
 	let cuerpo = req.body ?? {};
 	if (typeof cuerpo === "string") try {
 		cuerpo = JSON.parse(cuerpo || "{}");
@@ -7766,7 +7810,7 @@ async function handler(req, res) {
 		const hasta = Math.floor(ahora / HORA) * HORA;
 		avisos = avisosDelReloj(config, eventos, hasta - HORA, hasta, ahora);
 	}
-	const r = await mandar(avisos, datos.suscripciones ?? [], datos.vapid);
+	const r = await mandar(avisos, datos.suscripciones ?? [], llaves);
 	if (r.muertas.length) await rpc("jc_avisos_quitar", {
 		p_clave: clave,
 		p_endpoints: r.muertas

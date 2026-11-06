@@ -210,8 +210,8 @@ $$;
 -- Cuando alguien apunta algo, la base de datos llama a la app (jamacasa.vercel.app/api/avisos),
 -- que mira a quién le toca enterarse y le manda el aviso. Cada hora, lo mismo para los
 -- recordatorios (el lunes, el domingo por la noche, plazos que se acaban y el alquiler).
--- Las dos llaves (la de la app y la que firma los avisos) van en Vault y se ponen aparte:
--- sin ellas no sale ningún aviso y todo lo demás funciona igual.
+-- Las llaves no las ve nadie: la clave de la app la crea esta base de datos (en Vault) y la
+-- llave que firma los avisos la crea la propia app la primera vez y la guarda aquí, en Vault.
 
 create extension if not exists pg_net with schema extensions;
 create extension if not exists pg_cron with schema pg_catalog;
@@ -228,6 +228,24 @@ create table if not exists public.jc_suscripciones (
 );
 alter table public.jc_suscripciones enable row level security;
 revoke all on public.jc_suscripciones from anon, authenticated;
+
+-- La llave pública de los avisos (no es secreta: los móviles la usan para apuntarse)
+create table if not exists public.jc_avisos_llave (
+  id int primary key default 1 check (id = 1),
+  vapid_publica text not null,
+  creada timestamptz not null default now()
+);
+alter table public.jc_avisos_llave enable row level security;
+revoke all on public.jc_avisos_llave from anon, authenticated;
+
+-- La clave de la app: la crea la propia base de datos la primera vez (nadie la teclea ni la ve)
+do $clave$
+begin
+  if not exists (select 1 from vault.secrets where name = 'jamacasa_avisos') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'jamacasa_avisos', 'Clave de los avisos de la Jamacasa (la crea la propia base de datos)');
+  end if;
+end
+$clave$;
 
 -- Este móvil se apunta a los avisos (o renueva su dirección)
 create or replace function public.jc_suscribir(p_endpoint text, p_p256dh text, p_auth text) returns void
@@ -256,6 +274,12 @@ language sql security definer set search_path = public as $$
   delete from public.jc_suscripciones where endpoint = p_endpoint and miembro = public.jc_yo()
 $$;
 
+-- La llave pública, para los móviles de la casa (null si aún no está)
+create or replace function public.jc_vapid_publica() returns text
+language sql stable security definer set search_path = public as $$
+  select l.vapid_publica from public.jc_avisos_llave l where l.id = 1 and public.jc_yo() is not null
+$$;
+
 -- La clave de la app (en Vault). Sin ella, no sale ningún aviso.
 create or replace function public.jc_clave_avisos() returns text
 language sql stable security definer set search_path = public as $$
@@ -280,8 +304,34 @@ begin
                 from public.jc_eventos e),
     'suscripciones', (select coalesce(jsonb_agg(jsonb_build_object('endpoint', s.endpoint, 'miembro', s.miembro, 'p256dh', s.p256dh, 'auth', s.auth)), '[]'::jsonb)
                       from public.jc_suscripciones s),
-    'vapid', (select v.decrypted_secret from vault.decrypted_secrets v where v.name = 'jamacasa_vapid' limit 1)
+    'vapid', (select v.decrypted_secret from vault.decrypted_secrets v where v.name = 'jamacasa_vapid' limit 1),
+    'vapid_publica', (select l.vapid_publica from public.jc_avisos_llave l where l.id = 1)
   );
+end
+$$;
+
+-- La app guarda la llave que firma los avisos la primera vez (si ya hay una, se queda la que hay).
+-- Devuelve la llave pública que vale.
+create or replace function public.jc_avisos_poner_vapid(p_clave text, p_publica text, p_privada text) returns text
+language plpgsql security definer set search_path = public as $$
+declare
+  buena text := public.jc_clave_avisos();
+begin
+  if buena is null or p_clave is null or p_clave <> buena then
+    raise exception 'clave';
+  end if;
+  if coalesce(length(p_publica), 0) not between 80 and 100 or coalesce(length(p_privada), 0) not between 40 and 50 then
+    raise exception 'llave';
+  end if;
+  perform pg_advisory_xact_lock(hashtext('jamacasa_vapid'));
+  if not exists (select 1 from vault.secrets where name = 'jamacasa_vapid') then
+    perform vault.create_secret(p_privada, 'jamacasa_vapid', 'Llave que firma los avisos de la Jamacasa (la creó la propia app)');
+    delete from public.jc_avisos_llave;
+    insert into public.jc_avisos_llave (id, vapid_publica) values (1, p_publica);
+  else
+    insert into public.jc_avisos_llave (id, vapid_publica) values (1, p_publica) on conflict (id) do nothing;
+  end if;
+  return (select l.vapid_publica from public.jc_avisos_llave l where l.id = 1);
 end
 $$;
 
@@ -338,13 +388,20 @@ select cron.schedule('jamacasa-avisos', '5 * * * *', $cron$select public.jc_llam
 
 revoke all on function public.jc_suscribir(text, text, text) from public, anon;
 revoke all on function public.jc_desuscribir(text) from public, anon;
+revoke all on function public.jc_vapid_publica() from public, anon;
 revoke all on function public.jc_clave_avisos() from public, anon, authenticated;
 revoke all on function public.jc_avisos_datos(text) from public, authenticated;
+revoke all on function public.jc_avisos_poner_vapid(text, text, text) from public, authenticated;
 revoke all on function public.jc_avisos_quitar(text, text[]) from public, authenticated;
 revoke all on function public.jc_llamar_avisos(jsonb) from public, anon, authenticated;
 revoke all on function public.jc_avisar() from public, anon, authenticated;
 grant execute on function public.jc_suscribir(text, text, text) to authenticated;
 grant execute on function public.jc_desuscribir(text) to authenticated;
--- La app (sin sesión) solo puede usar estas dos, y solo con la clave
+grant execute on function public.jc_vapid_publica() to authenticated;
+-- La app (sin sesión) solo puede usar estas tres, y solo con la clave
 grant execute on function public.jc_avisos_datos(text) to anon;
+grant execute on function public.jc_avisos_poner_vapid(text, text, text) to anon;
 grant execute on function public.jc_avisos_quitar(text, text[]) to anon;
+
+-- Que la app prepare ya su llave de firmar (tarda unos segundos)
+select public.jc_llamar_avisos('{"tipo":"preparar"}'::jsonb);

@@ -1,6 +1,6 @@
 // Avisos al móvil, en el móvil: pedir permiso, apuntar este móvil y renovarlo.
 // El aviso en sí lo pinta el service worker (public/sw.js) y lo manda la función api/avisos.
-import { VAPID_PUBLICA } from '../conexion';
+// La llave pública con la que se apunta el móvil la da la casa (la crea la propia app la primera vez).
 
 /**
  * 'no': este navegador no puede (o es la vista previa) ·
@@ -11,7 +11,12 @@ import { VAPID_PUBLICA } from '../conexion';
 export type EstadoAvisos = 'no' | 'apagados' | 'activos' | 'bloqueados';
 
 export interface DatosSuscripcion { endpoint: string; p256dh: string; auth: string }
-export type Guardar = (s: DatosSuscripcion) => Promise<void>;
+/** Lo que pone la casa: dónde guardar la dirección de este móvil y cuál es la llave pública. */
+export interface CasaAvisos {
+  guardar: (s: DatosSuscripcion) => Promise<void>;
+  llave: () => Promise<string | null>;
+}
+const NO_LISTOS = 'Los avisos aún no están listos en la casa: se activarán solos en cuanto lo estén.';
 
 export function avisosPosibles(): boolean {
   return (
@@ -44,9 +49,9 @@ function datosDe(sub: PushSubscription): DatosSuscripcion {
 }
 
 /** ¿La suscripción es de nuestra llave? (si un día se cambia la llave, hay que hacer otra) */
-function esNuestra(sub: PushSubscription): boolean {
+function esNuestra(sub: PushSubscription, llave: string): boolean {
   const k = sub.options?.applicationServerKey;
-  return !k || aTexto(k) === VAPID_PUBLICA;
+  return !k || aTexto(k) === llave;
 }
 
 async function registro(): Promise<ServiceWorkerRegistration> {
@@ -63,37 +68,40 @@ export async function estadoAvisos(): Promise<EstadoAvisos> {
   try {
     const r = await navigator.serviceWorker.getRegistration();
     const sub = await r?.pushManager.getSubscription();
-    return sub && esNuestra(sub) ? 'activos' : 'apagados';
+    return sub ? 'activos' : 'apagados';
   } catch {
     return 'apagados';
   }
 }
 
-async function suscripcion(): Promise<PushSubscription> {
+async function suscripcion(llave: string): Promise<PushSubscription> {
   const r = await registro();
   let sub = await r.pushManager.getSubscription();
-  if (sub && !esNuestra(sub)) {
+  if (sub && !esNuestra(sub, llave)) {
     await sub.unsubscribe();
     sub = null;
   }
-  return sub ?? r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(VAPID_PUBLICA) });
+  return sub ?? r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(llave) });
 }
 
 /** Pide permiso (tiene que ir después de un toque) y apunta este móvil en la casa. */
-export async function activarAvisos(guardar: Guardar): Promise<EstadoAvisos> {
+export async function activarAvisos(casa: CasaAvisos): Promise<EstadoAvisos> {
   if (!avisosPosibles()) return 'no';
   const permiso = await Notification.requestPermission();
   if (permiso === 'denied') return 'bloqueados';
   if (permiso !== 'granted') return 'apagados';
-  await guardar(datosDe(await suscripcion()));
+  const llave = await casa.llave();
+  if (!llave) throw new Error(NO_LISTOS);
+  await casa.guardar(datosDe(await suscripcion(llave)));
   return 'activos';
 }
 
 /** Al abrir la app: si ya hay permiso, vuelve a apuntar este móvil (el navegador a veces cambia la dirección). */
-export async function renovarAvisos(guardar: Guardar): Promise<void> {
+export async function renovarAvisos(casa: CasaAvisos): Promise<void> {
   if (!avisosPosibles() || Notification.permission !== 'granted') return;
   try {
-    await guardar(datosDe(await suscripcion()));
+    const llave = await casa.llave();
+    if (llave) await casa.guardar(datosDe(await suscripcion(llave)));
   } catch {
     /* sin conexión: ya se hará la próxima vez */
   }

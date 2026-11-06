@@ -13,6 +13,8 @@ export interface Almacen {
   urlFoto(ref: string): Promise<string>;
   /** Apunta este móvil para recibir avisos (solo en la casa de verdad). */
   suscribir?(s: { endpoint: string; p256dh: string; auth: string }): Promise<void>;
+  /** La llave pública de los avisos de la casa (null si aún no está). */
+  llaveAvisos?(): Promise<string | null>;
   cambiarYo?(m: MiembroId): void; // solo en modo prueba
   reiniciar?(): void; // solo en modo prueba
   salir(): Promise<void>;

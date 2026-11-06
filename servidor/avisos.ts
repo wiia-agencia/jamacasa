@@ -1,18 +1,21 @@
 // Función de Vercel que manda los avisos al móvil. api/avisos.js se genera desde aquí
 // con «npm run servidor» (un solo archivo, con las reglas de src/core dentro): no se edita a mano.
 //
-// La llama la base de datos: cada vez que alguien apunta algo ({ tipo: 'evento', id }) y cada
-// hora ({ tipo: 'reloj' }), siempre con la clave de los avisos en la cabecera x-clave. Con esa
-// clave pide a Supabase lo apuntado, las direcciones de avisos y la llave que firma; sin ella,
-// Supabase no da nada. Esta función no guarda nada.
+// La llama la base de datos: cada vez que alguien apunta algo ({ tipo: 'evento', id }), cada
+// hora ({ tipo: 'reloj' }) y al montar los avisos ({ tipo: 'preparar' }), siempre con la clave de
+// los avisos en la cabecera x-clave. Con esa clave pide a Supabase lo apuntado, las direcciones
+// de avisos y la llave que firma; sin ella, Supabase no da nada. La primera vez, la llave que
+// firma no existe: la crea aquí y la guarda en Supabase (Vault), así no la ve ni la teclea nadie.
+import { createECDH } from 'node:crypto';
 import webpush from 'web-push';
 import { avisosDeEvento, avisosDelReloj, type Aviso } from '../src/core/avisos';
 import { HORA } from '../src/core/tiempo';
 import type { Config, Evento } from '../src/core/tipos';
-import { SUPABASE, VAPID_PUBLICA } from '../src/conexion';
+import { SUPABASE } from '../src/conexion';
 
 export interface Suscripcion { endpoint: string; miembro: string; p256dh: string; auth: string }
-type Enviar = (s: Suscripcion, cuerpo: string, privada: string) => Promise<void>;
+export interface Llaves { publica: string; privada: string }
+type Enviar = (s: Suscripcion, cuerpo: string, llaves: Llaves) => Promise<void>;
 
 async function rpc(fn: string, args: object): Promise<any> {
   const r = await fetch(`${SUPABASE.url}/rest/v1/rpc/${fn}`, {
@@ -25,16 +28,16 @@ async function rpc(fn: string, args: object): Promise<any> {
   return t ? JSON.parse(t) : null;
 }
 
-const enviarWebPush: Enviar = async (s, cuerpo, privada) => {
+const enviarWebPush: Enviar = async (s, cuerpo, llaves) => {
   await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, cuerpo, {
-    vapidDetails: { subject: 'https://jamacasa.vercel.app', publicKey: VAPID_PUBLICA, privateKey: privada },
+    vapidDetails: { subject: 'https://jamacasa.vercel.app', publicKey: llaves.publica, privateKey: llaves.privada },
     TTL: 24 * 3600,
     urgency: 'high',
   });
 };
 
 /** Manda cada aviso a todos los móviles de esa persona. Devuelve las direcciones que ya no existen. */
-export async function mandar(avisos: Aviso[], suscripciones: Suscripcion[], privada: string, enviar: Enviar = enviarWebPush) {
+export async function mandar(avisos: Aviso[], suscripciones: Suscripcion[], llaves: Llaves, enviar: Enviar = enviarWebPush) {
   let enviados = 0;
   let fallidos = 0;
   const muertas: string[] = [];
@@ -44,7 +47,7 @@ export async function mandar(avisos: Aviso[], suscripciones: Suscripcion[], priv
         .filter((s) => s.miembro === a.para)
         .map(async (s) => {
           try {
-            await enviar(s, JSON.stringify({ titulo: a.titulo, texto: a.texto, pantalla: a.pantalla, etiqueta: a.etiqueta }), privada);
+            await enviar(s, JSON.stringify({ titulo: a.titulo, texto: a.texto, pantalla: a.pantalla, etiqueta: a.etiqueta }), llaves);
             enviados++;
           } catch (e: any) {
             if (e?.statusCode === 404 || e?.statusCode === 410) muertas.push(s.endpoint);
@@ -54,6 +57,29 @@ export async function mandar(avisos: Aviso[], suscripciones: Suscripcion[], priv
     ),
   );
   return { enviados, fallidos, muertas };
+}
+
+/** La pública que corresponde a una privada (las dos en base64url, como las da web-push). */
+function publicaDe(privada: string): string {
+  const e = createECDH('prime256v1');
+  e.setPrivateKey(Buffer.from(privada, 'base64url'));
+  return e.getPublicKey().toString('base64url');
+}
+
+/** Las llaves para firmar: las que hay en Supabase o, la primera vez, unas nuevas que se guardan allí. */
+async function llavesDe(clave: string, datos: any): Promise<Llaves> {
+  if (datos.vapid) {
+    if (datos.vapid_publica) return { publica: datos.vapid_publica, privada: datos.vapid };
+    // Hay privada pero falta su pública: se calcula y se guarda
+    const publica = await rpc('jc_avisos_poner_vapid', { p_clave: clave, p_publica: publicaDe(datos.vapid), p_privada: datos.vapid });
+    return { publica, privada: datos.vapid };
+  }
+  const nuevas = webpush.generateVAPIDKeys();
+  const publica = await rpc('jc_avisos_poner_vapid', { p_clave: clave, p_publica: nuevas.publicKey, p_privada: nuevas.privateKey });
+  if (publica === nuevas.publicKey) return { publica, privada: nuevas.privateKey };
+  // Otra llamada las creó a la vez: valen las suyas
+  const otra = await rpc('jc_avisos_datos', { p_clave: clave });
+  return { publica: otra.vapid_publica, privada: otra.vapid };
 }
 
 export default async function handler(req: any, res: any) {
@@ -68,7 +94,13 @@ export default async function handler(req: any, res: any) {
     // Supabase dice que no a una clave mala (400) o no responde
     return res.status(e?.estado && e.estado < 500 ? 401 : 502).json({ error: 'datos' });
   }
-  if (!datos?.config || !datos.vapid) return res.status(200).json({ avisos: 0, nota: 'sin configurar' });
+  if (!datos?.config) return res.status(200).json({ avisos: 0, nota: 'sin configurar' });
+  let llaves: Llaves;
+  try {
+    llaves = await llavesDe(clave, datos);
+  } catch {
+    return res.status(502).json({ error: 'llaves' });
+  }
 
   let cuerpo: any = req.body ?? {};
   if (typeof cuerpo === 'string') {
@@ -90,7 +122,7 @@ export default async function handler(req: any, res: any) {
     avisos = avisosDelReloj(config, eventos, hasta - HORA, hasta, ahora);
   }
 
-  const r = await mandar(avisos, datos.suscripciones ?? [], datos.vapid);
+  const r = await mandar(avisos, datos.suscripciones ?? [], llaves);
   if (r.muertas.length) await rpc('jc_avisos_quitar', { p_clave: clave, p_endpoints: r.muertas }).catch(() => {});
   return res.status(200).json({ avisos: avisos.length, enviados: r.enviados, fallidos: r.fallidos, quitadas: r.muertas.length });
 }

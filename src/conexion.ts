@@ -6,6 +6,3 @@ export const SUPABASE = {
   clave: 'sb_publishable_Y1yB3x7MQ9-4KSJ-Awy04Q_3s5dD9l-',
 };
 
-// Llave pública de los avisos al móvil (VAPID). Es pública por diseño: con ella el móvil
-// sabe que los avisos vienen de la Jamacasa. La privada, la que firma, solo está en Vault.
-export const VAPID_PUBLICA = 'BFthnBi28hOeDlR4wjdCmKF5p63ch3OYrWrRVvLdV7e0WDFMp5k3voPI9Fpk6ePuZZ1SZiRuZlGMfKjwqOS-iT0';

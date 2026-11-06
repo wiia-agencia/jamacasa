@@ -9,7 +9,6 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { VAPID_PUBLICA } from '../src/conexion';
 import { instanteLocal } from '../src/core/tiempo';
 
 const require = createRequire(import.meta.url);
@@ -41,6 +40,9 @@ const servidor = createServer({ key: readFileSync(join(dir, 'k.pem')), cert: rea
 });
 let puerto = 0;
 const quitadas: string[][] = [];
+// Las llaves que hay «en Supabase» (la de firmar y su pública)
+const llaves: { vapid?: string; vapid_publica?: string } = { vapid: vapidPrueba.privateKey, vapid_publica: vapidPrueba.publicKey };
+const puestas: any[] = [];
 
 const t0 = instanteLocal(2026, 10, 6, 10);
 const datos = () => ({
@@ -67,7 +69,7 @@ const datos = () => ({
     { endpoint: `https://localhost:${puerto}/push/vieja`, miembro: 'b', p256dh: movil.getPublicKey().toString('base64url'), auth: auth.toString('base64url') },
     { endpoint: `https://localhost:${puerto}/push/cris`, miembro: 'c', p256dh: movil.getPublicKey().toString('base64url'), auth: auth.toString('base64url') },
   ],
-  vapid: vapidPrueba.privateKey,
+  ...llaves,
 });
 
 beforeAll(async () => {
@@ -79,6 +81,11 @@ beforeAll(async () => {
     if (String(url).endsWith('/rpc/jc_avisos_datos')) {
       if (args.p_clave !== 'clave-de-prueba-0123456789') return new Response('{"message":"clave"}', { status: 400 });
       return new Response(JSON.stringify(datos()), { status: 200 });
+    }
+    if (String(url).endsWith('/rpc/jc_avisos_poner_vapid')) {
+      puestas.push(args);
+      if (!llaves.vapid) { llaves.vapid = args.p_privada; llaves.vapid_publica = args.p_publica; }
+      return new Response(JSON.stringify(llaves.vapid_publica), { status: 200 });
     }
     if (String(url).endsWith('/rpc/jc_avisos_quitar')) {
       quitadas.push(args.p_endpoints);
@@ -118,14 +125,33 @@ describe('la función de los avisos (api/avisos.js)', () => {
     expect(m.cuerpo).toEqual({ titulo: '🧦 Ana dice que esto es tuyo', texto: 'Las pesas. Tienes 12 horas para recogerlo.', pantalla: 'hoy', etiqueta: 'tuyo-ev-1' });
     expect(m.headers['content-encoding']).toBe('aes128gcm');
     expect(m.headers.urgency).toBe('high');
-    // La firma VAPID: va con la llave pública de la app y se comprueba con la que le dio Supabase
+    // La firma VAPID: va con la llave pública de la casa y se comprueba con ella
     const [, t, k] = /^vapid t=([^,]+), k=(.+)$/.exec(m.headers.authorization)!;
-    expect(k).toBe(VAPID_PUBLICA);
+    expect(k).toBe(vapidPrueba.publicKey);
     const [cab, carga, firma] = t.split('.');
     expect(JSON.parse(Buffer.from(carga, 'base64url').toString()).aud).toBe(`https://localhost:${puerto}`);
     const pub = Buffer.from(vapidPrueba.publicKey, 'base64url');
     const clave = createPublicKey({ key: { kty: 'EC', crv: 'P-256', x: pub.subarray(1, 33).toString('base64url'), y: pub.subarray(33).toString('base64url') }, format: 'jwk' });
     expect(verify('sha256', Buffer.from(`${cab}.${carga}`), { key: clave, dsaEncoding: 'ieee-p1363' }, Buffer.from(firma, 'base64url'))).toBe(true);
     expect(quitadas).toEqual([[`https://localhost:${puerto}/push/vieja`]]);
+    expect(puestas).toHaveLength(0); // ya había llaves: no se tocan
+  });
+
+  it('la primera vez crea su llave de firmar, la guarda en la casa y firma con ella', async () => {
+    delete llaves.vapid;
+    delete llaves.vapid_publica;
+    const prep = await llamar({ 'x-clave': 'clave-de-prueba-0123456789' }, { tipo: 'preparar' });
+    expect(prep.code).toBe(200);
+    expect(puestas).toHaveLength(1);
+    const { p_publica, p_privada } = puestas[0];
+    const e = createECDH('prime256v1');
+    e.setPrivateKey(Buffer.from(p_privada, 'base64url'));
+    expect(e.getPublicKey().toString('base64url')).toBe(p_publica); // la pública es de esa privada
+    // Desde ahí, los avisos salen firmados con la nueva
+    recibidos.length = 0;
+    await llamar({ 'x-clave': 'clave-de-prueba-0123456789' }, { tipo: 'evento', id: 'ev-1' });
+    expect(recibidos).toHaveLength(1);
+    expect(/k=(.+)$/.exec(recibidos[0].headers.authorization)![1]).toBe(p_publica);
+    expect(puestas).toHaveLength(1); // no vuelve a crearlas
   });
 });
