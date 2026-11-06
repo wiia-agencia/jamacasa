@@ -1,8 +1,9 @@
 import { Delete } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import portada from '../assets/portada.webp';
 import type { Config, MiembroId } from '../core/tipos';
 import { casaDisponible, entrarEnLaCasa, miembrosDeLaCasa, type MiembroPuerta } from '../datos/casa';
+import { leerInvitacion, olvidarInvitacion } from '../datos/invitacion';
 import { claseColor } from './contexto';
 import { Figura } from './piezas';
 
@@ -11,10 +12,14 @@ type Paso = 'inicio' | 'codigo' | 'quien' | 'pin';
 export function Entrada({ configPrueba, entrarPrueba, entrarCasa }: { configPrueba: Config; entrarPrueba: (yo: MiembroId) => void; entrarCasa: () => void }) {
   const hayCasa = !__VISTA__ && casaDisponible();
   const [paso, setPaso] = useState<Paso>('inicio');
-  const [codigo, setCodigo] = useState(() => {
-    const h = typeof location !== 'undefined' ? location.hash.replace('#', '') : '';
-    return h.startsWith('casa-') ? h.slice(5) : '';
-  });
+  const [codigo, setCodigo] = useState(() => (hayCasa ? leerInvitacion() : ''));
+  // Si el enlace se abre con la app ya abierta, la página no se recarga: escuchamos el cambio
+  useEffect(() => {
+    if (!hayCasa) return;
+    const alCambiar = () => { const c = leerInvitacion(); if (c) setCodigo(c); };
+    window.addEventListener('hashchange', alCambiar);
+    return () => window.removeEventListener('hashchange', alCambiar);
+  }, [hayCasa]);
   const [miembros, setMiembros] = useState<MiembroPuerta[]>([]);
   const [quien, setQuien] = useState<MiembroPuerta | null>(null);
   const [pin, setPin] = useState('');
@@ -55,6 +60,7 @@ export function Entrada({ configPrueba, entrarPrueba, entrarCasa }: { configPrue
     setOcupado(true);
     try {
       await entrarEnLaCasa(codigo, quien.id, nuevo);
+      olvidarInvitacion();
       entrarCasa();
     } catch (e: any) {
       setError(e.message);
@@ -107,7 +113,8 @@ export function Entrada({ configPrueba, entrarPrueba, entrarCasa }: { configPrue
           >
             <div className="campo">
               <label htmlFor="codigo">Código de la casa</label>
-              <input id="codigo" className="entrada" autoCapitalize="none" autoComplete="off" spellCheck={false} value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="jama-…" />
+              <input id="codigo" className="entrada" autoCapitalize="none" autoComplete="off" spellCheck={false} value={codigo} onChange={(e) => setCodigo(e.target.value.toLowerCase())} placeholder="jama-xxxx-xxxx" />
+              <p className="tenue peq">{codigo ? 'Ya está puesto el de tu invitación.' : 'Está en el mensaje de invitación: empieza por «jama-».'}</p>
             </div>
             {error && <p className="error" role="alert">{error}</p>}
             <button type="submit" className="boton ancho" disabled={!codigo.trim() || ocupado}>{ocupado ? 'Comprobando…' : 'Seguir'}</button>
