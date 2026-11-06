@@ -11,10 +11,11 @@
   },
   "include": [
     "servidor",
-    "tests/servidor.test.ts",
-    "src/core",
     "src/conexion.ts",
-    "src/vite-env.d.ts"
+    "src/core",
+    "src/vite-env.d.ts",
+    "tests/esquema.test.ts",
+    "tests/servidor.test.ts"
   ],
   "exclude": []
 }

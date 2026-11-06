@@ -23,6 +23,7 @@
     "tests"
   ],
   "exclude": [
+    "tests/esquema.test.ts",
     "tests/servidor.test.ts"
   ]
 }

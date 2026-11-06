@@ -330,7 +330,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('jamacasa_vapid'));
   if not exists (select 1 from vault.secrets where name = 'jamacasa_vapid') then
     perform vault.create_secret(p_privada, 'jamacasa_vapid', 'Llave que firma los avisos de la Jamacasa (la creó la propia app)');
-    delete from public.jc_avisos_llave;
+    delete from public.jc_avisos_llave where id = 1; -- Supabase no deja DELETE sin WHERE desde la API
     insert into public.jc_avisos_llave (id, vapid_publica) values (1, p_publica);
   else
     insert into public.jc_avisos_llave (id, vapid_publica) values (1, p_publica) on conflict (id) do nothing;
