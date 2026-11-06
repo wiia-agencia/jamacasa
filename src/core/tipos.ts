@@ -70,7 +70,8 @@ export type TipoEvento =
   | 'gasto'
   | 'gasto_anulado'
   | 'pago'
-  | 'pago_anulado';
+  | 'pago_anulado'
+  | 'aviso_prueba'; // «Probar los avisos»: se avisa solo a quien lo pulsa
 
 export interface Evento {
   id: string;

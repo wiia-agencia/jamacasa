@@ -191,6 +191,7 @@ p { margin: 0; }
   gap: 12px;
 }
 .banda-cielo h1 { font-size: 1.9rem; }
+.banda-cielo h1.marca { font-size: 2.1rem; letter-spacing: 0.01em; }
 .banda-cielo .semana { font-size: var(--t-s); font-weight: 600; margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .banda-cielo .racha { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
 .portada-hoy .portada { border-radius: 0 0 var(--radio-gran) var(--radio-gran); height: min(280px, 72vw); }
@@ -451,6 +452,19 @@ p { margin: 0; }
 .noticia .oficial-etiqueta { font-size: var(--t-xs); font-weight: 750; color: var(--vermello); letter-spacing: 0.02em; }
 .noticia .cuando { font-size: var(--t-xs); color: var(--texto-3); margin-top: 2px; }
 .noticia .avatar { margin-top: 2px; }
+
+/* Tarjeta para activar los avisos al móvil */
+.aviso-avisos { padding: 14px 16px; }
+.icono-redondo {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ouro-suave);
+  color: var(--ouro-texto);
+}
 
 /* ——— Navegación inferior ———
    Azul noche en los dos modos, a propósito: en la app instalada, Chrome pinta la barra

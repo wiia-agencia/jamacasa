@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { avisosBasuraAbiertos, derivar, paraPuntuar, tuyosAbiertos } from './core/estado';
 import type { Evento, MiembroId, TipoEvento } from './core/tipos';
 import type { Almacen } from './datos/almacen';
+import { activarAvisos as pedirAvisos, estadoAvisos, renovarAvisos, type EstadoAvisos } from './datos/avisos';
 import { abrirCasa, casaDisponible } from './datos/casa';
+import { guardar, leer } from './datos/guardado';
 import { almacenPrueba, configPrueba } from './datos/prueba';
 import { Contexto, type Acciones, type Ctx, type Hoja, type Pantalla } from './ui/contexto';
 import { Cuentas } from './ui/Cuentas';
@@ -17,8 +19,6 @@ import { Sorteo } from './ui/Sorteo';
 
 type Tema = 'auto' | 'claro' | 'oscuro';
 
-const leer = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
-const guardar = (k: string, v: string | null) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };
 
 let temaPuestoPorMi = false;
 function aplicarTema(t: Tema) {
@@ -131,6 +131,34 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
 
   const estado = useMemo(() => derivar(config, eventos, ahora), [config, eventos, ahora]);
 
+  // Avisos al móvil: cómo están en este móvil y, si ya hay permiso, renovar su dirección
+  const [avisos, setAvisos] = useState<EstadoAvisos>('no');
+  useEffect(() => {
+    if (!almacen.suscribir) return;
+    estadoAvisos().then(setAvisos);
+    renovarAvisos(almacen.suscribir);
+  }, [almacen]);
+
+  // Al tocar un aviso se abre la app en su pantalla (#limpieza…) o, si ya estaba abierta, el service worker lo dice
+  useEffect(() => {
+    const irA = (p: unknown) => {
+      if (p === 'hoy' || p === 'limpieza' || p === 'cuentas' || p === 'juego') {
+        setPantalla(p);
+        window.scrollTo({ top: 0 });
+      }
+    };
+    const h = location.hash.slice(1);
+    if (['hoy', 'limpieza', 'cuentas', 'juego'].includes(h)) {
+      irA(h);
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+    const alMensaje = (e: MessageEvent) => {
+      if (e.data?.tipo === 'ir') irA(e.data.pantalla);
+    };
+    navigator.serviceWorker?.addEventListener('message', alMensaje);
+    return () => navigator.serviceWorker?.removeEventListener('message', alMensaje);
+  }, []);
+
   // Color de la barra de arriba del móvil (la de la hora): el cielo en la portada, el fondo en el resto.
   // La barra de gestos de abajo no la cambia esto: sale del theme_color del manifiesto (ver .nav en styles.css).
   useEffect(() => {
@@ -201,6 +229,22 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     cambiarTema,
     reiniciarPrueba: () => { almacen.reiniciar?.(); cargar(); avisar('Prueba reiniciada con el mes de ejemplo.'); },
     salir,
+    avisos,
+    async activarAvisos() {
+      if (!almacen.suscribir) return;
+      try {
+        const e = await pedirAvisos(almacen.suscribir);
+        setAvisos(e);
+        if (e === 'activos') avisar('Avisos activados en este móvil.');
+        if (e === 'bloqueados') avisar('El móvil tiene bloqueados los avisos de la app.');
+      } catch (err: any) {
+        avisar(err?.message ?? 'No se pudieron activar los avisos.');
+      }
+    },
+    async probarAvisos() {
+      await apuntar('aviso_prueba', {});
+      avisar('Aviso de prueba enviado: te llegará en unos segundos.');
+    },
   };
   const pendientes = paraPuntuar(estado, yo).length + tuyosAbiertos(estado, yo).length + (estado.basura === yo ? avisosBasuraAbiertos(estado).length : 0);
 

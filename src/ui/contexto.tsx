@@ -5,6 +5,7 @@ import type { DefMedalla } from '../core/juego';
 import type { Intento, Tarea } from '../core/limpieza';
 import type { Config, DatosGasto, Miembro, MiembroId, Zona } from '../core/tipos';
 import type { Almacen } from '../datos/almacen';
+import type { EstadoAvisos } from '../datos/avisos';
 
 export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego';
 
@@ -50,6 +51,10 @@ export interface Ctx {
   cambiarTema(t: 'auto' | 'claro' | 'oscuro'): void;
   reiniciarPrueba(): void;
   salir(): void;
+  /** Avisos al móvil en este móvil */
+  avisos: EstadoAvisos;
+  activarAvisos(): Promise<void>;
+  probarAvisos(): Promise<void>;
 }
 
 export const Contexto = createContext<Ctx | null>(null);

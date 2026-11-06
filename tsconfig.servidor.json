@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ]
+  },
+  "include": [
+    "servidor",
+    "tests/servidor.test.ts",
+    "src/core",
+    "src/conexion.ts",
+    "src/vite-env.d.ts"
+  ],
+  "exclude": []
+}

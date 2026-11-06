@@ -11,6 +11,8 @@ export interface Almacen {
   apuntar(tipo: TipoEvento, datos: any): Promise<Evento>;
   subirFoto(archivo: Blob): Promise<string>;
   urlFoto(ref: string): Promise<string>;
+  /** Apunta este móvil para recibir avisos (solo en la casa de verdad). */
+  suscribir?(s: { endpoint: string; p256dh: string; auth: string }): Promise<void>;
   cambiarYo?(m: MiembroId): void; // solo en modo prueba
   reiniciar?(): void; // solo en modo prueba
   salir(): Promise<void>;

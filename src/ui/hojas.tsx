@@ -510,6 +510,45 @@ function HojaMedalla({ def, titulo }: { def: DefMedalla; titulo?: boolean }) {
   );
 }
 
+function AjusteAvisos({ prueba }: { prueba: boolean }) {
+  const { avisos, activarAvisos, probarAvisos } = useCasa();
+  const [ocupado, setOcupado] = useState(false);
+  const hacer = async (f: () => Promise<void>) => {
+    setOcupado(true);
+    try { await f(); } catch { /* ya avisa la app */ } finally { setOcupado(false); }
+  };
+  if (avisos === 'no') {
+    return (
+      <p className="peq suave">
+        {__VISTA__ || prueba
+          ? 'En el modo prueba no hay avisos. En la casa de verdad, cada uno los activa en su móvil.'
+          : 'Este navegador no puede recibir avisos. Instala la app desde Chrome y actívalos aquí.'}
+      </p>
+    );
+  }
+  if (avisos === 'bloqueados') {
+    return <p className="peq suave">Están bloqueados en este móvil. Actívalos en los ajustes del móvil: Aplicaciones → La Jamacasa → Notificaciones.</p>;
+  }
+  if (avisos === 'apagados') {
+    return (
+      <div className="pila-s">
+        <p className="peq suave">Te avisa de la basura, las notas, «Esto es tuyo» y las cuentas, aunque tengas la app cerrada.</p>
+        <button type="button" className="boton" style={{ alignSelf: 'flex-start' }} disabled={ocupado} onClick={() => hacer(activarAvisos)}>
+          Activar los avisos
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="pila-s">
+      <p className="peq suave">Activados en este móvil. Solo te llega lo que te toca a ti.</p>
+      <button type="button" className="boton borde" style={{ alignSelf: 'flex-start' }} disabled={ocupado} onClick={() => hacer(probarAvisos)}>
+        Mandarme un aviso de prueba
+      </button>
+    </div>
+  );
+}
+
 function HojaAjustes() {
   const { cerrar, almacen, yo, config, cambiarYo, tema, cambiarTema, reiniciarPrueba, salir } = useCasa();
   const [confirmar, setConfirmar] = useState(false);
@@ -539,6 +578,10 @@ function HojaAjustes() {
               <button key={v} type="button" className="opcion" aria-pressed={tema === v} onClick={() => cambiarTema(v)}>{t}</button>
             ))}
           </div>
+        </div>
+        <div className="campo">
+          <span className="etiqueta">Avisos al móvil</span>
+          <AjusteAvisos prueba={prueba} />
         </div>
         <div className="campo">
           <span className="etiqueta">Tenerla en el móvil</span>

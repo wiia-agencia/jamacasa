@@ -204,3 +204,145 @@ exception
   when duplicate_object then null;
 end
 $$;
+
+-- ——— Avisos al móvil ———
+-- Cada móvil que activa los avisos guarda aquí su dirección de avisos (la da el navegador).
+-- Cuando alguien apunta algo, la base de datos llama a la app (jamacasa.vercel.app/api/avisos),
+-- que mira a quién le toca enterarse y le manda el aviso. Cada hora, lo mismo para los
+-- recordatorios (el lunes, el domingo por la noche, plazos que se acaban y el alquiler).
+-- Las dos llaves (la de la app y la que firma los avisos) van en Vault y se ponen aparte:
+-- sin ellas no sale ningún aviso y todo lo demás funciona igual.
+
+create extension if not exists pg_net with schema extensions;
+create extension if not exists pg_cron with schema pg_catalog;
+
+create table if not exists public.jc_suscripciones (
+  endpoint text primary key,
+  miembro text not null references public.jc_miembros (id) on delete cascade,
+  p256dh text not null,
+  auth text not null,
+  creada timestamptz not null default now(),
+  usada timestamptz not null default now()
+);
+alter table public.jc_suscripciones enable row level security;
+revoke all on public.jc_suscripciones from anon, authenticated;
+
+-- Este móvil se apunta a los avisos (o renueva su dirección)
+create or replace function public.jc_suscribir(p_endpoint text, p_p256dh text, p_auth text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  yo text := public.jc_yo();
+begin
+  if yo is null then
+    raise exception 'no_miembro';
+  end if;
+  if p_endpoint is null or p_endpoint !~ '^https://' or length(p_endpoint) > 1000
+     or coalesce(length(p_p256dh), 0) not between 40 and 200
+     or coalesce(length(p_auth), 0) not between 10 and 100 then
+    raise exception 'suscripcion';
+  end if;
+  insert into public.jc_suscripciones (endpoint, miembro, p256dh, auth)
+    values (p_endpoint, yo, p_p256dh, p_auth)
+    on conflict (endpoint) do update
+      set miembro = excluded.miembro, p256dh = excluded.p256dh, auth = excluded.auth, usada = now();
+end
+$$;
+
+-- Este móvil deja de recibir avisos
+create or replace function public.jc_desuscribir(p_endpoint text) returns void
+language sql security definer set search_path = public as $$
+  delete from public.jc_suscripciones where endpoint = p_endpoint and miembro = public.jc_yo()
+$$;
+
+-- La clave de la app (en Vault). Sin ella, no sale ningún aviso.
+create or replace function public.jc_clave_avisos() returns text
+language sql stable security definer set search_path = public as $$
+  select decrypted_secret from vault.decrypted_secrets where name = 'jamacasa_avisos' limit 1
+$$;
+
+-- Lo que la app necesita para avisar (solo con la clave)
+create or replace function public.jc_avisos_datos(p_clave text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  buena text := public.jc_clave_avisos();
+begin
+  if buena is null or p_clave is null or p_clave <> buena then
+    perform pg_sleep(0.5);
+    raise exception 'clave';
+  end if;
+  return jsonb_build_object(
+    'config', (select c.config from public.jc_casa c where c.id = 1),
+    'miembros', (select coalesce(jsonb_agg(jsonb_build_object('id', m.id, 'nombre', m.nombre, 'color', m.color, 'figura', m.figura) order by m.orden), '[]'::jsonb)
+                 from public.jc_miembros m),
+    'eventos', (select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'ts', floor(extract(epoch from e.ts) * 1000), 'autor', e.autor, 'tipo', e.tipo, 'datos', e.datos) order by e.ts), '[]'::jsonb)
+                from public.jc_eventos e),
+    'suscripciones', (select coalesce(jsonb_agg(jsonb_build_object('endpoint', s.endpoint, 'miembro', s.miembro, 'p256dh', s.p256dh, 'auth', s.auth)), '[]'::jsonb)
+                      from public.jc_suscripciones s),
+    'vapid', (select v.decrypted_secret from vault.decrypted_secrets v where v.name = 'jamacasa_vapid' limit 1)
+  );
+end
+$$;
+
+-- Quita las direcciones de avisos que ya no existen (app desinstalada, móvil nuevo…)
+create or replace function public.jc_avisos_quitar(p_clave text, p_endpoints text[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  buena text := public.jc_clave_avisos();
+begin
+  if buena is null or p_clave is null or p_clave <> buena then
+    raise exception 'clave';
+  end if;
+  delete from public.jc_suscripciones where endpoint = any (p_endpoints);
+end
+$$;
+
+-- Llama a la app para que avise
+create or replace function public.jc_llamar_avisos(p_cuerpo jsonb) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  clave text := public.jc_clave_avisos();
+begin
+  if clave is null then
+    return;
+  end if;
+  perform net.http_post(
+    url := 'https://jamacasa.vercel.app/api/avisos',
+    body := p_cuerpo,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-clave', clave),
+    timeout_milliseconds := 20000
+  );
+end
+$$;
+
+-- Cada vez que alguien apunta algo
+create or replace function public.jc_avisar() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  begin
+    perform public.jc_llamar_avisos(jsonb_build_object('tipo', 'evento', 'id', new.id));
+  exception when others then
+    null; -- si el aviso falla, lo apuntado se guarda igual
+  end;
+  return null;
+end
+$$;
+
+drop trigger if exists jc_avisar on public.jc_eventos;
+create trigger jc_avisar after insert on public.jc_eventos
+  for each row execute function public.jc_avisar();
+
+-- Cada hora, a los cinco minutos: los recordatorios
+select cron.schedule('jamacasa-avisos', '5 * * * *', $cron$select public.jc_llamar_avisos('{"tipo":"reloj"}'::jsonb)$cron$);
+
+revoke all on function public.jc_suscribir(text, text, text) from public, anon;
+revoke all on function public.jc_desuscribir(text) from public, anon;
+revoke all on function public.jc_clave_avisos() from public, anon, authenticated;
+revoke all on function public.jc_avisos_datos(text) from public, authenticated;
+revoke all on function public.jc_avisos_quitar(text, text[]) from public, authenticated;
+revoke all on function public.jc_llamar_avisos(jsonb) from public, anon, authenticated;
+revoke all on function public.jc_avisar() from public, anon, authenticated;
+grant execute on function public.jc_suscribir(text, text, text) to authenticated;
+grant execute on function public.jc_desuscribir(text) to authenticated;
+-- La app (sin sesión) solo puede usar estas dos, y solo con la clave
+grant execute on function public.jc_avisos_datos(text) to anon;
+grant execute on function public.jc_avisos_quitar(text, text[]) to anon;

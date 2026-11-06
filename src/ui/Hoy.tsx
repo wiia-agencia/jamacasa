@@ -1,16 +1,16 @@
-import { CheckCircle2, Clock3, Flame, Info, TriangleAlert } from 'lucide-react';
+import { Bell, BellOff, CheckCircle2, Clock3, Flame, Info, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { atrasadas, avisosBasuraAbiertos, paraPuntuar, puntosDelMes, tareaDe, tuyosAbiertos } from '../core/estado';
 import type { Intento, Tarea } from '../core/limpieza';
 import { nota } from '../core/noticias';
 import { cuando, duracion, fechaCorta, finSemana, haceRato, lunesDe, nombreMes, rangoSemana } from '../core/tiempo';
 import portada from '../assets/portada.webp';
-import { miembro, useCasa } from './contexto';
+import { leer, guardar } from '../datos/guardado';
+import { useCasa } from './contexto';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
 
 export function Hoy() {
-  const { estado, yo, config, abrir } = useCasa();
-  const yoM = miembro(config, yo);
+  const { estado, yo, abrir } = useCasa();
   const rey = estado.titulos[estado.mes]?.rey ?? [];
   return (
     <div className="pila">
@@ -18,7 +18,7 @@ export function Hoy() {
         <header className="portada-hoy">
           <div className="banda-cielo margen">
             <div>
-              <h1 className="display">Buenas, {yoM.nombre}</h1>
+              <h1 className="display marca">JAMACASA</h1>
               <p className="semana">
                 <span>Semana {rangoSemana(estado.semana, true)}</span>
                 {estado.racha.actual > 0 && (
@@ -39,6 +39,7 @@ export function Hoy() {
         </div>
       </div>
       <div className="margen pila">
+        <ActivarAvisos />
         <Atrasadas />
         <Atajos />
         <AvisosParaMi />
@@ -47,6 +48,55 @@ export function Hoy() {
         <LoUltimo />
       </div>
     </div>
+  );
+}
+
+/** Para que los avisos lleguen aunque la app esté cerrada: se piden con un toque (el móvil pregunta). */
+function ActivarAvisos() {
+  const { avisos, activarAvisos } = useCasa();
+  const [luego, setLuego] = useState(() => leer('jamacasa-avisos-luego') === avisos);
+  const [pidiendo, setPidiendo] = useState(false);
+  if ((avisos !== 'apagados' && avisos !== 'bloqueados') || luego) return null;
+  const ahoraNo = () => { guardar('jamacasa-avisos-luego', avisos); setLuego(true); };
+  if (avisos === 'bloqueados') {
+    return (
+      <section className="caja aviso-avisos pila-s" aria-label="Avisos al móvil">
+        <div className="fila" style={{ alignItems: 'flex-start' }}>
+          <span className="icono-redondo" aria-hidden="true"><BellOff size={20} /></span>
+          <div className="crece pila-s" style={{ gap: 4 }}>
+            <p className="negrita">Los avisos están bloqueados</p>
+            <p className="peq suave">Actívalos en los ajustes del móvil: Aplicaciones → La Jamacasa → Notificaciones.</p>
+          </div>
+        </div>
+        <button type="button" className="boton claro mini" style={{ alignSelf: 'flex-end' }} onClick={ahoraNo}>Entendido</button>
+      </section>
+    );
+  }
+  return (
+    <section className="caja aviso-avisos pila-s" aria-label="Avisos al móvil">
+      <div className="fila" style={{ alignItems: 'flex-start' }}>
+        <span className="icono-redondo" aria-hidden="true"><Bell size={20} /></span>
+        <div className="crece pila-s" style={{ gap: 4 }}>
+          <p className="negrita">Activa los avisos</p>
+          <p className="peq suave">Para enterarte de la basura, las notas y lo que te toque, aunque tengas la app cerrada.</p>
+        </div>
+      </div>
+      <div className="fila" style={{ justifyContent: 'flex-end', gap: 8 }}>
+        <button type="button" className="boton claro mini" onClick={ahoraNo}>Ahora no</button>
+        <button
+          type="button"
+          className="boton mini"
+          disabled={pidiendo}
+          onClick={async () => {
+            setPidiendo(true);
+            await activarAvisos();
+            setPidiendo(false);
+          }}
+        >
+          Activar
+        </button>
+      </div>
+    </section>
   );
 }
 

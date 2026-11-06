@@ -6,6 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Config, Evento, Miembro, MiembroId } from '../core/tipos';
 import { SUPABASE } from '../conexion';
 import { comprimirFoto, nuevoId, type Almacen } from './almacen';
+import { apagarAvisos } from './avisos';
 
 let cliente: SupabaseClient | null = null;
 
@@ -113,7 +114,17 @@ export async function abrirCasa(): Promise<Almacen | null> {
       urls.set(ref, { url, caduca: Date.now() + 50 * 60 * 1000 });
       return url;
     },
+    async suscribir(x) {
+      const { error } = await sb().rpc('jc_suscribir', { p_endpoint: x.endpoint, p_p256dh: x.p256dh, p_auth: x.auth });
+      // PGRST202: la casa aún no tiene la parte de los avisos (falta pegar el SQL). Este móvil ya
+      // tiene el permiso, así que se apuntará solo al abrir la app cuando esté.
+      if (error?.code === 'PGRST202') throw new Error('Los avisos aún no están listos en la casa: se activarán solos en cuanto lo estén.');
+      if (error) throw new Error('No se pudieron activar los avisos. Vuelve a probar en un momento.');
+    },
     async salir() {
+      // Este móvil deja de recibir los avisos de esta persona
+      const endpoint = await apagarAvisos();
+      if (endpoint) await sb().rpc('jc_desuscribir', { p_endpoint: endpoint });
       await sb().rpc('jc_salir');
       await sb().auth.signOut();
     },
