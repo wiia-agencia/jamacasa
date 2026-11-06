@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-vista
+src/demo/privado/
+supabase/casa.sql
+*.local
+.DS_Store

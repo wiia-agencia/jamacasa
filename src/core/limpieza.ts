@@ -1,0 +1,180 @@
+import { semanaInicial, zonaDe } from './calendario';
+import { HORA, diaLocal, finSemana, inicioDia, lunesDe, mesDeSemana, semana } from './tiempo';
+import type { Config, DatosPuntuacion, Evento, MiembroId, Normas, Zona } from './tipos';
+
+export interface Voto {
+  evento: string;
+  autor: MiembroId;
+  nota: number;
+  faltan: string[];
+  fotos: string[];
+  comentario?: string;
+  ts: number;
+  primero: boolean; // primer voto de ese juez en este intento (da el punto por revisar)
+}
+
+export interface Intento {
+  n: number;
+  hecho: Evento;
+  fin: number; // cuándo se cierra el plazo para puntuar
+  votos: Voto[]; // el voto que cuenta de cada juez
+  sinVotar: MiembroId[]; // jueces que no han votado (o no votaron a tiempo)
+  resuelto: boolean;
+  resueltoEn?: number;
+  media?: number;
+  auto?: boolean; // nadie votó: aprobado con la nota automática
+  aprobado?: boolean;
+}
+
+export type EstadoTarea = 'pendiente' | 'esperando' | 'aprobada' | 'suspendida';
+
+export interface Tarea {
+  semana: number;
+  miembro: MiembroId;
+  zona: Zona;
+  intentos: Intento[];
+  estado: EstadoTarea;
+  primerHecho?: number;
+  retrasoDias: number; // días de retraso hasta que se marcó (o hasta ahora)
+  enCurso: boolean; // la semana aún no ha terminado
+  limiteSinHacer: number;
+  sinHacer: boolean;
+  nota?: number; // nota con la que se aprobó
+}
+
+export const redondear1 = (x: number) => Math.round(x * 10) / 10;
+
+export function calcularTareas(config: Config, normas: Normas, eventos: Evento[], ahora: number): Tarea[] {
+  const s = semanaInicial(config);
+  const wAhora = semana(ahora);
+  const hechos = new Map<string, Evento[]>();
+  const votos = new Map<string, Evento[]>();
+  for (const e of eventos) {
+    if (e.tipo === 'zona_hecha') {
+      const k = `${e.datos.semana}|${e.autor}`;
+      (hechos.get(k) ?? hechos.set(k, []).get(k)!).push(e);
+    } else if (e.tipo === 'puntuacion') {
+      const d = e.datos as DatosPuntuacion;
+      const k = `${d.semana}|${d.de}|${d.intento}`;
+      (votos.get(k) ?? votos.set(k, []).get(k)!).push(e);
+    }
+  }
+
+  const tareas: Tarea[] = [];
+  for (let w = s; w <= wAhora; w++) {
+    for (const m of config.miembros) {
+      const zona = zonaDe(config, w, m.id);
+      if (!zona) continue;
+      const jueces = config.miembros.filter((x) => x.id !== m.id).map((x) => x.id);
+      const lista = (hechos.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts);
+      const intentos: Intento[] = [];
+      for (const h of lista) {
+        const ult = intentos[intentos.length - 1];
+        if (ult) {
+          if (!ult.resuelto || ult.aprobado) continue;
+          if (h.ts <= ult.resueltoEn!) continue;
+        }
+        intentos.push(resolverIntento(h, intentos.length + 1, jueces, votos.get(`${w}|${m.id}|${intentos.length + 1}`) ?? [], normas, ahora));
+      }
+
+      const fin = finSemana(w);
+      const lunesSig = lunesDe(w + 1);
+      const primerHecho = intentos[0]?.hecho.ts;
+      let retrasoDias = 0;
+      if (primerHecho !== undefined) {
+        if (primerHecho > fin) retrasoDias = diaLocal(primerHecho) - lunesSig + 1;
+      } else if (ahora > fin) {
+        retrasoDias = diaLocal(ahora) - lunesSig + 1;
+      }
+      const limiteSinHacer = inicioDia(lunesSig + normas.diasGracia) - 1;
+      const sinHacer = ahora > limiteSinHacer && (primerHecho === undefined || primerHecho > limiteSinHacer);
+
+      const ult = intentos[intentos.length - 1];
+      let estado: EstadoTarea = 'pendiente';
+      if (ult) estado = !ult.resuelto ? 'esperando' : ult.aprobado ? 'aprobada' : 'suspendida';
+
+      tareas.push({
+        semana: w,
+        miembro: m.id,
+        zona,
+        intentos,
+        estado,
+        primerHecho,
+        retrasoDias,
+        enCurso: ahora <= fin,
+        limiteSinHacer,
+        sinHacer,
+        nota: estado === 'aprobada' ? ult!.media : undefined,
+      });
+    }
+  }
+  return tareas;
+}
+
+function resolverIntento(h: Evento, n: number, jueces: MiembroId[], votosEv: Evento[], normas: Normas, ahora: number): Intento {
+  const fin = h.ts + normas.horasRevision * HORA;
+  const validos = votosEv
+    .filter((v) => jueces.includes(v.autor) && v.ts >= h.ts && v.ts <= fin)
+    .sort((a, b) => a.ts - b.ts);
+
+  // Momento en que votó el último juez por primera vez
+  const primerVoto = new Map<MiembroId, number>();
+  for (const v of validos) if (!primerVoto.has(v.autor)) primerVoto.set(v.autor, v.ts);
+  const completos = jueces.every((j) => primerVoto.has(j));
+
+  let resueltoEn: number | undefined;
+  if (completos) resueltoEn = Math.max(...jueces.map((j) => primerVoto.get(j)!));
+  else if (ahora >= fin) resueltoEn = fin;
+
+  const corte = resueltoEn ?? Infinity;
+  const ultimo = new Map<MiembroId, Evento>();
+  const primeros = new Set<string>();
+  for (const v of validos) {
+    if (v.ts > corte) continue;
+    if (!ultimo.has(v.autor)) primeros.add(v.id);
+    ultimo.set(v.autor, v);
+  }
+  const vs: Voto[] = [...ultimo.values()].map((v) => {
+    const d = v.datos as DatosPuntuacion;
+    return {
+      evento: v.id,
+      autor: v.autor,
+      nota: Math.max(0, Math.min(10, Number(d.nota) || 0)),
+      faltan: d.faltan ?? [],
+      fotos: d.fotos ?? [],
+      comentario: d.comentario,
+      ts: v.ts,
+      primero: true,
+    };
+  });
+  // Marca si el voto que cuenta fue también el primero (el punto por revisar va al primero)
+  for (const v of vs) v.primero = primeros.has(v.evento);
+
+  const sinVotar = jueces.filter((j) => !ultimo.has(j));
+  const intento: Intento = { n, hecho: h, fin, votos: vs, sinVotar, resuelto: resueltoEn !== undefined, resueltoEn };
+  if (intento.resuelto) {
+    if (vs.length > 0) {
+      intento.media = redondear1(vs.reduce((a, v) => a + v.nota, 0) / vs.length);
+    } else {
+      intento.media = normas.notaAutomatica;
+      intento.auto = true;
+    }
+    intento.aprobado = intento.media >= normas.notaMinima;
+  }
+  return intento;
+}
+
+/** Intentos abiertos que un miembro tiene que puntuar. */
+export function porPuntuar(tareas: Tarea[], m: MiembroId): { tarea: Tarea; intento: Intento }[] {
+  const r: { tarea: Tarea; intento: Intento }[] = [];
+  for (const t of tareas) {
+    if (t.miembro === m) continue;
+    const i = t.intentos[t.intentos.length - 1];
+    if (i && !i.resuelto && i.sinVotar.includes(m)) r.push({ tarea: t, intento: i });
+  }
+  return r.sort((a, b) => a.intento.fin - b.intento.fin);
+}
+
+export function mesDeTarea(t: Tarea): string {
+  return mesDeSemana(t.semana);
+}
