@@ -71,7 +71,10 @@ export type TipoEvento =
   | 'gasto_anulado'
   | 'pago'
   | 'pago_anulado'
-  | 'aviso_prueba'; // «Probar los avisos»: se avisa solo a quien lo pulsa
+  | 'aviso_prueba' // «Probar los avisos»: se avisa solo a quien lo pulsa
+  | 'mensaje' // el chat de la casa
+  | 'mensaje_fijado' // fija un mensaje arriba del chat (o lo quita, con mensaje: null)
+  | 'mensaje_borrado'; // su autor lo borra: queda «Mensaje borrado» en su sitio
 
 export interface Evento {
   id: string;
@@ -105,3 +108,6 @@ export interface DatosGasto {
   fotos?: string[];
 }
 export interface DatosPago { de: MiembroId; a: MiembroId; importe: number; alquiler?: string; nota?: string }
+export interface DatosMensaje { texto?: string; fotos?: string[]; audio?: { ref: string; segundos: number } }
+export interface DatosFijado { mensaje: string | null }
+export interface DatosBorrado { mensaje: string }

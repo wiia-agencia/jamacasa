@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { Mensaje } from '../core/chat';
 import type { Gasto, Transferencia } from '../core/cuentas';
 import type { Estado } from '../core/estado';
 import type { DefMedalla } from '../core/juego';
@@ -7,7 +8,7 @@ import type { Config, DatosGasto, Miembro, MiembroId, Zona } from '../core/tipos
 import type { Almacen } from '../datos/almacen';
 import type { EstadoAvisos } from '../datos/avisos';
 
-export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego';
+export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego' | 'chat';
 
 export type Hoja =
   | { tipo: 'hecho'; tarea: Tarea }
@@ -21,6 +22,7 @@ export type Hoja =
   | { tipo: 'tarea'; tarea: Tarea }
   | { tipo: 'medalla'; def: DefMedalla; titulo?: boolean }
   | { tipo: 'ajustes' }
+  | { tipo: 'mensaje'; mensaje: Mensaje }
   | { tipo: 'sorteo' };
 
 export interface Acciones {
@@ -34,6 +36,9 @@ export interface Acciones {
   anularGasto(id: string): Promise<void>;
   pago(de: MiembroId, a: MiembroId, importe: number, alquiler?: string, nota?: string): Promise<void>;
   anularPago(id: string): Promise<void>;
+  mensaje(m: { texto?: string; fotos?: string[]; audio?: { ref: string; segundos: number } }): Promise<void>;
+  fijar(mensaje: string | null): Promise<void>;
+  borrarMensaje(mensaje: string): Promise<void>;
 }
 
 export interface Ctx {

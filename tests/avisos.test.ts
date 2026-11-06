@@ -163,3 +163,30 @@ describe('avisos por la hora', () => {
     expect(r[0].texto).toBe('390 € a Bea. Cuando hagas el Bizum, márcalo en Cuentas.');
   });
 });
+
+describe('el chat', () => {
+  it('un mensaje avisa a los otros dos; uno borrado, a nadie', async () => {
+    const { calcularChat } = await import('../src/core/chat');
+    const m = ev('mensaje', 'a', lunes + HORA, { texto: '¿Esta noche pizza? 🍕' });
+    const r = avisosDeEvento(config, [m], m.id);
+    expect(para(r)).toEqual(['b', 'c']);
+    expect(r[0]).toMatchObject({ titulo: '💬 Ana', texto: '¿Esta noche pizza? 🍕', pantalla: 'chat' });
+    const foto = ev('mensaje', 'b', lunes + 2 * HORA, { fotos: ['sb:b/x.jpg'] });
+    expect(avisosDeEvento(config, [foto], foto.id)[0].texto).toBe('📷 Foto');
+    const audio = ev('mensaje', 'c', lunes + 3 * HORA, { audio: { ref: 'sb:c/a.webm', segundos: 14 } });
+    expect(avisosDeEvento(config, [audio], audio.id)[0].texto).toBe('🎤 Audio');
+    // Borrar: solo su autor; lo fijado es el último que se fijó
+    const otroBorra = ev('mensaje_borrado', 'b', lunes + 4 * HORA, { mensaje: m.id });
+    const fija = ev('mensaje_fijado', 'b', lunes + 5 * HORA, { mensaje: m.id });
+    let chat = calcularChat([m, foto, audio, otroBorra, fija]);
+    expect(chat.mensajes.find((x) => x.id === m.id)!.borrado).toBe(false);
+    expect(chat.fijado?.id).toBe(m.id);
+    expect(para(avisosDeEvento(config, [m, fija], fija.id))).toEqual(['a', 'c']);
+    const borra = ev('mensaje_borrado', 'a', lunes + 6 * HORA, { mensaje: m.id });
+    chat = calcularChat([m, foto, audio, fija, borra]);
+    expect(chat.mensajes.find((x) => x.id === m.id)!.borrado).toBe(true);
+    expect(chat.fijado).toBeUndefined();
+    const quita = ev('mensaje_fijado', 'c', lunes + 7 * HORA, { mensaje: null });
+    expect(calcularChat([m, foto, fija, quita]).fijado).toBeUndefined();
+  });
+});

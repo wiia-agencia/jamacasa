@@ -186,6 +186,10 @@ grant execute on function public.jc_salir() to authenticated;
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('jc-fotos', 'jc-fotos', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
+-- En el mismo sitio van las notas de voz del chat
+update storage.buckets
+  set allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/aac']
+  where id = 'jc-fotos';
 
 drop policy if exists jc_fotos_leer on storage.objects;
 create policy jc_fotos_leer on storage.objects for select to authenticated

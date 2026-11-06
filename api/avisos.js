@@ -6710,6 +6710,41 @@ function basuraDe(config, w) {
 	const pos = (w - s) % n;
 	return bolsas(config, ciclo)[ciclo][pos];
 }
+// src/core/chat.ts
+function calcularChat(eventos) {
+	const borrados = new Set(eventos.filter((e) => e.tipo === "mensaje_borrado").map((e) => `${e.autor}|${e.datos?.mensaje}`));
+	const mensajes = eventos.filter((e) => e.tipo === "mensaje").map((e) => {
+		const d = e.datos ?? {};
+		return {
+			id: e.id,
+			ts: e.ts,
+			autor: e.autor,
+			texto: String(d.texto ?? "").trim().slice(0, 4e3),
+			fotos: Array.isArray(d.fotos) ? d.fotos.filter((f) => typeof f === "string").slice(0, 6) : [],
+			audio: d.audio?.ref ? {
+				ref: String(d.audio.ref),
+				segundos: Math.max(0, Math.round(Number(d.audio.segundos) || 0))
+			} : void 0,
+			borrado: borrados.has(`${e.autor}|${e.id}`)
+		};
+	}).filter((m) => m.texto || m.fotos.length || m.audio).sort((a, b) => a.ts - b.ts);
+	const fijados = eventos.filter((e) => e.tipo === "mensaje_fijado").sort((a, b) => a.ts - b.ts);
+	const ult = fijados[fijados.length - 1];
+	const fijado = ult?.datos?.mensaje ? mensajes.find((m) => m.id === ult.datos.mensaje && !m.borrado) : void 0;
+	return {
+		mensajes,
+		fijado,
+		fijadoPor: fijado ? ult.autor : void 0
+	};
+}
+/** Un mensaje en una línea (para los avisos y lo fijado). */
+function resumen(m, max = 120) {
+	if (m.texto) return m.texto.length > max ? `${m.texto.slice(0, max - 1).trimEnd()}…` : m.texto;
+	if (m.audio) return "🎤 Audio";
+	if (m.fotos.length > 1) return `📷 ${m.fotos.length} fotos`;
+	if (m.fotos.length) return "📷 Foto";
+	return "";
+}
 // src/core/cuentas.ts
 /** Reparte un importe a partes iguales; los céntimos que sobran van primero al que pagó. */
 function repartir(importe, participantes, pagador, orden) {
@@ -7399,6 +7434,7 @@ function derivar(config, eventos, ahora) {
 	const meses = mesesEntre(mesDeSemana(s) < mes(ahora) ? mesDeSemana(s) : mes(ahora), mes(ahora));
 	const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
 	const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas);
+	const chat = calcularChat(ordenados);
 	return {
 		ahora,
 		semana: w,
@@ -7418,7 +7454,8 @@ function derivar(config, eventos, ahora) {
 		titulos,
 		racha,
 		cuentas,
-		noticias
+		noticias,
+		chat
 	};
 }
 function tareaDe(e, w, m) {
@@ -7543,6 +7580,28 @@ function avisosDeEvento(config, eventos, id) {
 				});
 			}
 			return r;
+		}
+		case "mensaje": {
+			const m = estado.chat.mensajes.find((x) => x.id === e.id);
+			if (!m || m.borrado) return [];
+			return config.miembros.filter((x) => x.id !== e.autor).map((x) => ({
+				para: x.id,
+				titulo: `💬 ${yo}`,
+				texto: resumen(m),
+				pantalla: "chat",
+				etiqueta: `chat-${e.autor}`
+			}));
+		}
+		case "mensaje_fijado": {
+			const f = estado.chat.fijado;
+			if (!f || f.id !== e.datos?.mensaje) return [];
+			return config.miembros.filter((x) => x.id !== e.autor).map((x) => ({
+				para: x.id,
+				titulo: `📌 ${yo} ha fijado un mensaje`,
+				texto: resumen(f),
+				pantalla: "chat",
+				etiqueta: "chat-fijado"
+			}));
 		}
 		case "aviso_prueba": return [{
 			para: e.autor,

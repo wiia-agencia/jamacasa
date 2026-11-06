@@ -141,6 +141,17 @@ export function generarPrueba(config: Config, ahora: number): Evento[] {
   }
   add('esto_es_tuyo', B, ahora - 2 * HORA, { para: A, que: 'La media bola naranja del jardín', fotos: hayFotoDemo('bola') ? ['demo:bola'] : [] });
 
+  // El chat: un mensaje fijado y una conversación de los últimos días
+  const msg = (autor: MiembroId, ts: number, texto: string, extra: any = {}) => add('mensaje', autor, ts, { texto, ...extra });
+  msg(B, t(3, 0, 21, 5), 'Recordad que el jueves viene el del gasóleo por la mañana');
+  add('mensaje_fijado', A, t(3, 0, 21, 20), { mensaje: `prueba-${n}` });
+  msg(A, t(3, 0, 21, 18), 'Vale, yo estoy en casa hasta las 11');
+  msg(C, ahora - 26 * HORA, '¿Alguien ha visto mi cargador? 🔌');
+  msg(B, ahora - 25.8 * HORA, 'Estaba en el salón de arriba 👆');
+  msg(A, ahora - 25.7 * HORA, 'Jajaja ya tienes otro «Esto es tuyo» 😂');
+  msg(A, ahora - 4 * HORA, '¿Esta noche pizza? 🍕');
+  msg(B, ahora - 3.9 * HORA, 'Yo me apunto');
+
   // Alquiler: uno paga el día 9 y el otro se retrasa al 12
   const al = config.alquiler;
   const [puntual, tardon] = config.miembros.map((m) => m.id).filter((m) => m !== al.paga);
@@ -185,6 +196,9 @@ export function almacenPrueba(ahora: number): Almacen {
     },
     async subirFoto(archivo) {
       return blobADataUrl(await comprimirFoto(archivo, 900, 0.7));
+    },
+    async subirAudio(audio) {
+      return blobADataUrl(audio);
     },
     async urlFoto(ref) {
       if (ref.startsWith('demo:')) return FOTOS[ref.slice(5)] ?? '';

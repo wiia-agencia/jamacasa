@@ -105,6 +105,15 @@ export async function abrirCasa(): Promise<Almacen | null> {
       if (error) throw new Error('No se pudo subir la foto. Vuelve a probar.');
       return `sb:${ruta}`;
     },
+    async subirAudio(audio) {
+      // Sin los «codecs» del tipo: el almacén solo mira «audio/webm», «audio/ogg»…
+      const tipo = (audio.type || 'audio/webm').split(';')[0];
+      const ext = tipo.includes('ogg') ? 'ogg' : tipo.includes('mp4') || tipo.includes('aac') ? 'm4a' : tipo.includes('mpeg') ? 'mp3' : 'webm';
+      const ruta = `${yo}/${nuevoId()}.${ext}`;
+      const { error } = await sb().storage.from('jc-fotos').upload(ruta, audio, { contentType: tipo });
+      if (error) throw new Error('No se pudo enviar el audio. Vuelve a probar.');
+      return `sb:${ruta}`;
+    },
     async urlFoto(ref) {
       if (!ref.startsWith('sb:')) return ref;
       const c = urls.get(ref);

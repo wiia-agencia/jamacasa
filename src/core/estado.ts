@@ -1,3 +1,4 @@
+import { calcularChat, type Chat } from './chat';
 import { calcularBasura, calcularEstoEsTuyo, type AvisoBasura, type AvisoTuyo, type SemanaBasura } from './basura';
 import { basuraDe, normasDe, repartoSemana, semanaInicial, zonaDe } from './calendario';
 import { calcularCuentas, type Cuentas } from './cuentas';
@@ -37,6 +38,7 @@ export interface Estado {
   racha: { actual: number; historial: SemanaRacha[] };
   cuentas: Cuentas;
   noticias: Noticia[];
+  chat: Chat;
 }
 
 export function derivar(config: Config, eventos: Evento[], ahora: number): Estado {
@@ -57,6 +59,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
   const meses = mesesEntre(mesInicio, mes(ahora));
   const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
   const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas);
+  const chat = calcularChat(ordenados);
   return {
     ahora,
     semana: w,
@@ -77,6 +80,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
     racha,
     cuentas,
     noticias,
+    chat,
   };
 }
 

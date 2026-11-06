@@ -4,6 +4,7 @@
 //  · avisosDeEvento: lo que hay que avisar en cuanto alguien apunta algo.
 //  · avisosDelReloj: lo que toca por la hora (se llama cada hora con la hora que acaba de pasar).
 import { basuraDe, zonaDe } from './calendario';
+import { resumen } from './chat';
 import { alquilerPendiente, euros } from './cuentas';
 import { derivar, tareaDe } from './estado';
 import type { Intento, Tarea } from './limpieza';
@@ -11,7 +12,7 @@ import { nota } from './noticias';
 import { HORA, duracion, fechaDeDia, instanteLocal, lunesDe, mes, mesesEntre, nombreMes, semana } from './tiempo';
 import type { Config, Evento, MiembroId, Normas } from './tipos';
 
-export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego';
+export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego' | 'chat';
 
 export interface Aviso {
   para: MiembroId;
@@ -114,6 +115,20 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
         r.push({ para: p.de, titulo, texto: `${que}Si no es así, díselo.`, pantalla: 'cuentas', etiqueta: `pago-${e.id}` });
       }
       return r;
+    }
+    case 'mensaje': {
+      const m = estado.chat.mensajes.find((x) => x.id === e.id);
+      if (!m || m.borrado) return [];
+      return config.miembros
+        .filter((x) => x.id !== e.autor)
+        .map((x) => ({ para: x.id, titulo: `💬 ${yo}`, texto: resumen(m), pantalla: 'chat' as const, etiqueta: `chat-${e.autor}` }));
+    }
+    case 'mensaje_fijado': {
+      const f = estado.chat.fijado;
+      if (!f || f.id !== e.datos?.mensaje) return [];
+      return config.miembros
+        .filter((x) => x.id !== e.autor)
+        .map((x) => ({ para: x.id, titulo: `📌 ${yo} ha fijado un mensaje`, texto: resumen(f), pantalla: 'chat' as const, etiqueta: 'chat-fijado' }));
     }
     case 'aviso_prueba':
       return [{ para: e.autor, titulo: '🔔 Así te llegarán los avisos', texto: 'La basura, las notas, «Esto es tuyo», las cuentas… Solo lo que te toca a ti.', pantalla: 'hoy', etiqueta: 'prueba' }];

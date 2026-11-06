@@ -1,6 +1,7 @@
 import confetti from 'canvas-confetti';
-import { House, Sparkles, Trophy, Wallet } from 'lucide-react';
+import { House, MessageCircle, Sparkles, Trophy, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { sinLeer } from './core/chat';
 import { avisosBasuraAbiertos, derivar, paraPuntuar, tuyosAbiertos } from './core/estado';
 import type { Evento, MiembroId, TipoEvento } from './core/tipos';
 import type { Almacen } from './datos/almacen';
@@ -9,6 +10,7 @@ import { abrirCasa, casaDisponible } from './datos/casa';
 import { guardar, leer } from './datos/guardado';
 import { almacenPrueba, configPrueba } from './datos/prueba';
 import { Contexto, type Acciones, type Ctx, type Hoja, type Pantalla } from './ui/contexto';
+import { Chat } from './ui/Chat';
 import { Cuentas } from './ui/Cuentas';
 import { Entrada } from './ui/Entrada';
 import { Hojas } from './ui/hojas';
@@ -146,13 +148,13 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
   // Al tocar un aviso se abre la app en su pantalla (#limpieza…) o, si ya estaba abierta, el service worker lo dice
   useEffect(() => {
     const irA = (p: unknown) => {
-      if (p === 'hoy' || p === 'limpieza' || p === 'cuentas' || p === 'juego') {
+      if (p === 'hoy' || p === 'limpieza' || p === 'cuentas' || p === 'juego' || p === 'chat') {
         setPantalla(p);
         window.scrollTo({ top: 0 });
       }
     };
     const h = location.hash.slice(1);
-    if (['hoy', 'limpieza', 'cuentas', 'juego'].includes(h)) {
+    if (['hoy', 'limpieza', 'cuentas', 'juego', 'chat'].includes(h)) {
       irA(h);
       history.replaceState(null, '', location.pathname + location.search);
     }
@@ -171,6 +173,25 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     const fondo = getComputedStyle(document.documentElement).getPropertyValue('--seran').trim();
     meta.setAttribute('content', pantalla === 'hoy' ? '#e86569' : fondo || '#edf1f6');
   }, [pantalla, tema]);
+
+  // Chat: hasta dónde se ha leído en este móvil (la primera vez, desde ahora)
+  const claveLeido = `jamacasa-chat-leido-${almacen.modo}-${yo}`;
+  const [leido, setLeido] = useState<number>(() => {
+    const v = Number(leer(claveLeido));
+    if (v) return v;
+    guardar(claveLeido, String(Date.now()));
+    return Date.now();
+  });
+  useEffect(() => {
+    setLeido(Number(leer(claveLeido)) || Date.now()); // al cambiar de persona (modo prueba)
+  }, [claveLeido]);
+  const ultimoChat = estado.chat.mensajes[estado.chat.mensajes.length - 1]?.ts ?? 0;
+  useEffect(() => {
+    if (pantalla !== 'chat') return;
+    const t = Math.max(Date.now(), ultimoChat);
+    setLeido(t);
+    guardar(claveLeido, String(t));
+  }, [pantalla, ultimoChat, claveLeido]);
 
   // El sorteo se enseña una vez por semana en cada móvil
   const claveSorteo = `jamacasa-sorteo-${almacen.modo}`;
@@ -214,6 +235,9 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       anularGasto: (id) => apuntar('gasto_anulado', { gasto: id }),
       pago: (de, a, importe, alquiler, nota) => apuntar('pago', { de, a, importe, alquiler, nota }),
       anularPago: (id) => apuntar('pago_anulado', { pago: id }),
+      mensaje: (m) => apuntar('mensaje', m),
+      fijar: (mensaje) => apuntar('mensaje_fijado', { mensaje }),
+      borrarMensaje: (mensaje) => apuntar('mensaje_borrado', { mensaje }),
     }),
     [apuntar],
   );
@@ -250,6 +274,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       avisar('Aviso de prueba enviado: te llegará en unos segundos.');
     },
   };
+  const nuevosChat = pantalla === 'chat' ? 0 : sinLeer(estado.chat, yo, leido);
   const pendientes = paraPuntuar(estado, yo).length + tuyosAbiertos(estado, yo).length + (estado.basura === yo ? avisosBasuraAbiertos(estado).length : 0);
 
   if (!listo) return <div className="puerta" aria-busy="true" />;
@@ -265,6 +290,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
         {pantalla === 'limpieza' && <Limpieza />}
         {pantalla === 'cuentas' && <Cuentas />}
         {pantalla === 'juego' && <Juego />}
+        {pantalla === 'chat' && <Chat />}
       </div>
       <nav className="nav" aria-label="Secciones">
         <div className="nav-dentro">
@@ -273,11 +299,13 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
             ['limpieza', 'Limpieza', Sparkles],
             ['cuentas', 'Cuentas', Wallet],
             ['juego', 'Juego', Trophy],
+            ['chat', 'Chat', MessageCircle],
           ] as const).map(([id, texto, Icono]) => (
             <button key={id} type="button" aria-current={pantalla === id ? 'page' : undefined} onClick={() => ctx.ir(id)}>
               <Icono size={22} strokeWidth={pantalla === id ? 2.4 : 1.9} />
               {texto}
               {id === 'hoy' && pendientes > 0 && <span className="globo">{pendientes}</span>}
+              {id === 'chat' && nuevosChat > 0 && <span className="globo">{nuevosChat > 99 ? '99+' : nuevosChat}</span>}
             </button>
           ))}
         </div>

@@ -10,6 +10,8 @@ export interface Almacen {
   escuchar(alLlegar: (e: Evento) => void): () => void;
   apuntar(tipo: TipoEvento, datos: any): Promise<Evento>;
   subirFoto(archivo: Blob): Promise<string>;
+  /** Sube una nota de voz del chat y devuelve su referencia (se escucha con urlFoto, como las fotos). */
+  subirAudio(audio: Blob): Promise<string>;
   urlFoto(ref: string): Promise<string>;
   /** Apunta este móvil para recibir avisos (solo en la casa de verdad). */
   suscribir?(s: { endpoint: string; p256dh: string; auth: string }): Promise<void>;

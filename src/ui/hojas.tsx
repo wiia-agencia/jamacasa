@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { resumen, type Mensaje } from '../core/chat';
 import { euros, leerImporte, repartir, type Gasto, type Transferencia } from '../core/cuentas';
 import type { DefMedalla } from '../core/juego';
 import type { Intento, Tarea } from '../core/limpieza';
@@ -22,6 +23,7 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
     case 'tarea': return <HojaTarea tarea={hoja.tarea} />;
     case 'medalla': return <HojaMedalla def={hoja.def} titulo={hoja.titulo} />;
     case 'ajustes': return <HojaAjustes />;
+    case 'mensaje': return <HojaMensaje m={hoja.mensaje} />;
     default: return null;
   }
 }
@@ -506,6 +508,60 @@ function HojaMedalla({ def, titulo }: { def: DefMedalla; titulo?: boolean }) {
           </div>
         </div>
       )}
+    </Hoja>
+  );
+}
+
+/** Las opciones de un mensaje del chat (al mantenerlo pulsado). */
+function HojaMensaje({ m }: { m: Mensaje }) {
+  const { cerrar, yo, estado, acciones, avisar } = useCasa();
+  const [borrar, setBorrar] = useState(false);
+  const fijado = estado.chat.fijado?.id === m.id;
+  const mio = m.autor === yo;
+  return (
+    <Hoja titulo="Mensaje" subtitulo={m.borrado ? 'Mensaje borrado' : resumen(m, 90)} onCerrar={cerrar}>
+      <div className="pila-s">
+        {!m.borrado && (
+          <BotonAccion
+            clase="boton claro ancho"
+            hacer={async () => {
+              await acciones.fijar(fijado ? null : m.id);
+              cerrar();
+              avisar(fijado ? 'Ya no está fijado.' : 'Fijado arriba del chat.');
+            }}
+          >
+            {fijado ? 'Quitar de arriba' : 'Fijar arriba del chat'}
+          </BotonAccion>
+        )}
+        {!m.borrado && m.texto && (
+          <button
+            type="button"
+            className="boton claro ancho"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(m.texto);
+                avisar('Texto copiado.');
+              } catch {
+                avisar('No se pudo copiar.');
+              }
+              cerrar();
+            }}
+          >
+            Copiar el texto
+          </button>
+        )}
+        {mio && !m.borrado &&
+          (borrar ? (
+            <div className="fila">
+              <button type="button" className="boton claro" style={{ flex: 1 }} onClick={() => setBorrar(false)}>Mejor no</button>
+              <BotonAccion clase="boton peligro" hacer={async () => { await acciones.borrarMensaje(m.id); cerrar(); }}>
+                Sí, borrarlo
+              </BotonAccion>
+            </div>
+          ) : (
+            <button type="button" className="boton borde ancho" onClick={() => setBorrar(true)}>Borrar el mensaje</button>
+          ))}
+      </div>
     </Hoja>
   );
 }
