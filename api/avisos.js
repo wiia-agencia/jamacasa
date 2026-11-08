@@ -6970,7 +6970,11 @@ function calcularTareas(config, normas, eventos, ahora) {
 	const wAhora = semana(ahora);
 	const hechos = /* @__PURE__ */ new Map();
 	const votos = /* @__PURE__ */ new Map();
-	for (const e of eventos) if (e.tipo === "zona_hecha") {
+	const empezadas = /* @__PURE__ */ new Map();
+	for (const e of eventos) if (e.tipo === "zona_empezada") {
+		const k = `${e.datos?.semana}|${e.autor}`;
+		if (!empezadas.has(k) || e.ts < empezadas.get(k)) empezadas.set(k, e.ts);
+	} else if (e.tipo === "zona_hecha") {
 		const k = `${e.datos.semana}|${e.autor}`;
 		(hechos.get(k) ?? hechos.set(k, []).get(k)).push(e);
 	} else if (e.tipo === "puntuacion") {
@@ -7012,6 +7016,7 @@ function calcularTareas(config, normas, eventos, ahora) {
 			intentos,
 			estado,
 			primerHecho,
+			empezada: empezadas.get(`${w}|${m.id}`),
 			retrasoDias,
 			enCurso: ahora <= fin,
 			limiteSinHacer,
@@ -7164,6 +7169,18 @@ function puntosPorMes(config, apuntes) {
 	}
 	return r;
 }
+[
+	0,
+	50,
+	150,
+	300,
+	500,
+	800,
+	1200
+].map((desde, i) => ({
+	nombre: `Nivel ${i + 1}`,
+	desde
+}));
 /** Racha: semanas seguidas en las que los tres marcáis vuestro piso dentro de la semana (da igual la nota). */
 function calcularRacha(config, tareas, semanaActual) {
 	const porSemana = /* @__PURE__ */ new Map();
@@ -7304,6 +7321,12 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 	for (const t of tareas) {
 		const X = n(t.miembro);
 		const zona = t.zona.nombre.toLowerCase();
+		if (t.empezada !== void 0) r.push({
+			id: `${t.semana}-${t.miembro}-em`,
+			ts: t.empezada,
+			quien: t.miembro,
+			texto: `${X} ha empezado a limpiar el ${zona}.`
+		});
 		for (const i of t.intentos) {
 			r.push({
 				id: `${i.hecho.id}-h`,
@@ -7525,6 +7548,17 @@ function avisosDeEvento(config, eventos, id) {
 				pantalla: "hoy",
 				etiqueta: `tuyo-${e.id}`
 			}];
+		}
+		case "zona_empezada": {
+			const t = tareaDe(estado, Number(e.datos?.semana), e.autor);
+			if (!t || t.empezada !== e.ts || t.primerHecho !== void 0) return [];
+			return config.miembros.filter((x) => x.id !== e.autor).map((x) => ({
+				para: x.id,
+				titulo: `🧽 ${yo} ha empezado a limpiar`,
+				texto: `El ${t.zona.nombre.toLowerCase()}.`,
+				pantalla: "limpieza",
+				etiqueta: `empezada-${t.semana}-${e.autor}`
+			}));
 		}
 		case "zona_hecha": {
 			const t = tareaDe(estado, Number(e.datos?.semana), e.autor);

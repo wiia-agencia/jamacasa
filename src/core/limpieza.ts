@@ -35,6 +35,7 @@ export interface Tarea {
   intentos: Intento[];
   estado: EstadoTarea;
   primerHecho?: number;
+  empezada?: number; // cuándo le dio a «Empezar a limpiar» (la primera vez)
   retrasoDias: number; // días de retraso hasta que se marcó (o hasta ahora)
   enCurso: boolean; // la semana aún no ha terminado
   limiteSinHacer: number;
@@ -49,8 +50,12 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
   const wAhora = semana(ahora);
   const hechos = new Map<string, Evento[]>();
   const votos = new Map<string, Evento[]>();
+  const empezadas = new Map<string, number>();
   for (const e of eventos) {
-    if (e.tipo === 'zona_hecha') {
+    if (e.tipo === 'zona_empezada') {
+      const k = `${e.datos?.semana}|${e.autor}`;
+      if (!empezadas.has(k) || e.ts < empezadas.get(k)!) empezadas.set(k, e.ts);
+    } else if (e.tipo === 'zona_hecha') {
       const k = `${e.datos.semana}|${e.autor}`;
       (hechos.get(k) ?? hechos.set(k, []).get(k)!).push(e);
     } else if (e.tipo === 'puntuacion') {
@@ -100,6 +105,7 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         intentos,
         estado,
         primerHecho,
+        empezada: empezadas.get(`${w}|${m.id}`),
         retrasoDias,
         enCurso: ahora <= fin,
         limiteSinHacer,

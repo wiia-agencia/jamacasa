@@ -26,6 +26,7 @@ export type Hoja =
   | { tipo: 'sorteo' };
 
 export interface Acciones {
+  empezar(semana: number): Promise<void>;
   marcarHecho(semana: number, fotos: string[], nota?: string): Promise<void>;
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string): Promise<void>;
   basuraLlena(fotos: string[]): Promise<void>;

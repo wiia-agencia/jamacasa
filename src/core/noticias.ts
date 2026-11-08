@@ -25,6 +25,7 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
   for (const t of tareas) {
     const X = n(t.miembro);
     const zona = t.zona.nombre.toLowerCase();
+    if (t.empezada !== undefined) r.push({ id: `${t.semana}-${t.miembro}-em`, ts: t.empezada, quien: t.miembro, texto: `${X} ha empezado a limpiar el ${zona}.` });
     for (const i of t.intentos) {
       r.push({ id: `${i.hecho.id}-h`, ts: i.hecho.ts, quien: t.miembro, texto: i.n > 1 ? `${X} ha repasado el ${zona}.` : `${X} ha terminado el ${zona}.`, fotos: i.hecho.datos?.fotos });
       if (!i.resuelto) continue;

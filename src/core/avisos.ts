@@ -80,6 +80,14 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
       const que = a.que ? `${mayus(a.que)}. ` : '';
       return [{ para: a.para, titulo: `🧦 ${yo} dice que esto es tuyo`, texto: `${que}Tienes ${n.horasEstoEsTuyo} horas para recogerlo.`, pantalla: 'hoy', etiqueta: `tuyo-${e.id}` }];
     }
+    case 'zona_empezada': {
+      // Solo la primera vez de esa semana, y si aún no lo ha marcado como hecho
+      const t = tareaDe(estado, Number(e.datos?.semana), e.autor);
+      if (!t || t.empezada !== e.ts || t.primerHecho !== undefined) return [];
+      return config.miembros
+        .filter((x) => x.id !== e.autor)
+        .map((x) => ({ para: x.id, titulo: `🧽 ${yo} ha empezado a limpiar`, texto: `El ${t.zona.nombre.toLowerCase()}.`, pantalla: 'limpieza' as const, etiqueta: `empezada-${t.semana}-${e.autor}` }));
+    }
     case 'zona_hecha': {
       const t = tareaDe(estado, Number(e.datos?.semana), e.autor);
       const i = t?.intentos[t.intentos.length - 1];

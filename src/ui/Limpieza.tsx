@@ -1,9 +1,13 @@
-import { ChevronRight, Dices } from 'lucide-react';
+import { ChevronRight, Dices, Info } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { escenaCasa } from '../core/escena';
 import { rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
 import type { Tarea } from '../core/limpieza';
 import { rangoSemana } from '../core/tiempo';
 import type { Zona } from '../core/tipos';
+import { Casa3D } from './Casa3D';
 import { useCasa } from './contexto';
+import { EstadoTarea } from './Hoy';
 import { Avatar, Nombre, Placa, Seccion } from './piezas';
 
 export const corto = (z: Zona | null | undefined) => {
@@ -18,12 +22,14 @@ export function ChapaEstado({ t }: { t: Tarea }) {
   if (t.estado === 'suspendida') return <Placa valor={i.media!} peq suspensa />;
   if (t.estado === 'esperando') return <span className="chapa">Esperando nota</span>;
   if (!t.enCurso) return <span className="chapa mal">{t.sinHacer ? 'Sin hacer' : 'Tarde'}</span>;
+  if (t.empezada !== undefined) return <span className="chapa oro">Limpiando</span>;
   return <span className="chapa">Pendiente</span>;
 }
 
 export function Limpieza() {
-  const { estado, config, abrir } = useCasa();
+  const { estado, config, abrir, yo } = useCasa();
   const w = estado.semana;
+  const escena = useMemo(() => escenaCasa(estado), [estado]);
   const basura = semanaBasura(estado, w);
   const futuras = rotacionFutura(config, Math.max(w, estado.semanaInicio), 6);
   const historial = [];
@@ -42,6 +48,9 @@ export function Limpieza() {
           </button>
         )}
       </header>
+
+      {escena && <Casa3D miembros={config.miembros} escena={escena} yo={yo} />}
+      {estado.empezado && <TuPisoAhora />}
 
       {estado.empezado && (
         <Seccion titulo="Esta semana">
@@ -130,6 +139,53 @@ export function Limpieza() {
         </Seccion>
       )}
     </div>
+  );
+}
+
+/** Tu piso de esta semana: lo que tiene que quedar limpio y los botones (empezar y marcar como hecho). */
+function TuPisoAhora() {
+  const { estado, yo, abrir, acciones, avisar } = useCasa();
+  const [empezando, setEmpezando] = useState(false);
+  const t = tareaDe(estado, estado.semana, yo);
+  if (!t) return null;
+  const puedeEmpezar = t.estado === 'pendiente' && t.empezada === undefined;
+  return (
+    <section className="tarjeta pila-s tu-piso-limpieza" aria-label="Tu piso esta semana">
+      <div className="fila entre" style={{ alignItems: 'flex-start' }}>
+        <div className="crece">
+          <p className="suave peq">Tu piso esta semana</p>
+          <h2 className="display zona">{t.zona.nombre}</h2>
+        </div>
+        <ChapaEstado t={t} />
+        <button type="button" className="icono-boton" aria-label={`Qué entra en el ${t.zona.nombre.toLowerCase()}`} onClick={() => abrir({ tipo: 'zona', zona: t.zona })}>
+          <Info size={19} />
+        </button>
+      </div>
+      {t.zona.checklist.length > 0 && (
+        <ul className="lista-limpiar" aria-label="Lo que tiene que quedar limpio">
+          {t.zona.checklist.map((c) => <li key={c}>{c}</li>)}
+        </ul>
+      )}
+      {puedeEmpezar && (
+        <button
+          type="button"
+          className="boton ancho claro"
+          disabled={empezando}
+          onClick={async () => {
+            setEmpezando(true);
+            try {
+              await acciones.empezar(t.semana);
+              avisar('¡A por ello! Ya saben que has empezado.');
+            } finally {
+              setEmpezando(false);
+            }
+          }}
+        >
+          Empezar a limpiar
+        </button>
+      )}
+      <EstadoTarea t={t} />
+    </section>
   );
 }
 

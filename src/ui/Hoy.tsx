@@ -1,12 +1,14 @@
 import { Bell, BellOff, CheckCircle2, Clock3, Flame, Info, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
+import { euros } from '../core/cuentas';
 import { atrasadas, avisosBasuraAbiertos, paraPuntuar, puntosDelMes, tareaDe, tuyosAbiertos } from '../core/estado';
 import type { Intento, Tarea } from '../core/limpieza';
 import { nota } from '../core/noticias';
 import { cuando, duracion, fechaCorta, finSemana, haceRato, lunesDe, nombreMes, rangoSemana } from '../core/tiempo';
 import portada from '../assets/portada.webp';
 import { leer, guardar } from '../datos/guardado';
-import { useCasa } from './contexto';
+import { miembro, useCasa } from './contexto';
+import { ChapaEstado } from './Limpieza';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
 
 export function Hoy() {
@@ -34,8 +36,9 @@ export function Hoy() {
             <img src={portada} alt="La Jamacasa al atardecer: uno hace el pino en el tejado, otro escala las columnas y otro da un mortal en el jardín" />
           </div>
         </header>
-        <div className="margen">
+        <div className="margen pila-s">
           <TuPiso />
+          <Cifras />
         </div>
       </div>
       <div className="margen pila">
@@ -101,7 +104,7 @@ function ActivarAvisos() {
 }
 
 function TuPiso() {
-  const { estado, yo, abrir } = useCasa();
+  const { estado, yo, abrir, ir } = useCasa();
   if (!estado.empezado) {
     return (
       <section className="tarjeta tu-piso pila-s">
@@ -113,9 +116,15 @@ function TuPiso() {
   }
   const t = tareaDe(estado, estado.semana, yo);
   if (!t) return null;
+  // Cómo va la casa esta semana: pisos ya hechos (aprobados o esperando nota)
+  const deLaSemana = estado.tareas.filter((x) => x.semana === estado.semana);
+  const hechos = deLaSemana.filter((x) => x.estado === 'aprobada' || x.estado === 'esperando').length;
   return (
     <section className="tarjeta tu-piso pila-s" aria-label="Tu piso esta semana">
-      <p className="suave peq">Esta semana te toca</p>
+      <div className="fila entre">
+        <p className="suave peq">Esta semana te toca</p>
+        <ChapaEstado t={t} />
+      </div>
       <div className="fila entre">
         <h2 className="display zona">{t.zona.nombre}</h2>
         <button type="button" className="icono-boton" aria-label={`Qué entra en el ${t.zona.nombre.toLowerCase()}`} onClick={() => abrir({ tipo: 'zona', zona: t.zona })}>
@@ -124,7 +133,44 @@ function TuPiso() {
       </div>
       <p className="suave peq" style={{ marginTop: -6 }}>{t.zona.incluye}</p>
       <EstadoTarea t={t} />
+      {deLaSemana.length > 0 && (
+        <div className="progreso-casa">
+          <div className="barra" aria-hidden="true"><span style={{ width: `${Math.round((hechos / deLaSemana.length) * 100)}%` }} /></div>
+          <span className="peq negrita">{hechos} de {deLaSemana.length} pisos hechos</span>
+          <button type="button" className="enlace peq" onClick={() => ir('limpieza')}>Ver la casa</button>
+        </div>
+      )}
     </section>
+  );
+}
+
+/** Tus puntos del mes y cómo están tus cuentas, de un vistazo. */
+function Cifras() {
+  const { estado, config, yo, ir } = useCasa();
+  if (!estado.empezado) return null;
+  const puntos = puntosDelMes(estado, yo);
+  const puesto = 1 + config.miembros.filter((m) => puntosDelMes(estado, m.id) > puntos).length;
+  const saldo = estado.cuentas.saldo[yo] ?? 0;
+  const debo = estado.cuentas.transferencias.filter((x) => x.de === yo);
+  const meDeben = estado.cuentas.transferencias.filter((x) => x.a === yo);
+  const eur = (c: number) => euros(Math.abs(c)).replace(',00 €', ' €');
+  const nombre = (id: string) => miembro(config, id).nombre;
+  let cuentas = 'Todo saldado';
+  if (saldo < 0) cuentas = debo.length === 1 ? `Debes a ${nombre(debo[0].a)}` : 'Debes';
+  if (saldo > 0) cuentas = meDeben.length === 1 ? `Te debe ${nombre(meDeben[0].de)}` : 'Te deben';
+  return (
+    <div className="cifras">
+      <button type="button" className="cifra-tarjeta" onClick={() => ir('juego')}>
+        <span className="etiqueta-cifra">Tus puntos</span>
+        <span className="cifra">{nota(puntos)}</span>
+        <span className="peq suave">{puesto}.º en {nombreMes(estado.mes)}</span>
+      </button>
+      <button type="button" className="cifra-tarjeta" onClick={() => ir('cuentas')}>
+        <span className="etiqueta-cifra">Cuentas</span>
+        <span className={`cifra ${saldo < 0 ? 'mal' : ''}`}>{saldo === 0 ? '0 €' : `${saldo < 0 ? '−' : '+'}${eur(saldo)}`}</span>
+        <span className="peq suave">{cuentas}</span>
+      </button>
+    </div>
   );
 }
 
@@ -403,7 +449,7 @@ function RankingMini() {
   return (
     <Seccion
       titulo={`Así va ${nombreMes(estado.mes)}`}
-      extra={<button type="button" className="enlace" onClick={() => ir('juego')}>Ver el juego</button>}
+      extra={<button type="button" className="enlace" onClick={() => ir('juego')}>Ver el ranking</button>}
     >
       <div className="caja">
         <div className="lista">

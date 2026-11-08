@@ -1,0 +1,86 @@
+.c3-visor { position: relative; overflow: hidden; }
+.c3-lienzo { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: grab; }
+.c3-lienzo:active { cursor: grabbing; }
+.c3-capa { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.c3-chip {
+  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font: 500 12px/1.2 var(--f-body); color: var(--ink);
+  background: color-mix(in srgb, var(--card) 93%, transparent);
+  border: 1px solid var(--borde-chip); border-radius: 999px; padding: 4px 9px 4px 8px;
+  box-shadow: 0 1px 3px rgba(10, 20, 35, 0.12); will-change: transform;
+}
+.c3-chip b { font-weight: 700; }
+.c3-chip::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--c, #999); flex: none; }
+.c3-tuyo { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent), 0 2px 6px rgba(10, 20, 35, 0.16); }
+.c3-tu { background: var(--c); color: #fff; border-radius: 999px; padding: 2px 7px; font-weight: 700; font-size: 11px; }
+.c3-est { border-radius: 999px; padding: 2px 7px; font-weight: 600; font-size: 11px; }
+.c3-mal { background: var(--mal-fondo); color: var(--mal-tinta); }
+.c3-medio { background: var(--medio-fondo); color: var(--medio-tinta); }
+.c3-info { background: var(--info-fondo); color: var(--info-tinta); }
+.c3-bien { background: var(--bien-fondo); color: var(--bien-tinta); }
+.c3-persona { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; will-change: transform; }
+.c3-nombre { background: var(--c); color: #fff; font: 700 11px/1 var(--f-body); padding: 3px 7px; border-radius: 999px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
+.c3-yo .c3-nombre { box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(0, 0, 0, 0.3); }
+.c3-burbuja { background: var(--card); color: var(--ink); font: 600 11px/1.15 var(--f-body); padding: 4px 8px; border-radius: 10px; border: 1px solid var(--borde-chip); box-shadow: 0 1px 3px rgba(10, 20, 35, 0.12); white-space: nowrap; }
+.c3-burbuja[hidden] { display: none; }
+
+.c3-estrecho .c3-chip { font-size: 11px; padding: 3px 7px 3px 6px; gap: 5px; }
+.c3-estrecho .c3-chip::before { width: 8px; height: 8px; }
+.c3-estrecho .c3-est, .c3-estrecho .c3-tu { font-size: 10px; padding: 2px 6px; }
+.c3-estrecho .c3-nombre { font-size: 10px; padding: 2px 6px; }
+.c3-estrecho .c3-burbuja { font-size: 10px; padding: 3px 6px; }
+.c3-sin-etiquetas .c3-capa { display: none; }
+.c3-cerrado {
+  position: absolute; left: 0; top: 0; white-space: nowrap; will-change: transform;
+  font: 600 10.5px/1 var(--f-body); color: #5b6573; background: rgba(255, 255, 255, 0.82);
+  border-radius: 6px; padding: 3px 6px;
+}
+.c3-cerrado[hidden], .c3-chip[hidden] { display: none; }
+.c3-mas { background: #13233a; color: #fff; border-radius: 999px; padding: 2px 7px; font-weight: 700; font-size: 11px; }
+.c3-estrecho .c3-mas { font-size: 10px; padding: 2px 6px; }
+.c3-estrecho .c3-cerrado { font-size: 9.5px; }
+
+/* rótulos de piso que se pueden tocar para visitar ese piso */
+.c3-chip-boton { pointer-events: auto; cursor: pointer; font: 500 12px/1.2 var(--f-body); color: var(--ink); text-align: left; margin: 0; appearance: none; -webkit-appearance: none; }
+.c3-estrecho .c3-chip-boton { font-size: 11px; }
+.c3-chip-boton:hover { border-color: var(--c); }
+.c3-chip-boton:focus-visible { outline: 3px solid var(--c); outline-offset: 2px; }
+.c3-chip.c3-fondo { opacity: 0.78; }
+.c3-oro { background: #fde7a6; color: #6b4700; }
+.c3-volver {
+  position: absolute; left: 50%; top: 10px; transform: translateX(-50%); pointer-events: auto; z-index: 2;
+  font: 700 13px/1 var(--f-body); color: #fff; background: #13233a; border: 0; border-radius: 999px;
+  padding: 0 16px; min-height: 40px; box-shadow: 0 2px 8px rgba(10, 20, 35, 0.25); cursor: pointer;
+}
+.c3-volver[hidden] { display: none; }
+.c3-insignias { display: flex; gap: 3px; flex-wrap: nowrap; }
+.c3-insignias:empty { display: none; }
+.c3-ins { font: 700 10px/1 var(--f-body); padding: 3px 6px; border-radius: 999px; white-space: nowrap; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.c3-estrecho .c3-ins { font-size: 9px; padding: 2px 5px; }
+
+/* ——— En la app: los colores y la letra de la Jamacasa ——— */
+.casa3d {
+  --f-body: var(--f);
+  --ink: var(--texto);
+  --card: var(--papel);
+  --borde-chip: var(--linea);
+  --mal-fondo: #f8d8cf; --mal-tinta: #8a2a14;
+  --medio-fondo: #fbe6bc; --medio-tinta: #6e4300;
+  --info-fondo: #dae6f7; --info-tinta: #1d4d86;
+  --bien-fondo: #d4eedd; --bien-tinta: #17603a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .casa3d {
+    --mal-fondo: #5b2417; --mal-tinta: #ffdcd2; --medio-fondo: #5a400d; --medio-tinta: #ffe8b5;
+    --info-fondo: #1d3a63; --info-tinta: #dbe8fb; --bien-fondo: #174a2d; --bien-tinta: #d4f3e0;
+  }
+  :root:not([data-theme='light']) .casa3d-marco { background: linear-gradient(180deg, #16263d 0%, #22344f 100%) !important; }
+}
+:root[data-theme='dark'] .casa3d {
+  --mal-fondo: #5b2417; --mal-tinta: #ffdcd2; --medio-fondo: #5a400d; --medio-tinta: #ffe8b5;
+  --info-fondo: #1d3a63; --info-tinta: #dbe8fb; --bien-fondo: #174a2d; --bien-tinta: #d4f3e0;
+}
+:root[data-theme='dark'] .casa3d-marco { background: linear-gradient(180deg, #16263d 0%, #22344f 100%) !important; }
+.casa3d { position: relative; width: 100%; aspect-ratio: 4 / 5; max-height: 64vh; min-height: 300px; border-radius: var(--radio-gran); overflow: hidden; border: 1px solid var(--linea); background: var(--papel-2); }
+.casa3d-marco { position: absolute; inset: 0; }
+.casa3d-cargando { position: absolute; inset: 0; display: grid; place-items: center; color: var(--texto-3); font-size: var(--t-s); }

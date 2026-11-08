@@ -24,7 +24,7 @@ const s = oscuro ? '-oscuro' : '';
 const foto = (n, full = false) => p.screenshot({ path: `${salida}/${n}${s}.png`, fullPage: full });
 
 await foto('01-entrada');
-await p.getByRole('button', { name: /Javi/ }).first().click();
+await p.getByRole('button', { name: /Javi|Ana/ }).first().click();
 await p.waitForTimeout(800);
 await foto('02-sorteo-girando');
 await p.waitForTimeout(4600);
@@ -50,7 +50,7 @@ await p.getByRole('button', { name: 'Marcar como hecho' }).first().click();
 await p.waitForTimeout(400);
 await foto('06-marcar');
 await p.getByRole('button', { name: 'Cerrar' }).click();
-for (const [n, nombre] of [['07-limpieza', 'Limpieza'], ['08-cuentas', 'Cuentas'], ['09-juego', 'Juego']]) {
+for (const [n, nombre] of [['07-limpieza', 'Limpieza'], ['08-cuentas', 'Cuentas'], ['09-ranking', 'Ranking']]) {
   await p.getByRole('navigation').getByRole('button', { name: nombre }).click();
   await p.waitForTimeout(400);
   await foto(n, true);

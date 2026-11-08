@@ -1,9 +1,10 @@
 import { Flame } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { nivel, puntosDelMes } from '../core/estado';
+import { nivel, puntosDelMes, type Estado } from '../core/estado';
 import { MEDALLAS, TITULOS } from '../core/juego';
 import { nota } from '../core/noticias';
-import { cuando, nombreMes, rangoSemana } from '../core/tiempo';
+import { cuando, mesDeSemana, nombreMes, rangoSemana } from '../core/tiempo';
+import type { MiembroId } from '../core/tipos';
 import { useCasa } from './contexto';
 import { Avatar, Nombre, Puntos, Seccion } from './piezas';
 
@@ -38,7 +39,7 @@ export function Juego() {
               <Avatar id={f.id} tam="l" corona={(titulos.rey ?? []).includes(f.id)} />
               <div className="crece">
                 <p className="negrita"><Nombre id={f.id} /></p>
-                <p className="peq suave">{f.nivel.actual.nombre}</p>
+                <p className="peq suave">{resumenMes(estado, f.id)}</p>
               </div>
               <span className="cifra">{nota(f.puntos)}</span>
             </div>
@@ -104,7 +105,7 @@ export function Juego() {
           <div className="barra" aria-hidden="true"><span style={{ width: `${Math.round(miNivel.progreso * 100)}%` }} /></div>
           <p className="peq suave">
             {miNivel.siguiente
-              ? `Te faltan ${nota(Math.max(0, miNivel.siguiente.desde - miNivel.total))} puntos para ${miNivel.siguiente.nombre}. El nivel suma todo lo que ganas desde el principio y nunca baja.`
+              ? `Te faltan ${nota(Math.max(0, miNivel.siguiente.desde - miNivel.total))} puntos para el ${miNivel.siguiente.nombre.toLowerCase()}. El nivel suma todo lo que ganas desde el principio y nunca baja.`
               : 'Has llegado arriba del todo.'}
           </p>
         </div>
@@ -193,6 +194,14 @@ export function Juego() {
       </Seccion>
     </div>
   );
+}
+
+/** Debajo de cada nombre del ranking: cómo le va el mes («2 pisos aprobados · media 8,4»). */
+function resumenMes(estado: Estado, m: MiembroId): string {
+  const notas = estado.tareas.filter((t) => t.miembro === m && t.estado === 'aprobada' && mesDeSemana(t.semana) === estado.mes).map((t) => t.nota!);
+  if (!notas.length) return 'Aún sin pisos aprobados este mes';
+  const media = notas.reduce((a, b) => a + b, 0) / notas.length;
+  return `${notas.length} ${notas.length === 1 ? 'piso aprobado' : 'pisos aprobados'} · media ${nota(Math.round(media * 10) / 10)}`;
 }
 
 function Norma({ texto, valor }: { texto: string; valor: ReactNode }) {

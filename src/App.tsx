@@ -222,6 +222,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
 
   const acciones: Acciones = useMemo(
     () => ({
+      empezar: (semana) => apuntar('zona_empezada', { semana }),
       async marcarHecho(semana, fotos, nota) {
         await apuntar('zona_hecha', { semana, fotos, nota });
         try { confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: ['#f6c14f', '#ec6b67', '#fa8f59'] }); } catch { /* nada */ }
@@ -298,7 +299,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
             ['hoy', 'Hoy', House],
             ['limpieza', 'Limpieza', Sparkles],
             ['cuentas', 'Cuentas', Wallet],
-            ['juego', 'Juego', Trophy],
+            ['juego', 'Ranking', Trophy],
             ['chat', 'Chat', MessageCircle],
           ] as const).map(([id, texto, Icono]) => (
             <button key={id} type="button" aria-current={pantalla === id ? 'page' : undefined} onClick={() => ctx.ir(id)}>

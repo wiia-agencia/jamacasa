@@ -2,9 +2,9 @@
 
 La app de la casa de los jamaos: quién limpia qué, quién debe qué y quién va ganando.
 
-- **Limpieza**: rotación de los tres pisos por semanas (nadie repite piso), basura con sorteo de bolsa, marcar como hecho y nota de los otros dos (0–10, se aprueba con 5).
+- **Limpieza**: la casa en 3D con cada uno en su piso, rotación de los tres pisos por semanas (nadie repite piso), basura con sorteo de bolsa, empezar a limpiar, marcar como hecho y nota de los otros dos (0–10, se aprueba con 5).
 - **Cuentas**: alquiler que se apunta solo cada mes, facturas y compras comunes, saldo simplificado (dos Bizums como mucho).
-- **Juego**: puntos, ranking del mes, niveles acrobáticos, medallas, títulos y racha de la casa.
+- **Ranking**: puntos, ranking del mes, niveles, medallas, títulos y racha de la casa.
 
 ## Cómo está hecha
 

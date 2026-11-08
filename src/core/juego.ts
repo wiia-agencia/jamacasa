@@ -65,15 +65,8 @@ export function puntosPorMes(config: Config, apuntes: Apunte[]): Record<string, 
 
 // ——— Niveles ———
 
-export const NIVELES = [
-  { nombre: 'Voltereta', desde: 0 },
-  { nombre: 'Rueda', desde: 50 },
-  { nombre: 'Rondada', desde: 150 },
-  { nombre: 'Flic-flac', desde: 300 },
-  { nombre: 'Mortal', desde: 500 },
-  { nombre: 'Doble mortal', desde: 800 },
-  { nombre: 'Jamao Supremo', desde: 1200 },
-];
+// El nivel suma todo lo que ganas desde el principio y nunca baja. Sin nombres de fantasía: «Nivel 1», «Nivel 2»…
+export const NIVELES = [0, 50, 150, 300, 500, 800, 1200].map((desde, i) => ({ nombre: `Nivel ${i + 1}`, desde }));
 
 export interface Nivel { actual: (typeof NIVELES)[number]; siguiente?: (typeof NIVELES)[number]; total: number; progreso: number }
 
