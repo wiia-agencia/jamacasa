@@ -271,9 +271,9 @@ export const PLANTAS = [
       { puntos: [[9.84, 5.95], [9.84, 7.85]], base: P },
     ],
     suciedad: [[11.4, 1.95, 16.2, 5.8, 0], [11.2, 6.2, 12.7, 8.7, 0], [7.0, 1.0, 9.9, 4.0, P], [4.0, 4.4, 10.6, 5.25, P], [7.6, 5.6, 9.6, 7.9, P]],
-    // donde se deja la basura: en la cocina, debajo de la ventana, entre el fregadero y el lavavajillas
+    // donde se deja la basura: en la cocina, debajo de la ventana, entre donde acaba el fregadero y el lavavajillas
     // (un poco separada de la pared para que se vea por encima de la pared cortada)
-    basura: [7.45, 0.5, 8.75, 1.3, P],
+    basura: [7.95, 0.45, 8.8, 1.3, P],
     primeros: { ropa: [12.7, 4.6], papel: [13.3, 2.9], charco: [9.6, 2.0, P] },
     sitios: { pie: [13.0, 5.0, 'n'], barrer: [13.4, 4.7, 'n'], esperar: [13.0, 5.0, 'n'], relax: { pose: 'play', x: 16.92, y: 2.5, mira: 'w' } },
   },
@@ -301,7 +301,9 @@ export const FOCO = {
   0: { zonas: [[11, 0, 17.5, 9]] },
   1: { zonas: [[11, 0, 17.5, 9]], muros: [M(11, 1.05, 11, 9, 'w', 'piedra')] },
   2: {
-    zonas: [[11, 0, 17.5, 9], [6.6, 0, 11, 4.2], [9.4, 4.2, 11, 5.4]],
+    // el salón con la entradilla, la cocina y el rellano de la escalera del desván (con el pasillo de delante),
+    // que también limpia el de arriba (Javi, 9 de noviembre)
+    zonas: [[11, 0, 17.5, 9], [6.6, 0, 11, 4.2], [7.4, 4.2, 11, 5.4], [7.4, 5.4, 11, 9]],
     cerrados: [[14.3, 3.9, 17.5, 6, 0, 'Baño']],   // cada uno limpia el suyo
   },
 };
