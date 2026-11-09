@@ -3,7 +3,9 @@
 //   · Un piso se va ensuciando día a día desde la última vez que se limpió (Javi, 9 de noviembre):
 //     el lunes después de limpiar casi nada; la primera semana va a más; la 2.ª, desorden; la 3.ª, asco; la 4.ª, ruina.
 //   · La basura llena (alguien dio a «Basura llena» y aún no la han sacado) sale en la cocina de arriba: una bolsa
-//     el primer día y una más cada día que pasa, hasta cuatro.
+//     el primer día y luego de dos en dos (sois tres: entre 2 y 3 bolsas al día), hasta doce.
+//   · Partes que solo entran a veces (el pasillo de las habitaciones de arriba, si el piso le toca a alguien que
+//     duerme ahí): salen en `extras`, sacadas de `zona.extras` de la config.
 //   · Un piso aprobado brilla según la nota: de 5 a 7 limpio, de 7 a 9 muy limpio, 9 o más reluciente.
 //   · Cada muñeco hace lo suyo: el móvil si no ha empezado, barrer, esperar la nota o descansar.
 //   · Insignias: corona del rey del mes, racha (3 pisos seguidos con 9 o más), mejorando o empeorando,
@@ -33,7 +35,11 @@ export interface EscenaCasa {
   personas: Record<MiembroId, PersonaEscena>;
   rey: MiembroId | null;
   basura: { bolsas: number; dias: number } | null;
+  extras: Partial<Record<Piso3D, string[]>>;
 }
+
+/** Bolsas en la cocina según los días que lleva la basura sin sacar. */
+export const BOLSAS_POR_DIA = [1, 3, 5, 8, 10, 12];
 
 export function pisoDe(z: Zona): Piso3D | null {
   if (z.id === 'abajo' || z.id === 'medio' || z.id === 'arriba') return z.id;
@@ -85,13 +91,13 @@ export function basuraEnCasa(e: Estado): { bolsas: number; dias: number } | null
   let desde = Infinity;
   for (const s of e.semanasBasura) {
     for (const a of s.avisos) {
-      const sigue = a.estado === 'abierto' || (a.estado === 'queja' && e.ahora - a.desde < 4 * 86_400_000 && !sacadas.some((x) => x.ts > a.desde));
+      const sigue = a.estado === 'abierto' || (a.estado === 'queja' && e.ahora - a.desde < 7 * 86_400_000 && !sacadas.some((x) => x.ts > a.desde));
       if (sigue && a.desde < desde) desde = a.desde;
     }
   }
   if (desde === Infinity) return null;
   const dias = Math.max(0, diaLocal(e.ahora) - diaLocal(desde));
-  return { bolsas: Math.min(4, 1 + dias), dias };
+  return { bolsas: BOLSAS_POR_DIA[Math.min(dias, BOLSAS_POR_DIA.length - 1)], dias };
 }
 
 function insigniasDe(e: Estado, m: MiembroId): Insignia[] {
@@ -133,6 +139,7 @@ export function escenaCasa(e: Estado): EscenaCasa | null {
   if (!e.empezado) return null;
   const turnos: Record<MiembroId, Piso3D> = {};
   const pisos: Partial<Record<Piso3D, ValorPiso>> = {};
+  const extras: Partial<Record<Piso3D, string[]>> = {};
   const personas: Record<MiembroId, PersonaEscena> = {};
   const tareas = e.tareas.filter((t) => t.semana === e.semana);
 
@@ -140,6 +147,8 @@ export function escenaCasa(e: Estado): EscenaCasa | null {
     const piso = pisoDe(t.zona);
     if (!piso) continue;
     turnos[t.miembro] = piso;
+    const mas = (t.zona.extras ?? []).filter((x) => x.para.includes(t.miembro)).map((x) => x.id);
+    if (mas.length) extras[piso] = mas;
     const dias = diasSinLimpiar(e, piso);
     const sucio = nivelDeDias(dias);
     let estado: ValorPiso;
@@ -162,7 +171,7 @@ export function escenaCasa(e: Estado): EscenaCasa | null {
   if (!pisos.abajo || !pisos.medio || !pisos.arriba) return null;
 
   const reyes = e.titulos[e.mes]?.rey ?? [];
-  return { turnos, pisos: pisos as Record<Piso3D, ValorPiso>, personas, rey: reyes.length === 1 ? reyes[0] : null, basura: basuraEnCasa(e) };
+  return { turnos, pisos: pisos as Record<Piso3D, ValorPiso>, personas, rey: reyes.length === 1 ? reyes[0] : null, basura: basuraEnCasa(e), extras };
 }
 
 /** La tarea de una persona con su piso en 3D (para la tarjeta de «Tu piso»). */

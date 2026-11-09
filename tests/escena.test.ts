@@ -113,18 +113,29 @@ describe('la casa en 3D', () => {
     expect(diasSinLimpiar(derivar(config, tarde, dia(s + 2, 0, 9)), piso)).toBe(1);
   });
 
-  it('la basura llena sale en la cocina y se va acumulando hasta que la sacan', () => {
+  it('la basura llena sale en la cocina y se va acumulando de dos en dos hasta que la sacan', () => {
     const resp = derivar(config, [], dia(s, 0, 10)).basura!;
     const otro = config.miembros.find((m) => m.id !== resp)!.id;
     const llena = ev('basura_llena', otro, dia(s, 1, 9));
     expect(escenaCasa(derivar(config, [llena], dia(s, 1, 10)))!.basura).toEqual({ bolsas: 1, dias: 0 });
-    expect(escenaCasa(derivar(config, [llena], dia(s, 3, 10)))!.basura).toEqual({ bolsas: 3, dias: 2 });
+    expect(escenaCasa(derivar(config, [llena], dia(s, 2, 10)))!.basura).toEqual({ bolsas: 3, dias: 1 });
+    expect(escenaCasa(derivar(config, [llena], dia(s, 3, 10)))!.basura).toEqual({ bolsas: 5, dias: 2 });
+    expect(escenaCasa(derivar(config, [llena], dia(s + 1, 0, 10)))!.basura).toEqual({ bolsas: 12, dias: 6 });
     const sacada = ev('basura_sacada', resp, dia(s, 1, 12));
     expect(escenaCasa(derivar(config, [llena, sacada], dia(s, 1, 13)))!.basura).toBeNull();
     // si se pasa el plazo, sigue ahí hasta que la sacan
     const tardisima = ev('basura_sacada', resp, dia(s, 3, 12));
-    expect(escenaCasa(derivar(config, [llena, tardisima], dia(s, 3, 11)))!.basura).toEqual({ bolsas: 3, dias: 2 });
+    expect(escenaCasa(derivar(config, [llena, tardisima], dia(s, 3, 11)))!.basura).toEqual({ bolsas: 5, dias: 2 });
     expect(escenaCasa(derivar(config, [llena, tardisima], dia(s, 3, 13)))!.basura).toBeNull();
+  });
+
+  it('el pasillo de arriba solo entra cuando el piso le toca a alguien que duerme ahí', () => {
+    const conPasillo: Config = { ...config, zonas: config.zonas.map((z) => (z.id === 'arriba' ? { ...z, extras: [{ id: 'pasillo', nombre: 'El pasillo de las habitaciones', para: ['a', 'c'] }] } : z)) };
+    for (const w of [s, s + 1, s + 2]) {
+      const dueño = conPasillo.miembros.find((m) => zonaDe(conPasillo, w, m.id)!.id === 'arriba')!.id;
+      const esc = escenaCasa(derivar(conPasillo, [], dia(w, 0, 10)))!;
+      expect(esc.extras.arriba).toEqual(dueño === 'b' ? undefined : ['pasillo']);
+    }
   });
 
   it('racha con 3 pisos seguidos de 9 o más, y corona para el rey del mes', () => {

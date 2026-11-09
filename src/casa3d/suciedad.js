@@ -31,13 +31,19 @@ export function construirBasura(def, estilo, mats) {
   const [x0, y0, x1, y1, base] = def.basura;
   const r = azar(77);
   const bolsas = [], moscas = [];
-  const sitios = [[0.45, 0.78], [0.2, 0.5], [0.72, 0.45], [0.88, 0.85]];
-  sitios.forEach(([fx, fy], k) => {
+  // hasta 12 bolsas, en el orden en que se van acumulando: primero debajo de la ventana y luego un montón
+  // que crece hacia la mesa; las últimas, encima de las otras (capa 1)
+  const sitios = [
+    [0.66, 0.25, 0], [0.38, 0.4, 0], [0.88, 0.5, 0], [0.56, 0.62, 0], [0.16, 0.22, 0], [0.82, 0.86, 0],
+    [0.24, 0.7, 0], [0.5, 0.94, 0], [0.54, 0.36, 1], [0.74, 0.64, 1], [0.34, 0.6, 1], [0.6, 0.84, 1],
+  ];
+  sitios.forEach(([fx, fy, capa], k) => {
     const L = new Lote(estilo, 2100 + k);
     const x = x0 + (x1 - x0) * fx, y = y0 + (y1 - y0) * fy;
-    L.esfera(SUCIEDAD.bolsa, x, y, base + 0.27, 0.27, { escala: [1, 1.1, 0.92], detalle: 1 });
-    L.cilindro(SUCIEDAD.bolsa, x, y, base + 0.53, base + 0.64, 0.05, { segs: 6 });
-    L.esfera(SUCIEDAD.bolsa, x + 0.05, y, base + 0.66, 0.045, { detalle: 0 });
+    const e = capa ? 0.84 : 1, z = base + (capa ? 0.36 : 0);
+    L.esfera(SUCIEDAD.bolsa, x, y, z + 0.27 * e, 0.27 * e, { escala: [1, 1.1, 0.92], detalle: 1 });
+    L.cilindro(SUCIEDAD.bolsa, x, y, z + 0.53 * e, z + 0.64 * e, 0.05, { segs: 6 });
+    L.esfera(SUCIEDAD.bolsa, x + 0.05, y, z + 0.66 * e, 0.045, { detalle: 0 });
     const g = L.mallas(mats, { sinBordes: true });
     g.userData = { bolsa: k };
     bolsas.push(g);

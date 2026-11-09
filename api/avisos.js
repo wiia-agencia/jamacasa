@@ -6963,6 +6963,55 @@ function calcularEstoEsTuyo(normas, eventos, ahora) {
 		};
 	}).sort((a, b) => b.evento.ts - a.evento.ts);
 }
+function calcularEspacio(eventos, ahora) {
+	const cosas = /* @__PURE__ */ new Map();
+	for (const e of [...eventos].sort((a, b) => a.ts - b.ts)) {
+		if (e.ts > ahora || !e.tipo.startsWith("espacio_")) continue;
+		const id = e.datos?.cosa;
+		if (typeof id !== "string" || !id) continue;
+		const k = `${e.autor}|${id}`;
+		if (e.tipo === "espacio_cosa") {
+			const nombre = String(e.datos?.nombre ?? "").trim().slice(0, 40) || "Sin nombre";
+			const cada = Math.max(1, Math.min(90, Math.round(Number(e.datos?.cada) || 7)));
+			const ya = cosas.get(k);
+			if (ya) {
+				ya.nombre = nombre;
+				ya.cada = cada;
+			} else cosas.set(k, {
+				m: e.autor,
+				id,
+				nombre,
+				cada,
+				creada: e.ts,
+				ultima: null
+			});
+		} else if (e.tipo === "espacio_cosa_quitada") cosas.delete(k);
+		else if (e.tipo === "espacio_hecho") {
+			const ya = cosas.get(k);
+			if (ya) ya.ultima = e.ts;
+		}
+	}
+	const hoy = diaLocal(ahora);
+	const r = {};
+	for (const x of cosas.values()) {
+		const base = diaLocal(x.ultima ?? x.creada);
+		const venceDia = base + x.cada;
+		const faltan = venceDia - hoy;
+		(r[x.m] ??= []).push({
+			id: x.id,
+			nombre: x.nombre,
+			cada: x.cada,
+			creada: x.creada,
+			ultima: x.ultima,
+			dias: Math.max(0, hoy - base),
+			venceDia,
+			faltan,
+			toca: faltan <= 0
+		});
+	}
+	for (const k of Object.keys(r)) r[k].sort((a, b) => a.faltan - b.faltan || a.creada - b.creada);
+	return r;
+}
 // src/core/limpieza.ts
 const redondear1 = (x) => Math.round(x * 10) / 10;
 function calcularTareas(config, normas, eventos, ahora) {
@@ -7478,7 +7527,8 @@ function derivar(config, eventos, ahora) {
 		racha,
 		cuentas,
 		noticias,
-		chat
+		chat,
+		espacio: calcularEspacio(ordenados, ahora)
 	};
 }
 function tareaDe(e, w, m) {
@@ -7736,6 +7786,17 @@ function avisosDelReloj(config, eventos, desde, hasta, ahora = hasta) {
 			etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}`
 		});
 		if (i.resuelto && i.resueltoEn === i.fin && i.sinVotar.length > 0 && en(i.fin)) r.push(resultado(t, i, n));
+	}
+	for (const [m, cosas] of Object.entries(estado.espacio)) for (const c of cosas) for (const d of [c.venceDia, c.venceDia + 3]) {
+		if (!en(aLas(d, 19))) continue;
+		const dias = d - diaLocal(c.ultima ?? c.creada);
+		r.push({
+			para: m,
+			titulo: `🧽 ${c.nombre} lleva ${dias} días`,
+			texto: d === c.venceDia ? "¿Le das un repaso? Cuando lo hagas, márcalo en Limpieza." : "Sigue sin hacer. Cuando lo limpies, márcalo en Limpieza.",
+			pantalla: "limpieza",
+			etiqueta: `espacio-${c.id}`
+		});
 	}
 	const al = config.alquiler;
 	if (al && al.total > 0) for (const m of mesesEntre(al.desde, mes(hasta))) {

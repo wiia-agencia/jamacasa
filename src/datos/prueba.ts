@@ -141,6 +141,14 @@ export function generarPrueba(config: Config, ahora: number): Evento[] {
   }
   add('esto_es_tuyo', B, ahora - 2 * HORA, { para: A, que: 'La media bola naranja del jardín', fotos: hayFotoDemo('bola') ? ['demo:bola'] : [] });
 
+  // «Tu espacio»: la habitación y el baño de cada uno, con el baño ya tocando
+  config.miembros.forEach((m, k) => {
+    add('espacio_cosa', m.id, t(0, 0, 20), { cosa: `hab-${k}`, nombre: 'Tu habitación', cada: 7 });
+    add('espacio_cosa', m.id, t(0, 0, 20, 1), { cosa: `bano-${k}`, nombre: 'Tu baño', cada: 7 });
+    add('espacio_hecho', m.id, ahora - (5 + k) * 24 * HORA, { cosa: `hab-${k}` });
+    add('espacio_hecho', m.id, ahora - (8 + k) * 24 * HORA, { cosa: `bano-${k}` });
+  });
+
   // El chat: un mensaje fijado y una conversación de los últimos días
   const msg = (autor: MiembroId, ts: number, texto: string, extra: any = {}) => add('mensaje', autor, ts, { texto, ...extra });
   msg(B, t(3, 0, 21, 5), 'Recordad que el jueves viene el del gasóleo por la mañana');

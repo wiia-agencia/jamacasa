@@ -166,8 +166,10 @@ create policy jc_casa_leer on public.jc_casa for select to authenticated using (
 drop policy if exists jc_miembros_leer on public.jc_miembros;
 create policy jc_miembros_leer on public.jc_miembros for select to authenticated using (public.jc_yo() is not null);
 
+-- Lo de «Tu espacio» (tipos espacio_…) solo lo ve quien lo apuntó: a los otros dos no les llega ni al móvil
 drop policy if exists jc_eventos_leer on public.jc_eventos;
-create policy jc_eventos_leer on public.jc_eventos for select to authenticated using (public.jc_yo() is not null);
+create policy jc_eventos_leer on public.jc_eventos for select to authenticated
+  using (public.jc_yo() is not null and (left(tipo, 8) <> 'espacio_' or autor = public.jc_yo()));
 
 drop policy if exists jc_eventos_apuntar on public.jc_eventos;
 create policy jc_eventos_apuntar on public.jc_eventos for insert to authenticated with check (public.jc_yo() is not null);

@@ -1,6 +1,7 @@
-import { ChevronRight, Dices, Info } from 'lucide-react';
+import { Bath, BedDouble, ChevronRight, Dices, House, Info, Lock, Plus, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { escenaCasa } from '../core/escena';
+import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, textoEspacio } from '../core/espacio';
 import { rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
 import type { Tarea } from '../core/limpieza';
 import { rangoSemana } from '../core/tiempo';
@@ -51,6 +52,7 @@ export function Limpieza() {
 
       {escena && <Casa3D miembros={config.miembros} escena={escena} yo={yo} />}
       {estado.empezado && <TuPisoAhora />}
+      <TuEspacio />
 
       {estado.empezado && (
         <Seccion titulo="Esta semana">
@@ -149,6 +151,8 @@ function TuPisoAhora() {
   const t = tareaDe(estado, estado.semana, yo);
   if (!t) return null;
   const puedeEmpezar = t.estado === 'pendiente' && t.empezada === undefined;
+  // lo que solo entra cuando el piso te toca a ti (el pasillo de las habitaciones de arriba)
+  const extras = (t.zona.extras ?? []).filter((x) => x.para.includes(yo));
   return (
     <section className="tarjeta pila-s tu-piso-limpieza" aria-label="Tu piso esta semana">
       <div className="fila entre" style={{ alignItems: 'flex-start' }}>
@@ -161,9 +165,10 @@ function TuPisoAhora() {
           <Info size={19} />
         </button>
       </div>
-      {t.zona.checklist.length > 0 && (
+      {(t.zona.checklist.length > 0 || extras.length > 0) && (
         <ul className="lista-limpiar" aria-label="Lo que tiene que quedar limpio">
           {t.zona.checklist.map((c) => <li key={c}>{c}</li>)}
+          {extras.map((x) => <li key={x.id}>{x.nombre}</li>)}
         </ul>
       )}
       {puedeEmpezar && (
@@ -186,6 +191,106 @@ function TuPisoAhora() {
       )}
       <EstadoTarea t={t} />
     </section>
+  );
+}
+
+function iconoEspacio(nombre: string) {
+  const n = nombre.toLowerCase();
+  if (n.includes('baño') || n.includes('bano') || n.includes('ducha')) return <Bath size={18} />;
+  if (n.includes('habitaci') || n.includes('cuarto') || n.includes('cama')) return <BedDouble size={18} />;
+  if (n.includes('piso') || n.includes('casa')) return <House size={18} />;
+  return <Sparkles size={18} />;
+}
+
+/** «Tu espacio»: lo tuyo, que no sale en la casa de los tres. Solo lo ves tú y no da puntos: te dice cuánto llevas
+ *  sin limpiarlo y te avisa cuando toca. */
+function TuEspacio() {
+  const { estado, yo, acciones, avisar } = useCasa();
+  const cosas = estado.espacio[yo] ?? [];
+  const [cambiando, setCambiando] = useState(false);
+  const [otra, setOtra] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const sugeridas = SUGERENCIAS_ESPACIO.filter((s) => !cosas.some((c) => c.nombre.toLowerCase() === s.toLowerCase()));
+  const hacer = async (f: () => Promise<void>, texto?: string) => {
+    if (ocupado) return;
+    setOcupado(true);
+    try {
+      await f();
+      if (texto) avisar(texto);
+    } finally {
+      setOcupado(false);
+    }
+  };
+  const anadir = (nombre: string) => hacer(() => acciones.espacioCosa(`c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, nombre, CADA_ESPACIO));
+
+  return (
+    <Seccion titulo="Tu espacio" extra={<span className="mini tenue fila" style={{ gap: 5 }}><Lock size={13} aria-hidden="true" />Solo lo ves tú</span>}>
+      {cosas.length > 0 ? (
+        <div className="caja">
+          <div className="lista">
+            {cosas.map((c) => (
+              <div key={c.id} className="item">
+                <span className="avatar" style={{ background: 'var(--papel-2)', color: 'var(--texto-2)' }} aria-hidden="true">{iconoEspacio(c.nombre)}</span>
+                <span className="crece">
+                  <span className="negrita" style={{ display: 'block' }}>{c.nombre}</span>
+                  <span className={c.toca ? 'peq mal negrita' : 'peq suave'}>{textoEspacio(c)}</span>
+                </span>
+                {cambiando ? (
+                  <button type="button" className="boton mini peligro" disabled={ocupado} onClick={() => hacer(() => acciones.espacioQuitar(c.id))}>
+                    Quitar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={c.toca ? 'boton mini' : 'boton mini claro'}
+                    disabled={ocupado}
+                    onClick={() => hacer(() => acciones.espacioHecho(c.id), `${c.nombre}: hecho. Te aviso dentro de ${c.cada === 7 ? 'una semana' : `${c.cada} días`}.`)}
+                  >
+                    Hecho
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="peq suave">Apunta lo tuyo (tu habitación, tu baño…): te dice cuánto llevas sin limpiarlo y te avisa cuando toca. Los otros dos no lo ven.</p>
+      )}
+      {(cosas.length === 0 || cambiando) && (
+        <div className="opciones">
+          {sugeridas.map((s) => (
+            <button key={s} type="button" className="opcion" disabled={ocupado} onClick={() => anadir(s)}>
+              <Plus size={15} aria-hidden="true" /> {s}
+            </button>
+          ))}
+          {otra === null && (
+            <button type="button" className="opcion" onClick={() => setOtra('')}>
+              <Plus size={15} aria-hidden="true" /> Otra cosa
+            </button>
+          )}
+        </div>
+      )}
+      {otra !== null && (
+        <form
+          className="fila"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            const n = otra.trim();
+            if (!n) return;
+            anadir(n);
+            setOtra(null);
+          }}
+        >
+          <input className="entrada crece" value={otra} onChange={(ev) => setOtra(ev.target.value)} placeholder="Por ejemplo, el armario" maxLength={40} autoFocus aria-label="Qué quieres apuntar" />
+          <button type="submit" className="boton mini" disabled={!otra.trim() || ocupado}>Añadir</button>
+        </form>
+      )}
+      {cosas.length > 0 && (
+        <button type="button" className="enlace" style={{ alignSelf: 'flex-start' }} onClick={() => { setCambiando(!cambiando); setOtra(null); }}>
+          {cambiando ? 'Listo' : 'Añadir o quitar cosas'}
+        </button>
+      )}
+    </Seccion>
   );
 }
 

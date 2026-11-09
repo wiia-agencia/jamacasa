@@ -2,6 +2,7 @@ import { calcularChat, type Chat } from './chat';
 import { calcularBasura, calcularEstoEsTuyo, type AvisoBasura, type AvisoTuyo, type SemanaBasura } from './basura';
 import { basuraDe, normasDe, repartoSemana, semanaInicial, zonaDe } from './calendario';
 import { calcularCuentas, type Cuentas } from './cuentas';
+import { calcularEspacio, type CosaEspacio } from './espacio';
 import {
   calcularApuntes,
   calcularMedallas,
@@ -39,6 +40,8 @@ export interface Estado {
   cuentas: Cuentas;
   noticias: Noticia[];
   chat: Chat;
+  /** «Tu espacio» de cada uno (en el móvil solo llega el tuyo) */
+  espacio: Record<MiembroId, CosaEspacio[]>;
 }
 
 export function derivar(config: Config, eventos: Evento[], ahora: number): Estado {
@@ -81,6 +84,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
     cuentas,
     noticias,
     chat,
+    espacio: calcularEspacio(ordenados, ahora),
   };
 }
 

@@ -40,6 +40,10 @@ export interface Acciones {
   mensaje(m: { texto?: string; fotos?: string[]; audio?: { ref: string; segundos: number } }): Promise<void>;
   fijar(mensaje: string | null): Promise<void>;
   borrarMensaje(mensaje: string): Promise<void>;
+  /** «Tu espacio»: apuntar una cosa tuya (o cambiarla), quitarla y marcarla como hecha */
+  espacioCosa(cosa: string, nombre: string, cada: number): Promise<void>;
+  espacioQuitar(cosa: string): Promise<void>;
+  espacioHecho(cosa: string): Promise<void>;
 }
 
 export interface Ctx {

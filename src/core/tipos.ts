@@ -16,6 +16,9 @@ export interface Zona {
   nombre: string; // "Piso de arriba"
   incluye: string; // "Salón, entradilla y cocina"
   checklist: string[];
+  /** Partes que solo entran cuando el piso le toca a alguno de `para` (p. ej. el pasillo de las habitaciones de arriba,
+   *  que es de los que duermen ahí). `id` es el nombre de esa parte en la casa en 3D. */
+  extras?: { id: string; nombre: string; para: MiembroId[] }[];
 }
 
 export interface Factura {
@@ -75,7 +78,10 @@ export type TipoEvento =
   | 'aviso_prueba' // «Probar los avisos»: se avisa solo a quien lo pulsa
   | 'mensaje' // el chat de la casa
   | 'mensaje_fijado' // fija un mensaje arriba del chat (o lo quita, con mensaje: null)
-  | 'mensaje_borrado'; // su autor lo borra: queda «Mensaje borrado» en su sitio
+  | 'mensaje_borrado' // su autor lo borra: queda «Mensaje borrado» en su sitio
+  | 'espacio_cosa' // «Tu espacio»: apuntas una cosa tuya (tu habitación, tu baño…) o le cambias el nombre o cada cuánto
+  | 'espacio_cosa_quitada' // la quitas de tu espacio
+  | 'espacio_hecho'; // la acabas de limpiar (solo lo ves tú: la base de datos no se lo da a los otros dos)
 
 export interface Evento {
   id: string;

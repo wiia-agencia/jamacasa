@@ -1628,7 +1628,7 @@ function construirPlanta(def, estilo, conRuina = false) {
 
   // halo de «tu piso»: un brillo blando de tu color alrededor de la planta (o de sus zonas)
   const huella = def.huella || { xs: [0, def.nivel === 2 ? 17.5 : 19.3], ys: [def.nivel === 2 ? 0 : -1.8, 9] };
-  const rects = def.zonas || (def.nivel === 2 ? [[0, 0, 17.5, 9]] : [[0, 0, 17.5, 9], [11, -1.8, 19.3, 0], [17.5, -1.8, 19.3, 5]]);
+  const rects = def.zonas || def.zonasHalo || (def.nivel === 2 ? [[0, 0, 17.5, 9]] : [[0, 0, 17.5, 9], [11, -1.8, 19.3, 0], [17.5, -1.8, 19.3, 5]]);
   const MG = 1.3;
   const bx0 = huella.xs[0] - MG, bx1 = huella.xs[1] + MG, by0 = huella.ys[0] - MG, by1 = huella.ys[1] + MG;
   const halo = new THREE.Mesh(
@@ -1726,9 +1726,17 @@ function construirJardin(estilo) {
   return { grupo, materiales: mats };
 }
 
-export function construirCasa(estilo, modo = 'entera') {
+// Lo que se limpia de un piso, con las partes que solo entran a veces (p. ej. el pasillo de las habitaciones)
+function focoDe(def, extras) {
+  const f = FOCO[def.nivel];
+  const mas = (extras && extras[def.piso]) || [];
+  if (!f || !f.extras || !mas.length) return f;
+  return { ...f, zonas: [...f.zonas, ...mas.flatMap((k) => f.extras[k] || [])] };
+}
+
+export function construirCasa(estilo, modo = 'entera', extras = {}) {
   if (modo === 'foco') {
-    const plantas = PLANTAS.map((def) => construirPlanta(enfocar(def, FOCO[def.nivel]), estilo));
+    const plantas = PLANTAS.map((def) => construirPlanta(enfocar(def, focoDe(def, extras)), estilo));
     const defG = enfocar({ ...PLANTAS[0], nivel: -1, piso: 'garaje', suciedad: GARAJE.suciedad, sitios: GARAJE.sitios }, { zonas: GARAJE.zonas });
     const garaje = construirPlanta(defG, estilo, false);
     garaje.grupo.position.x = GARAJE.desplazar;

@@ -152,7 +152,8 @@ export function crearVisor(contenedor, opciones = {}) {
     hemi.color.set(E.luz.cielo); hemi.groundColor.set(E.luz.suelo); hemi.intensity = E.luz.hemi;
     sol.color.set(E.luz.dirColor); sol.intensity = E.luz.dir;
     amb.intensity = E.luz.amb;
-    casa = construirCasa(E, modoDe(st.vista));
+    st.extras = JSON.stringify(ESCENAS[st.escena]?.extras || {});
+    casa = construirCasa(E, modoDe(st.vista), JSON.parse(st.extras));
     for (const p of plantasConGaraje()) {
       posY[p.def.nivel] = objetivoY(p.def.nivel);
       p.escala = 1;
@@ -310,6 +311,8 @@ export function crearVisor(contenedor, opciones = {}) {
   }
 
   function aplicar() {
+    // si cambia lo que entra en algún piso (el pasillo de arriba según a quién le toque), se vuelve a montar
+    if (casa && casa.modo === 'foco' && JSON.stringify(ESCENAS[st.escena]?.extras || {}) !== st.extras) { montar(); return; }
     if (!casa) return;
     const esc = ESCENAS[st.escena] || ESCENAS.vacia;
     const mio = TURNOS[st.verComo];

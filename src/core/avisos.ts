@@ -9,7 +9,7 @@ import { alquilerPendiente, euros } from './cuentas';
 import { derivar, tareaDe } from './estado';
 import type { Intento, Tarea } from './limpieza';
 import { nota } from './noticias';
-import { HORA, duracion, fechaDeDia, instanteLocal, lunesDe, mes, mesesEntre, nombreMes, semana } from './tiempo';
+import { HORA, diaLocal, duracion, fechaDeDia, instanteLocal, lunesDe, mes, mesesEntre, nombreMes, semana } from './tiempo';
 import type { Config, Evento, MiembroId, Normas } from './tipos';
 
 export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego' | 'chat';
@@ -218,6 +218,23 @@ export function avisosDelReloj(config: Config, eventos: Evento[], desde: number,
       }
       // Con todas las notas, el resultado sale al votar (avisosDeEvento); si no, al cerrarse el plazo
       if (i.resuelto && i.resueltoEn === i.fin && i.sinVotar.length > 0 && en(i.fin)) r.push(resultado(t, i, n));
+    }
+  }
+
+  // «Tu espacio»: el día que toca, a las 19:00, y si sigue sin hacer, otra vez a los 3 días (solo a su dueño)
+  for (const [m, cosas] of Object.entries(estado.espacio)) {
+    for (const c of cosas) {
+      for (const d of [c.venceDia, c.venceDia + 3]) {
+        if (!en(aLas(d, 19))) continue;
+        const dias = d - diaLocal(c.ultima ?? c.creada);
+        r.push({
+          para: m,
+          titulo: `🧽 ${c.nombre} lleva ${dias} días`,
+          texto: d === c.venceDia ? '¿Le das un repaso? Cuando lo hagas, márcalo en Limpieza.' : 'Sigue sin hacer. Cuando lo limpies, márcalo en Limpieza.',
+          pantalla: 'limpieza',
+          etiqueta: `espacio-${c.id}`,
+        });
+      }
     }
   }
 

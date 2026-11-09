@@ -239,6 +239,9 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       mensaje: (m) => apuntar('mensaje', m),
       fijar: (mensaje) => apuntar('mensaje_fijado', { mensaje }),
       borrarMensaje: (mensaje) => apuntar('mensaje_borrado', { mensaje }),
+      espacioCosa: (cosa, nombre, cada) => apuntar('espacio_cosa', { cosa, nombre, cada }),
+      espacioQuitar: (cosa) => apuntar('espacio_cosa_quitada', { cosa }),
+      espacioHecho: (cosa) => apuntar('espacio_hecho', { cosa }),
     }),
     [apuntar],
   );

@@ -10,7 +10,7 @@ type Modulo = typeof import('../casa3d/index.js');
 type Visor = ReturnType<Modulo['crearVisor']>;
 
 /** Estilo de la casa: la A2 (la A con menos gris) mientras Javi no elija otra. */
-export const ESTILO_CASA = 'juguete_calido';
+export const ESTILO_CASA = 'juguete_vivo'; // la A3, «Casita viva»: la que eligió Javi el 9 de noviembre
 
 const COLORES: Record<string, string> = { naranja: '#d96a14', verde: '#1a9150', azul: '#2569db' };
 
