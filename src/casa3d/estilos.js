@@ -10,6 +10,10 @@ const VIVOS = {
   rueda: '#262a33', pelota: '#e3243b', hoja: '#3fae3f', tronco: '#8a5a34', maceta: '#c8643a', planta: '#3aa64a',
   persiana: '#f2ede2', porton: '#5e6773', lena: '#8f5e36', agua: '#5fc7ef', carton: '#c29567', pantalon: '#3d4655',
   piel: '#eeb68e', pelo: '#3b2a20',
+  // lo que salió del vídeo del 9 de noviembre: los colores de verdad de la casa
+  tela_gris: '#8b9099', tela_oscura: '#545862', tela_marron: '#b5844e', cerezo: '#9a432c', granito: '#b98e80',
+  ladrillo: '#b9693f', azulejo: '#eeeae2', suelo_barro: '#b8694a', suelo_laminado: '#cbbfae', alfombra_beige: '#dcc6a3',
+  cenefa: '#3f63a8', dorado: '#e0ad2e',
 };
 
 export const ESTILOS = {
@@ -31,6 +35,9 @@ export const ESTILOS = {
       rueda: '#3c4250', pelota: '#ee5a52', hoja: '#7cc36a', tronco: '#a87a52', maceta: '#e08f62', planta: '#69b85e',
       persiana: '#f7f3ea', porton: '#7d8794', lena: '#a9764c', agua: '#9fd8f0', carton: '#d2a878', pantalon: '#4a5466',
       piel: '#f3c9a5', pelo: '#5a3d2b',
+      tela_gris: '#a4a7ae', tela_oscura: '#6e727b', tela_marron: '#c99a63', cerezo: '#b0634a', granito: '#caa497',
+      ladrillo: '#cf8a63', azulejo: '#f7f4ee', suelo_barro: '#cd8a6b', suelo_laminado: '#ddd2c3', alfombra_beige: '#e6d2b2',
+      cenefa: '#6a84bd', dorado: '#e7bd4f',
     },
   },
   lowpoly: {
@@ -71,6 +78,9 @@ export const ESTILOS = {
       rueda: '#b8b6b0', pelota: '#efc0bb', hoja: '#d4e2c4', tronco: '#d9c7aa', maceta: '#e6c9b2', planta: '#cfe0c0',
       persiana: '#fbf9f4', porton: '#d9d8d3', lena: '#dfcaa8', agua: '#e6f2f6', carton: '#e2cfb2', pantalon: '#5b6170',
       piel: '#f1dccb', pelo: '#7a6656',
+      tela_gris: '#e4e1db', tela_oscura: '#d6d2ca', tela_marron: '#e8dccb', cerezo: '#dcc3ab', granito: '#ece2dc',
+      ladrillo: '#ead8cb', azulejo: '#fbfaf6', suelo_barro: '#ecdccf', suelo_laminado: '#efe9e0', alfombra_beige: '#ebe2d4',
+      cenefa: '#d9dde6', dorado: '#efe1bf',
     },
   },
 };

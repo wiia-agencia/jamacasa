@@ -1,4 +1,4 @@
-// La Jamacasa en 3D: datos sacados de los planos (borrador 4, 7 nov 2026).
+// La Jamacasa en 3D: datos sacados de los planos (borrador 4, 7 nov 2026) y del último vídeo de la casa (9 nov).
 // Medidas en metros y a ojo. x crece hacia el este, y hacia el sur (el norte es la pared del portón).
 
 export const ALTURA = 2.8;        // de suelo a suelo
@@ -37,7 +37,7 @@ export const MOMENTOS = {
 
 const S = (x0, y0, x1, y1, suelo, o = {}) => ({ x0, y0, x1, y1, suelo, ...o });
 const M = (x0, y0, x1, y1, lado, material, huecos = [], o = {}) => ({ x0, y0, x1, y1, lado, material, huecos, ...o });
-const h = (desde, hasta, tipo = 'puerta') => ({ desde, hasta, tipo });
+const h = (desde, hasta, tipo = 'puerta', o = {}) => ({ desde, hasta, tipo, ...o });
 const C = (t, x0, y0, x1, y1, o = {}) => ({ t, x0, y0, x1, y1, ...o });
 const P = PIEDRA_SUBE;
 
@@ -52,7 +52,9 @@ export const PLANTAS = [
     nivel: 0, piso: 'abajo', nombre: 'Planta −1',
     suelos: [
       S(0, 0, 11, 9, 'suelo_cemento'),
-      S(11, 0, 17.5, 9, 'suelo_baldosa'),
+      // baldosa de barro en la cocina y el pasillo; el baño, más claro
+      S(11, 0, 17.5, 6.95, 'suelo_barro'), S(11, 6.95, 12.3, 9, 'suelo_barro'),
+      S(12.3, 6.95, 17.5, 9, 'suelo_baldosa'),
       S(11, -1.8, 17.5, 0, 'suelo_porche', { fuera: true }),
       S(17.5, -1.8, 19.3, 5, 'suelo_porche', { fuera: true }),
     ],
@@ -60,14 +62,16 @@ export const PLANTAS = [
       M(0, 0, 11, 0, 'n', 'piedra', [h(0.9, 1.9, 'ventana'), h(3.8, 6.5, 'porton'), h(8.4, 9.4, 'ventana')]),
       M(0, 0, 0, 9, 'w', 'piedra'),
       M(0, 9, 11, 9, 's', 'piedra'),
-      M(11, 0, 17.5, 0, 'n', 'liso', [h(15.3, 16.5, 'ventana')]),
-      M(17.5, 0, 17.5, 9, 'e', 'liso', [h(1.1, 1.95, 'puerta'), h(7.9, 8.7, 'ventana')]),
+      // la cocina va alicatada de blanco (por dentro)
+      M(11, 0, 17.5, 0, 'n', 'liso', [h(15.3, 16.5, 'ventana')], { revestido: { cara: 's', material: 'azulejo' } }),
+      M(17.5, 0, 17.5, 9, 'e', 'liso', [h(1.1, 1.95, 'puerta'), h(5.3, 6.4, 'ventana'), h(7.9, 8.7, 'ventana')]),
       M(11, 9, 17.5, 9, 's', 'liso'),
-      M(11, 0, 11, 9, 'int', 'piedra', [h(7.3, 8.2)]),
+      M(11, 0, 11, 9, 'int', 'piedra', [h(7.3, 8.2)], { revestido: { cara: 'e', material: 'azulejo' } }),
       M(6.7, 0, 6.7, 4.2, 'int', 'interior', [h(2.6, 3.4)]),
       M(6.7, 4.2, 11, 4.2, 'int', 'interior'),
-      M(14.9, 6.95, 14.9, 9, 'int', 'interior'),
-      M(14.9, 6.95, 17.5, 6.95, 'int', 'interior', [h(15.1, 15.9)]),
+      // el baño es ancho: deja un pasillo estrecho hasta la puerta del garaje
+      M(12.3, 6.95, 12.3, 9, 'int', 'interior'),
+      M(12.3, 6.95, 17.5, 6.95, 'int', 'interior', [h(14.5, 15.3)]),
     ],
     cosas: [
       C('lena', 0.35, 0.35, 2.3, 2.5),
@@ -79,70 +83,94 @@ export const PLANTAS = [
       C('arcon', 0.35, 6.3, 1.35, 7.1),
       C('estanteria', 2.4, 8.12, 8.4, 8.72),
       C('pilar', 2.9, 3.25, 3.2, 3.55), C('pilar', 2.9, 6.4, 3.2, 6.7), C('pilar', 8.15, 6.4, 8.45, 6.7),
-      C('encimera', 11.19, 0.14, 11.79, 3.8, { mira: 'e', fuegos: [[11.49, 1.3], [11.49, 1.75], [11.49, 2.2]] }),
-      C('nevera', 11.19, 3.88, 11.84, 4.53, { mira: 'e' }),
-      C('encimera', 11.79, 0.14, 12.4, 0.74, { mira: 's' }),
-      C('cocinalena', 12.4, 0.14, 13.6, 0.84),
-      C('encimera', 13.6, 0.14, 17.36, 0.74, { mira: 's', fregadero: [15.3, 0.44] }),
+      // cocina: muebles forrados de ladrillo con puertas de madera y encimera de granito rosa.
+      // La del fregadero acaba debajo de la ventana; después, el radiador.
+      C('encimera', 11.19, 0.14, 16.05, 0.74, { mira: 's', fregadero: [15.35, 0.44], frente: 'ladrillo', puertas: 'madera', tapa: 'granito' }),
+      C('radiador', 16.2, 0.14, 16.9, 0.22, { mira: 's' }),
+      // en la pared del garaje: la cocina de leña con su campana de azulejo, la vitro con el horno y su campana, y la nevera
+      C('cocinalena', 11.19, 0.86, 11.89, 1.95, { mira: 'e' }),
+      C('campana', 11.17, 0.72, 11.97, 2.1, { mira: 'e', tipo: 'obra' }),
+      C('encimera', 11.19, 1.95, 11.79, 3.8, { mira: 'e', vitro: [11.49, 2.7], horno: [11.49, 2.7], frente: 'ladrillo', puertas: 'madera', tapa: 'granito' }),
+      C('campana', 11.17, 2.42, 11.67, 2.98, { mira: 'e' }),
+      C('altos', 11.17, 3.02, 11.52, 3.8, { mira: 'e', color: 'madera_osc', puertas: 'madera' }),
+      C('micro', 11.24, 3.3, 11.68, 3.74, { mira: 'e', color: 'pelota', base: 0.92 }),
+      C('nevera', 11.19, 3.88, 11.84, 4.53, { mira: 'e', color: 'metal' }),
+      // el mueble y el armario empotrado de al lado de la puerta del garaje
+      C('mueble', 11.19, 5.15, 11.64, 6.75, { mira: 'e', alto: 0.85 }),
+      C('armario', 11.19, 8.36, 12.24, 8.86, { mira: 'n', alto: 2.3, correderas: true }),
       C('mesa', 13.65, 2.5, 14.65, 4.5, { sillas: 3, eje: 'v' }),
-      C('sofa', 16.5, 5.15, 17.36, 6.85, { respaldo: 'e', tela: 'tela2' }),
-      C('ducha', 16.56, 8.06, 17.36, 8.86),
-      C('lavabo', 16.9, 7.08, 17.36, 7.66, { mira: 'w' }),
-      C('inodoro', 15.88, 8.2, 16.3, 8.86, { mira: 'n' }),
+      C('sofa', 15.45, 6.05, 17.3, 6.9, { respaldo: 's', tela: 'tela_gris' }),
+      C('radiador', 17.3, 5.45, 17.38, 6.0, { mira: 'w' }),
+      // el baño: al abrir la puerta, el lavabo con el espejo, el váter y la ducha
+      C('lavabo', 14.35, 8.42, 15.35, 8.86, { mira: 'n', mueble: true }),
+      C('espejo', 14.45, 8.86, 15.25, 8.88, { mira: 'n' }),
+      C('inodoro', 15.7, 8.2, 16.12, 8.86, { mira: 'n' }),
+      C('ducha', 16.5, 7.95, 17.36, 8.86),
+      // debajo de la escalera, una puerta (lo de dentro da igual)
+      C('puertita', 16.08, 3.9, 16.15, 4.8, { mira: 'w', alto: 1.5 }),
       ...COLUMNAS_PORCHE,
       C('coche', 17.65, 0.3, 19.15, 4.5),
     ],
     escaleras: [
-      { t: 'tramo', x0: 16.15, y0: 2.05, x1: 17.25, y1: 5.0, sube: 's', desde: 0, hasta: ALTURA, pasos: 15 },
+      { t: 'tramo', x0: 16.15, y0: 2.05, x1: 17.25, y1: 5.0, sube: 's', desde: 0, hasta: ALTURA, pasos: 15, huella: 'suelo_barro' },
     ],
     barandas: [],
-    suciedad: [[11.4, 1.2, 15.9, 6.8, 0], [15.1, 7.15, 17.2, 7.9, 0]],
-    sitios: { pie: [15.2, 5.7, 'n'], barrer: [14.9, 5.9, 'n'], esperar: [15.2, 5.7, 'n'], relax: { pose: 'cocinar', x: 13.0, y: 1.3, mira: 'n' } },
+    suciedad: [[11.9, 1.0, 15.9, 5.9, 0], [12.6, 7.2, 16.4, 8.3, 0]],
+    sitios: { pie: [15.0, 5.6, 'n'], barrer: [14.7, 5.8, 'n'], esperar: [15.0, 5.6, 'n'], relax: { pose: 'cocinar', x: 12.3, y: 2.7, mira: 'w' } },
   },
   {
     nivel: 1, piso: 'medio', nombre: 'Planta 1',
     suelos: [
-      S(11, 0, 16.1, 6, 'suelo_madera'), S(16.1, 0, 17.5, 2.05, 'suelo_madera'), S(16.1, 5.0, 17.5, 6, 'suelo_madera'),
+      // baldosa de barro en el salón; la entrada, clara y con su cenefa
+      S(11, 0, 16.1, 6, 'suelo_barro'), S(16.1, 0, 17.5, 2.05, 'suelo_barro'), S(16.1, 5.0, 17.5, 6, 'suelo_barro'),
       S(11, 6, 17.5, 9, 'suelo_baldosa'),
       S(11, -1.8, 17.5, 0, 'suelo_terraza'), S(17.5, -1.8, 19.3, 5, 'suelo_terraza'),
     ],
     muros: [
       M(11, 0, 17.5, 0, 'n', 'liso', [h(12.0, 15.9, 'ventanal')]),
       M(17.5, 0, 17.5, 9, 'e', 'liso', [h(0.5, 1.9, 'puerta')]),
-      M(11, 9, 17.5, 9, 's', 'liso', [h(11.4, 12.4)]),
+      M(11, 9, 17.5, 9, 's', 'liso', [h(11.4, 12.4, 'puerta', { hoja: 'blanco' })]),
       M(11, 6, 17.5, 6, 'int', 'interior', [h(11.4, 12.3)]),
     ],
     cosas: [
       C('bloque', 0, 0, 11, 9, { ventanas: [[1.5, 2.5], [5.0, 6.0], [8.4, 9.4]] }),
-      C('zen', 11.35, 0.35, 15.55, 2.05, { cojines: [[11.95, 1.72, 0.26], [12.55, 1.75, 0.26], [15.15, 1.65, 0.28]] }),
-      C('mesa', 12.2, 2.8, 14.2, 3.8, { sillas: 3, eje: 'h' }),
-      C('vitrina', 15.15, 5.5, 15.95, 5.92, { mira: 'n' }),
-      C('mueble', 13.3, 8.48, 15.1, 8.86, { mira: 'n' }),
+      // la zona zen: la alfombra de rayas, los cojines y, al lado de la ventana, el mueble blanco con el Buda
+      C('zen', 12.2, 0.5, 15.3, 2.05, { rayas: true, cojines: [[12.75, 1.62, 0.26], [13.35, 1.68, 0.26], [14.8, 1.55, 0.28]], planta: [15.55, 0.5] }),
+      C('zenmueble', 11.2, 0.14, 12.0, 0.54, { mira: 's' }),
+      C('mesa', 12.2, 2.8, 14.2, 3.8, { sillas: 3, eje: 'h', tapa: 'blanco', patas: 'blanco', silla: 'tela_oscura', sillaPatas: 'negro' }),
+      // el mueble blanco al lado de la escalera
+      C('vitrina', 15.0, 5.5, 15.95, 5.92, { mira: 'n', color: 'blanco', bajo: 0.85, alto: 1.95 }),
       C('planta', 11.25, 5.2, 11.75, 5.7),
+      // la entrada: el zapatero negro con la lámpara, la puerta de debajo de la escalera (ahí van los zapatos) y la cenefa del suelo
+      C('zapatero', 12.5, 8.5, 13.3, 8.9, { mira: 'n' }),
+      C('puertita', 12.84, 7.5, 12.9, 8.3, { mira: 'w', alto: 1.9 }),
+      C('cenefa', 11.15, 6.12, 12.78, 8.88),
       ...COLUMNAS_PORCHE,
     ],
     escaleras: [
-      { t: 'tramo', x0: 12.9, y0: 6.1, x1: 15.9, y1: 7.15, sube: 'e', desde: 0, hasta: 1.32, pasos: 8 },
-      { t: 'giro', x0: 15.9, y0: 6.1, x1: 17.3, y1: 8.45, sube: 's', desde: 1.32, hasta: 1.485, pasos: 1, volado: true },
-      { t: 'tramo', x0: 12.9, y0: 7.35, x1: 15.9, y1: 8.45, sube: 'w', desde: 1.485, hasta: ALTURA, pasos: 8, volado: true },
+      // escalones de baldosa con la tira de azulejo azul; por debajo, cerrada (es el hueco de los zapatos)
+      { t: 'tramo', x0: 12.9, y0: 6.1, x1: 15.9, y1: 7.15, sube: 'e', desde: 0, hasta: 1.32, pasos: 8, huella: 'suelo_baldosa', cenefa: true },
+      { t: 'giro', x0: 15.9, y0: 6.1, x1: 17.3, y1: 8.45, sube: 's', desde: 1.32, hasta: 1.485, pasos: 1, huella: 'suelo_baldosa' },
+      { t: 'tramo', x0: 12.9, y0: 7.15, x1: 15.9, y1: 8.45, sube: 'w', desde: 1.485, hasta: ALTURA, pasos: 8, huella: 'suelo_baldosa', cenefa: true },
     ],
     barandas: [
       { puntos: [[16.08, 2.05], [16.08, 5.0]] },
       { puntos: [[11, -1.8], [19.3, -1.8], [19.3, 5.0], [17.5, 5.0]], tipo: 'balaustrada' },
     ],
     suciedad: [[11.4, 2.3, 15.9, 5.8, 0], [11.2, 6.3, 12.7, 8.7, 0], [11.3, -1.6, 17.2, -0.3, 0], [17.7, -1.5, 19.0, 4.7, 0]],
-    sitios: { pie: [14.6, 4.8, 'n'], barrer: [14.4, 4.7, 'n'], esperar: [14.6, 4.8, 'n'], relax: { pose: 'meditar', x: 12.55, y: 1.75, mira: 'n' } },
+    sitios: { pie: [14.6, 4.8, 'n'], barrer: [14.4, 4.7, 'n'], esperar: [14.6, 4.8, 'n'], relax: { pose: 'meditar', x: 12.75, y: 1.62, mira: 'n' } },
   },
   {
     nivel: 2, piso: 'arriba', nombre: 'Planta 2',
     suelos: [
-      S(11, 0, 17.5, 3.9, 'suelo_madera'), S(11, 3.9, 14.3, 6, 'suelo_madera'),
+      // baldosa clara en el salón y la entradilla; tarima gris en la cocina
+      S(11, 0, 17.5, 3.9, 'suelo_baldosa'), S(11, 3.9, 14.3, 6, 'suelo_baldosa'),
       S(14.3, 3.9, 17.5, 6, 'suelo_baldosa'),
-      S(11, 6, 15.9, 7.3, 'suelo_madera'), S(11, 7.3, 12.9, 9, 'suelo_madera'),
-      S(6.6, 0, 11, 4.2, 'suelo_baldosa', { base: P }),
+      S(11, 6, 15.9, 7.3, 'suelo_baldosa'), S(11, 7.3, 12.9, 9, 'suelo_baldosa'),
+      S(6.6, 0, 11, 4.2, 'suelo_laminado', { base: P }),
       S(4.6, 0, 6.6, 4.2, 'suelo_baldosa', { base: P }),
       S(0, 0, 4.6, 4.2, 'suelo_madera', { base: P }),
-      S(3.8, 4.2, 11, 5.4, 'suelo_madera', { base: P }),
+      S(3.8, 4.2, 11, 5.4, 'suelo_baldosa', { base: P }),
       S(7.4, 5.4, 11, 9, 'suelo_baldosa', { base: P }),
       S(3.8, 5.4, 7.4, 9, 'suelo_madera', { base: P }),
       S(0, 4.2, 3.8, 9, 'suelo_madera', { base: P }),
@@ -169,27 +197,35 @@ export const PLANTAS = [
       M(7.4, 5.4, 7.4, 9, 'int', 'interior', [], { base: P }),
     ],
     cosas: [
-      C('chimenea', 11.19, 0.14, 12.64, 0.84),
-      C('alfombra', 13.4, 1.25, 16.25, 3.6, { color: 'alfombra1' }),
-      C('mesabaja', 14.3, 1.55, 15.5, 2.2),
-      // un sofá pegado a la pared de la ventana, otro a la pared de enfrente de la tele y una butaca suelta en la esquina
-      C('sofa', 13.95, 0.14, 16.25, 1.04, { respaldo: 'n', tela: 'tela1' }),
-      C('butaca', 16.42, 0.14, 17.36, 1.08, { mira: 'sw', tela: 'tela1' }),
-      C('sofa', 16.46, 1.22, 17.36, 3.5, { respaldo: 'e', tela: 'tela1' }),
-      // la tele (de unas 75 pulgadas) y su mueble, a la derecha de la pared, lejos del paso a las habitaciones
-      C('muebletv', 11.28, 1.15, 11.73, 3.25, { tele: 'w', play: true, teleAncho: 1.68 }),
+      // la chimenea va torcida en la esquina, entre la ventana y la tele; el tiro sube hasta el techo
+      C('chimenea', 11.17, 0.12, 12.45, 1.4, { esquina: 'nw', lado: 1.0 }),
+      C('chimeneacolumna', 11.17, 0.12, 12.2, 1.15, { esquina: 'nw', lado: 1.0, pared: 'n' }),
+      C('alfombra', 13.4, 1.25, 16.25, 3.35, { color: 'alfombra_beige' }),
+      C('mesabaja', 14.3, 1.55, 15.5, 2.2, { tapa: 'cerezo', patas: 'cerezo' }),
+      // los sofás, grises: uno pegado a la pared de la ventana y otro a la de enfrente de la tele; la butaca, marrón y suelta en la esquina
+      C('sofa', 14.25, 0.14, 16.25, 1.04, { respaldo: 'n', tela: 'tela_gris' }),
+      C('butaca', 16.42, 0.14, 17.36, 1.08, { mira: 'sw', tela: 'tela_marron', brazos: 'cerezo' }),
+      C('sofa', 16.46, 1.22, 17.36, 3.22, { respaldo: 'e', tela: 'tela_gris' }),
+      // el piano, en la pared del baño de Josu
+      C('piano', 14.85, 3.46, 16.2, 3.88, { mira: 'n' }),
+      // la tele (de unas 75 pulgadas) es más ancha que su mueble
+      C('muebletv', 11.28, 1.75, 11.73, 2.95, { tele: 'w', play: true, teleAncho: 1.68, color: 'cerezo' }),
       C('ducha', 16.6, 4.05, 17.35, 4.85),
       C('inodoro', 16.84, 5.25, 17.26, 5.92, { mira: 'n' }),
       C('lavabo', 15.0, 5.45, 15.6, 5.92, { mira: 'n' }),
-      // al subir la escalera: en la pared de enfrente, a la derecha de la escalera
-      C('vitrina', 11.19, 6.1, 11.61, 7.3, { mira: 'e' }),
+      // al subir la escalera: la vitrina de las copas, en la pared de enfrente, a la derecha de la escalera, y el felpudo
+      C('vitrina', 11.19, 6.2, 11.61, 7.2, { mira: 'e', color: 'cerezo', bajo: 0.55, alto: 1.7, contenido: 'copas' }),
+      C('alfombra', 11.95, 7.6, 12.75, 8.2, { color: 'tela_marron' }),
       C('planta', 14.6, 6.25, 15.0, 6.65),
-      C('encimera', 6.68, 0.19, 10.81, 0.79, { mira: 's', fregadero: [9.2, 0.49], base: P }),
-      // la otra L: encimera de mesa con la lavadora y el lavavajillas debajo
-      C('encimera', 6.68, 0.79, 7.28, 2.2, { mira: 'e', electros: ['lavadora', 'lavavajillas'], tapa: 'madera', base: P }),
-      C('encimera', 10.21, 0.79, 10.81, 3.0, { mira: 'w', fuegos: [[10.51, 1.25], [10.51, 1.7]], base: P }),
+      // cocina: la encimera de la vitro acaba en la ventana (no llega a la otra pared);
+      // en la pared de enfrente siguen el lavavajillas y la lavadora, con el micro encima; luego la mesa y la nevera
+      C('encimera', 8.85, 0.19, 10.81, 0.79, { mira: 's', fregadero: [9.3, 0.49], base: P }),
+      C('altos', 9.65, 0.12, 10.81, 0.47, { mira: 's', color: 'interior', puertas: 'blanco', base: P }),
+      C('encimera', 10.21, 0.79, 10.81, 3.2, { mira: 'w', vitro: [10.51, 1.45], horno: [10.51, 1.45], base: P }),
+      C('encimera', 6.68, 0.19, 7.28, 1.5, { mira: 'e', electros: ['lavavajillas', 'lavadora'], base: P }),
+      C('micro', 6.74, 0.95, 7.2, 1.42, { mira: 'e', color: 'negro', base: P + 0.92 }),
       C('nevera', 6.68, 3.47, 7.33, 4.12, { mira: 'e', base: P }),
-      C('mesa', 7.9, 2.6, 9.1, 3.4, { sillas: 2, eje: 'h', base: P }),
+      C('mesa', 7.7, 2.3, 8.9, 3.1, { sillas: 2, eje: 'h', base: P, tapa: 'negro', patas: 'metal', silla: 'blanco', sillaPatas: 'metal' }),
       C('ducha', 5.75, 0.3, 6.45, 1.3, { base: P }),
       C('inodoro', 4.84, 0.25, 5.26, 0.92, { mira: 's', base: P }),
       C('lavabo', 4.68, 1.5, 5.14, 2.1, { mira: 'e', base: P }),
@@ -201,7 +237,9 @@ export const PLANTAS = [
       C('telepared', 7.22, 7.4, 7.32, 8.4, { base: P }),
       C('cama', 0.25, 4.4, 2.25, 5.4, { cabecero: 'w', funda: 'funda3', base: P }),
       C('armario', 3.15, 6.6, 3.72, 8.75, { mira: 'w', base: P }),
-      C('alfombra', 7.75, 6.45, 9.45, 7.75, { color: 'alfombra2', base: P }),
+      // el rellano de la escalera del desván: un mueblecito blanco, la alfombra y la escalera
+      C('mueble', 7.45, 6.4, 7.9, 7.8, { mira: 'e', color: 'blanco', puertas: 'blanco', alto: 0.55, base: P }),
+      C('alfombra', 7.95, 5.75, 9.6, 7.85, { color: 'alfombra2', base: P }),
     ],
     escaleras: [
       { t: 'tramo', x0: 10.05, y0: 4.3, x1: 11.0, y1: 5.3, sube: 'w', desde: 0, hasta: P, pasos: 3 },

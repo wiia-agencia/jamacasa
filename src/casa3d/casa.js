@@ -43,27 +43,30 @@ function ladoDe(c, [px, py]) {
 
 const semillaDe = (c) => Math.round(c.x0 * 131 + c.y0 * 71 + c.x1 * 17 + c.y1 * 7);
 
-function silla(L, cx, cy, mira, b) {
-  L.caja('madera', cx - 0.2, cy - 0.2, b + 0.42, cx + 0.2, cy + 0.2, b + 0.47);
+// silla: «mira» es hacia donde mira quien se sienta; k.asiento y k.patas, los colores (de madera si no se dice)
+function silla(L, cx, cy, mira, b, k = {}) {
+  const asiento = k.asiento || 'madera', patas = k.patas || 'madera_osc';
+  L.caja(asiento, cx - 0.2, cy - 0.2, b + 0.42, cx + 0.2, cy + 0.2, b + 0.47);
   for (const [dx, dy] of [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]]) {
-    L.caja('madera_osc', cx + dx - 0.025, cy + dy - 0.025, b, cx + dx + 0.025, cy + dy + 0.025, b + 0.42, { redondeo: 0.005 });
+    L.caja(patas, cx + dx - 0.025, cy + dy - 0.025, b, cx + dx + 0.025, cy + dy + 0.025, b + 0.42, { redondeo: 0.005 });
   }
-  if (mira === 's') L.caja('madera', cx - 0.2, cy - 0.2, b + 0.47, cx + 0.2, cy - 0.15, b + 0.9);
-  if (mira === 'n') L.caja('madera', cx - 0.2, cy + 0.15, b + 0.47, cx + 0.2, cy + 0.2, b + 0.9);
-  if (mira === 'e') L.caja('madera', cx - 0.2, cy - 0.2, b + 0.47, cx - 0.15, cy + 0.2, b + 0.9);
-  if (mira === 'w') L.caja('madera', cx + 0.15, cy - 0.2, b + 0.47, cx + 0.2, cy + 0.2, b + 0.9);
+  if (mira === 's') L.caja(asiento, cx - 0.2, cy - 0.2, b + 0.47, cx + 0.2, cy - 0.15, b + 0.9);
+  if (mira === 'n') L.caja(asiento, cx - 0.2, cy + 0.15, b + 0.47, cx + 0.2, cy + 0.2, b + 0.9);
+  if (mira === 'e') L.caja(asiento, cx - 0.2, cy - 0.2, b + 0.47, cx - 0.15, cy + 0.2, b + 0.9);
+  if (mira === 'w') L.caja(asiento, cx + 0.15, cy - 0.2, b + 0.47, cx + 0.2, cy + 0.2, b + 0.9);
 }
 
 // silla tumbada boca arriba: respaldo en el suelo, asiento de pie y patas al aire
-function sillaTirada(L, cx, cy, b, g) {
+function sillaTirada(L, cx, cy, b, g, k = {}) {
+  const asiento = k.asiento || 'madera', patas = k.patas || 'madera_osc';
   const ey = [Math.sin(g), Math.cos(g)];     // eje «y» de la silla después del giro
   const ex = [Math.cos(g), -Math.sin(g)];
-  L.cajaCentro('madera', cx, cy, b, 0.4, 0.46, 0.05, g, { redondeo: 0.01 });
+  L.cajaCentro(asiento, cx, cy, b, 0.4, 0.46, 0.05, g, { redondeo: 0.01 });
   const sx = cx + ey[0] * 0.25, sy = cy + ey[1] * 0.25;
-  L.cajaCentro('madera', sx, sy, b, 0.4, 0.05, 0.42, g, { redondeo: 0.01 });
+  L.cajaCentro(asiento, sx, sy, b, 0.4, 0.05, 0.42, g, { redondeo: 0.01 });
   for (const s of [-1, 1]) {
     const px = sx + ex[0] * s * 0.16, py = sy + ex[1] * s * 0.16;
-    for (const h of [0.05, 0.37]) L.barra('madera_osc', px, py, px + ey[0] * 0.42, py + ey[1] * 0.42, b + h, 0.025, { segs: 6 });
+    for (const h of [0.05, 0.37]) L.barra(patas, px, py, px + ey[0] * 0.42, py + ey[1] * 0.42, b + h, 0.025, { segs: 6 });
   }
 }
 
@@ -91,11 +94,13 @@ function mesa(L, c, x, alto = 0.74) {
   const b = x.b;
   const { x0, y0, x1, y1 } = c;
   const n = c.sillas || 0;
+  const tapa = c.tapa || 'madera', patas = c.patas || 'madera_osc';
+  const ks = { asiento: c.silla, patas: c.sillaPatas };
   const pa = [[x0 + 0.08, y0 + 0.08], [x1 - 0.08, y0 + 0.08], [x0 + 0.08, y1 - 0.08], [x1 - 0.08, y1 - 0.08]];
   if (!x.ruina) {
-    L.caja('madera', x0, y0, b + alto - 0.05, x1, y1, b + alto);
-    for (const [px, py] of pa) L.caja('madera_osc', px - 0.04, py - 0.04, b, px + 0.04, py + 0.04, b + alto - 0.05);
-    for (const [cx, cy, m] of sillasDe(c)) silla(L, cx, cy, m, b);
+    L.caja(tapa, x0, y0, b + alto - 0.05, x1, y1, b + alto);
+    for (const [px, py] of pa) L.caja(patas, px - 0.04, py - 0.04, b, px + 0.04, py + 0.04, b + alto - 0.05);
+    for (const [cx, cy, m] of sillasDe(c)) silla(L, cx, cy, m, b, ks);
   } else {
     // tablero partido: un extremo en el suelo y el otro sobre las dos patas que aguantan
     const r = azar(semillaDe(c));
@@ -103,16 +108,16 @@ function mesa(L, c, x, alto = 0.74) {
     const lg = largoX ? x1 - x0 : y1 - y0, an = largoX ? y1 - y0 : x1 - x0;
     const ang = Math.asin(Math.min(0.85, (alto - 0.1) / lg));
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, hc = (alto - 0.05) / 2;
-    if (largoX) L.cajaCentro('madera', cx, cy, b + hc - 0.025, lg, an, 0.05, 0, { rueda: ang, redondeo: 0.01 });
-    else L.cajaCentro('madera', cx, cy, b + hc - 0.025, an, lg, 0.05, 0, { inclina: ang, redondeo: 0.01 });
+    if (largoX) L.cajaCentro(tapa, cx, cy, b + hc - 0.025, lg, an, 0.05, 0, { rueda: ang, redondeo: 0.01 });
+    else L.cajaCentro(tapa, cx, cy, b + hc - 0.025, an, lg, 0.05, 0, { inclina: ang, redondeo: 0.01 });
     // con rueda > 0 sube el lado este; con inclina > 0, el lado norte
     const altas = largoX ? pa.filter(([px]) => px > cx) : pa.filter(([, py]) => py < cy);
-    for (const [px, py] of altas) L.caja('madera_osc', px - 0.04, py - 0.04, b, px + 0.04, py + 0.04, b + alto - 0.1);
+    for (const [px, py] of altas) L.caja(patas, px - 0.04, py - 0.04, b, px + 0.04, py + 0.04, b + alto - 0.1);
     const [qx, qy] = largoX ? [x0 + 0.3, y1 + 0.15] : [x1 + 0.15, y1 - 0.3];
-    L.barra('madera_osc', qx, qy, qx + 0.55, qy + 0.25, b + 0.04, 0.04, { segs: 6 });
+    L.barra(patas, qx, qy, qx + 0.55, qy + 0.25, b + 0.04, 0.04, { segs: 6 });
     for (const [sx, sy] of sillasDe(c)) {
       if (r() < 0.25) continue;   // alguna ni está
-      sillaTirada(L, sx + (r() - 0.5) * 0.7, sy + (r() - 0.5) * 0.7, b, r() * Math.PI * 2);
+      sillaTirada(L, sx + (r() - 0.5) * 0.7, sy + (r() - 0.5) * 0.7, b, r() * Math.PI * 2, ks);
     }
   }
   x.sombra({ x0: x0 - (n ? 0.45 : 0.05), y0: y0 - (n ? 0.45 : 0.05), x1: x1 + (n ? 0.45 : 0.05), y1: y1 + (n ? 0.45 : 0.05) });
@@ -138,6 +143,48 @@ function trozos(L, key, cx, cy, b, n, r, tam = 0.16, radio = 0.45) {
     const s = tam * (0.5 + r());
     L.cajaCentro(key, cx + (r() - 0.5) * radio * 2, cy + (r() - 0.5) * radio * 2, b, s, s * (0.6 + r() * 0.7), s * (0.35 + r() * 0.4), r() * Math.PI, { redondeo: 0.01, inclina: (r() - 0.5) * 0.6 });
   }
+}
+
+// Ejes de una cosa girada: u a lo ancho, v hacia delante, centrada en (cx, cy) y con el frente hacia (fx, fy)
+function girado(cx, cy, fx, fy) {
+  const g = Math.atan2(fx, fy);
+  const ex = [Math.cos(g), -Math.sin(g)], ey = [Math.sin(g), Math.cos(g)];
+  const p = (u, v) => [cx + ex[0] * u + ey[0] * v, cy + ex[1] * u + ey[1] * v];
+  const pieza = (L, key, u, v, z0, su, sv, sz, o = {}) => { const [px, py] = p(u, v); L.cajaCentro(key, px, py, z0, su, sv, sz, g, o); };
+  return { g, p, pieza };
+}
+
+const DIAGONAL = { nw: [1, 1], ne: [-1, 1], sw: [1, -1], se: [-1, -1] };
+
+// La chimenea de esquina, torcida: la espalda va de una pared a la otra (c.lado metros por cada pared)
+// y el frente mira al centro del salón. (c.x0, c.y0) es la esquina de dentro de las paredes.
+function esquinaDe(c) {
+  const a = c.lado || 1.0;
+  const [sx, sy] = DIAGONAL[c.esquina];
+  const ex = sx > 0 ? c.x0 : c.x1, ey = sy > 0 ? c.y0 : c.y1;    // la esquina
+  const mx = ex + sx * a / 2, my = ey + sy * a / 2;                // centro de la espalda
+  return { a, ex, ey, sx, sy, G: girado(mx, my, sx / Math.SQRT2, sy / Math.SQRT2) };
+}
+
+function chimeneaEsquina(L, c, x) {
+  const b = x.b;
+  const { a, ex, ey, sx, sy, G } = esquinaDe(c);
+  const ancho = a * Math.SQRT2 * 0.78;
+  const relleno = (z0, z1, k) => L.caja(k, ex, ey, b + z0, ex + sx * a * 0.62, ey + sy * a * 0.62, b + z1, { redondeo: 0.01 });
+  // el poyo de piedra, el cuerpo, el cristal del fuego y la repisa
+  G.pieza(L, 'chimenea_piedra', 0, 0.3, b, ancho + 0.2, 0.8, 0.2, { redondeo: 0.02 });
+  relleno(0, 1.15, 'chimenea_piedra');
+  G.pieza(L, 'chimenea_piedra', 0, 0.24, b + 0.2, ancho, 0.48, 0.95, { redondeo: 0.02 });
+  G.pieza(L, 'negro', 0, 0.48, b + 0.34, ancho * 0.56, 0.03, 0.52, { redondeo: 0.01 });
+  if (!x.ruina) G.pieza(L, 'fuego', 0, 0.44, b + 0.38, ancho * 0.34, 0.06, 0.2, { redondeo: 0.02 });
+  G.pieza(L, 'chimenea_piedra', 0, 0.26, b + 1.15, ancho + 0.14, 0.58, 0.08, { redondeo: 0.02 });
+  if (x.ruina) {
+    const [hx, hy] = G.p(0, 0.5);
+    L.esfera('hollin', hx, hy, b + 0.9, 0.3, { escala: [1.3, 0.8, 0.3], detalle: 1 });
+    const [tx, ty] = G.p(0.1, 0.95);
+    trozos(L, 'chimenea_piedra', tx, ty, b, 5, azar(semillaDe(c)), 0.2, 0.4);
+  }
+  x.sombra({ x0: Math.min(ex, ex + sx * (a + 0.4)), y0: Math.min(ey, ey + sy * (a + 0.4)), x1: Math.max(ex, ex + sx * (a + 0.4)), y1: Math.max(ey, ey + sy * (a + 0.4)) });
 }
 
 const MUEBLES = {
@@ -202,8 +249,16 @@ const MUEBLES = {
     for (const [lx, ly] of [[-0.3, -0.27], [0.3, -0.27], [-0.3, 0.27], [0.3, 0.27]]) pieza('madera_osc', lx, ly, b, 0.06, 0.06, 0.09, { redondeo: 0.01 });
     pieza(tela, 0, 0.03, b + 0.09, 0.8, 0.72, 0.28, { redondeo: 0.06 });
     pieza(tela, 0, -0.29, b + 0.09, 0.8, 0.18, 0.74, { redondeo: 0.06 });
-    pieza(tela, -0.33, 0.05, b + 0.09, 0.14, 0.66, 0.5, { redondeo: 0.05 });
-    pieza(tela, 0.33, 0.05, b + 0.09, 0.14, 0.66, 0.5, { redondeo: 0.05 });
+    if (c.brazos) {
+      // brazos de madera finos, como la butaca de verdad
+      for (const s of [-1, 1]) {
+        pieza(c.brazos, s * 0.37, 0.05, b + 0.09, 0.05, 0.7, 0.5, { redondeo: 0.015 });
+        pieza(c.brazos, s * 0.37, 0.07, b + 0.59, 0.09, 0.74, 0.04, { redondeo: 0.015 });
+      }
+    } else {
+      pieza(tela, -0.33, 0.05, b + 0.09, 0.14, 0.66, 0.5, { redondeo: 0.05 });
+      pieza(tela, 0.33, 0.05, b + 0.09, 0.14, 0.66, 0.5, { redondeo: 0.05 });
+    }
     if (!x.ruina) pieza(tela, 0, 0.08, b + 0.37, 0.5, 0.52, 0.13, { redondeo: 0.05 });
     else { const [qx, qy] = p(0.1, 0.75); L.cajaCentro(tela, qx, qy, b, 0.5, 0.52, 0.13, g + 0.6, { redondeo: 0.05, inclina: 0.3 }); }
     x.sombra(c);
@@ -246,9 +301,9 @@ const MUEBLES = {
     for (const s of [-1, 1]) {
       const mx = largoX ? cx + s * lg / 2 : cx, my = largoX ? cy : cy + s * lg / 2;
       const o = largoX ? { rueda: s * 0.42, redondeo: 0.01 } : { inclina: -s * 0.42, redondeo: 0.01 };
-      L.cajaCentro('madera', mx, my, b + 0.2 - 0.025, largoX ? lg : an, largoX ? an : lg, 0.05, 0, o);
+      L.cajaCentro(c.tapa || 'madera', mx, my, b + 0.2 - 0.025, largoX ? lg : an, largoX ? an : lg, 0.05, 0, o);
       const px = largoX ? cx + s * (lg - 0.08) : x0 + 0.08, py = largoX ? y0 + 0.08 : cy + s * (lg - 0.08);
-      L.caja('madera_osc', px - 0.04, py - 0.04, b, px + 0.04, py + 0.04, b + 0.36);
+      L.caja(c.patas || 'madera_osc', px - 0.04, py - 0.04, b, px + 0.04, py + 0.04, b + 0.36);
     }
     x.sombra(c);
   },
@@ -258,8 +313,10 @@ const MUEBLES = {
     const F = frente(c, c.mira || 's');
     const { W, D } = F;
     const r = azar(semillaDe(c));
+    const cuerpo = c.frente || 'blanco';      // el mueble (abajo, forrado de ladrillo)
+    const puerta = c.puertas || cuerpo;       // las puertas (abajo, de madera)
     F.caja(L, 'negro', 0, 0.06, b, W, D, b + 0.09, { redondeo: 0 });
-    F.caja(L, 'blanco', 0, 0.02, b + 0.09, W, D, b + 0.86);
+    F.caja(L, cuerpo, 0, 0.02, b + 0.09, W, D, b + 0.86);
     // electrodomésticos debajo (lavadora, lavavajillas), de 60 cm, desde el principio de la encimera
     const electros = c.electros || [];
     let ue = 0;
@@ -270,42 +327,56 @@ const MUEBLES = {
         const [ix, iy] = F.pt(ue + 0.3, 0.02);
         L.barra('metal', ox, oy, ix, iy, b + 0.42, 0.2, { segs: 20 });
         const [gx, gy] = F.pt(ue + 0.3, -0.03);
-        L.barra('negro', gx, gy, ox, oy, b + 0.42, 0.15, { segs: 20 });
+        L.barra(x.ruina ? 'agujero' : 'negro', gx, gy, ox, oy, b + 0.42, 0.15, { segs: 20 });
         F.caja(L, 'negro', ue + 0.07, -0.02, b + 0.72, ue + 0.27, 0.0, b + 0.79, { redondeo: 0 });
       } else {
         F.caja(L, 'metal', ue + 0.12, -0.04, b + 0.74, ue + 0.48, -0.012, b + 0.765, { redondeo: 0.005 });
       }
       ue += 0.6;
     }
-    const resto = W - ue;
-    const n = Math.max(1, Math.round(resto / 0.6));
-    const sinPuerta = x.ruina ? Math.floor(r() * n) : -1;
-    if (resto > 0.3) {
-      for (let i = 1; i < n; i++) {
-        const u = ue + (resto / n) * i;
-        F.caja(L, 'negro', u - 0.007, 0.0, b + 0.12, u + 0.007, 0.025, b + 0.83, { redondeo: 0 });
-      }
-      for (let i = 0; i < n; i++) {
-        const u = ue + (resto / n) * (i + 0.5);
-        if (i === sinPuerta) { F.caja(L, 'agujero', ue + (resto / n) * i + 0.03, -0.002, b + 0.12, ue + (resto / n) * (i + 1) - 0.03, 0.022, b + 0.82, { redondeo: 0 }); continue; }
-        F.caja(L, 'metal', u - 0.1, -0.015, b + 0.76, u + 0.1, 0.02, b + 0.782, { redondeo: 0 });
+    // el horno, debajo de la vitro
+    const huecos = [];
+    if (c.horno) {
+      const uh = Math.min(W - 0.3, Math.max(ue + 0.3, F.uDe(c.horno)));
+      huecos.push([uh - 0.3, uh + 0.3]);
+      F.caja(L, 'metal', uh - 0.29, -0.015, b + 0.12, uh + 0.29, 0.02, b + 0.8, { redondeo: 0.01 });
+      F.caja(L, x.ruina ? 'hollin' : 'negro', uh - 0.22, -0.022, b + 0.22, uh + 0.22, 0.0, b + 0.6, { redondeo: 0.01 });
+      F.caja(L, 'metal', uh - 0.2, -0.05, b + 0.65, uh + 0.2, -0.025, b + 0.672, { redondeo: 0.005 });
+    }
+    // las puertas, en lo que queda libre
+    const tramos = [];
+    let u = ue;
+    for (const [h0, h1] of huecos) { if (h0 - u > 0.25) tramos.push([u, h0]); u = Math.max(u, h1); }
+    if (W - u > 0.25) tramos.push([u, W]);
+    const total = tramos.reduce((n, [t0, t1]) => n + Math.max(1, Math.round((t1 - t0) / 0.6)), 0);
+    const sinPuerta = x.ruina ? Math.floor(r() * total) : -1;
+    let k = 0;
+    for (const [t0, t1] of tramos) {
+      const n = Math.max(1, Math.round((t1 - t0) / 0.6));
+      const w = (t1 - t0) / n;
+      for (let i = 0; i < n; i++, k++) {
+        const a0 = t0 + w * i, a1 = a0 + w, um = (a0 + a1) / 2;
+        if (k === sinPuerta) { F.caja(L, 'agujero', a0 + 0.03, -0.002, b + 0.12, a1 - 0.03, 0.022, b + 0.82, { redondeo: 0 }); continue; }
+        if (puerta !== cuerpo) F.caja(L, puerta, a0 + 0.04, -0.012, b + 0.14, a1 - 0.04, 0.02, b + 0.8, { redondeo: 0.012 });
+        else if (i > 0) F.caja(L, 'negro', a0 - 0.007, 0.0, b + 0.12, a0 + 0.007, 0.025, b + 0.83, { redondeo: 0 });
+        F.caja(L, 'metal', um - 0.1, -0.03, b + 0.7, um + 0.1, -0.008, b + 0.722, { redondeo: 0 });
       }
     }
     const tapa = c.tapa || 'negro';
     let ub = W + 1;
     if (!x.ruina || W < 1.2 || electros.length) {
-      F.caja(L, tapa, -0.01, -0.03, b + 0.86, W + 0.01, D, b + (tapa === 'negro' ? 0.92 : 0.9), { redondeo: 0.01 });
+      F.caja(L, tapa, -0.01, -0.03, b + 0.86, W + 0.01, D, b + 0.92, { redondeo: 0.01 });
     } else {
       // la encimera partida: un trozo hundido
       ub = W * (0.35 + r() * 0.3);
-      F.caja(L, 'negro', -0.01, -0.03, b + 0.86, ub - 0.06, D, b + 0.92, { redondeo: 0.01 });
+      F.caja(L, tapa, -0.01, -0.03, b + 0.86, ub - 0.06, D, b + 0.92, { redondeo: 0.01 });
       const [mx, my] = F.pt((ub + 0.06 + W) / 2, D / 2 - 0.015);
       const largo = W - ub - 0.05;
       const o = F.horiz ? { rueda: 0.16 } : { inclina: 0.16 };
-      L.cajaCentro('negro', mx, my, b + 0.8, F.horiz ? largo : D + 0.03, F.horiz ? D + 0.03 : largo, 0.06, 0, { ...o, redondeo: 0.01 });
+      L.cajaCentro(tapa, mx, my, b + 0.8, F.horiz ? largo : D + 0.03, F.horiz ? D + 0.03 : largo, 0.06, 0, { ...o, redondeo: 0.01 });
       // pila de platos sucios y una olla
       const [px, py] = F.pt(ub * 0.45, D / 2);
-      for (let k = 0; k < 6; k++) L.cilindro('blanco', px + (k % 2) * 0.02, py, b + 0.92 + k * 0.035, b + 0.945 + k * 0.035, 0.14 - k * 0.004, { segs: 14 });
+      for (let j = 0; j < 6; j++) L.cilindro('blanco', px + (j % 2) * 0.02, py, b + 0.92 + j * 0.035, b + 0.945 + j * 0.035, 0.14 - j * 0.004, { segs: 14 });
       const [ox, oy] = F.pt(ub * 0.15 + 0.1, D / 2);
       L.cilindro('metal', ox, oy, b + 0.92, b + 1.08, 0.13, { segs: 14 });
     }
@@ -318,18 +389,30 @@ const MUEBLES = {
       L.cilindro('metal', horiz ? fx : x0 + 0.08, horiz ? y0 + 0.08 : fy, b + 0.92, b + 1.18, 0.025, { segs: 8 });
     }
     for (const q of c.fuegos || []) if (enPie(q)) L.cilindro(x.ruina ? 'hollin' : 'metal', q[0], q[1], b + 0.92, b + 0.945, 0.12);
+    // la vitro: un cristal negro con su marco y los cuatro fuegos marcados
+    if (c.vitro && enPie(c.vitro)) {
+      const uv = F.uDe(c.vitro);
+      F.caja(L, 'metal', uv - 0.3, D * 0.08, b + 0.915, uv + 0.3, D * 0.92, b + 0.928, { redondeo: 0 });
+      F.caja(L, x.ruina ? 'hollin' : 'negro', uv - 0.285, D * 0.1, b + 0.92, uv + 0.285, D * 0.9, b + 0.934, { redondeo: 0 });
+      for (const [du, dv, rr] of [[-0.14, 0.32, 0.09], [0.14, 0.32, 0.07], [-0.14, 0.68, 0.07], [0.14, 0.68, 0.09]]) {
+        const [zx, zy] = F.pt(uv + du, D * dv);
+        L.cilindro('metal', zx, zy, b + 0.93, b + 0.936, rr, { segs: 18 });
+        L.cilindro(x.ruina ? 'hollin' : 'negro', zx, zy, b + 0.93, b + 0.938, rr - 0.012, { segs: 18 });
+      }
+    }
     x.sombra(c);
   },
   nevera(L, c, x) {
-    const b = x.b, H = 1.8;
+    const b = x.b, H = c.alto || 1.85;
     const F = frente(c, c.mira || 'e');
     const { W, D } = F;
-    F.caja(L, 'blanco', 0, 0.035, b, W, D, b + H);
-    F.caja(L, 'blanco', 0, 0, b + 1.2, W, 0.04, b + H - 0.01);
-    F.caja(L, 'metal', W - 0.1, -0.035, b + 1.28, W - 0.07, 0.0, b + 1.52, { redondeo: 0.01 });
+    const k = c.color || 'blanco';
+    F.caja(L, k, 0, 0.035, b, W, D, b + H);
+    F.caja(L, k, 0, 0, b + 1.2, W, 0.04, b + H - 0.01);
+    F.caja(L, k === 'metal' ? 'negro' : 'metal', W - 0.1, -0.035, b + 1.28, W - 0.07, 0.0, b + 1.52, { redondeo: 0.01 });
     if (!x.ruina) {
-      F.caja(L, 'blanco', 0, 0, b + 0.02, W, 0.04, b + 1.17);
-      F.caja(L, 'metal', W - 0.1, -0.035, b + 0.78, W - 0.07, 0.0, b + 1.12, { redondeo: 0.01 });
+      F.caja(L, k, 0, 0, b + 0.02, W, 0.04, b + 1.17);
+      F.caja(L, k === 'metal' ? 'negro' : 'metal', W - 0.1, -0.035, b + 0.78, W - 0.07, 0.0, b + 1.12, { redondeo: 0.01 });
     } else {
       // la puerta abierta de par en par: dentro, negro y con moho
       F.caja(L, 'agujero', 0.04, -0.002, b + 0.06, W - 0.04, 0.03, b + 1.14, { redondeo: 0 });
@@ -343,21 +426,33 @@ const MUEBLES = {
       const [vx, vy] = [F.pt(0, -1)[0] - hx, F.pt(0, -1)[1] - hy];
       const dx = ux * Math.cos(a) + vx * Math.sin(a), dy = uy * Math.cos(a) + vy * Math.sin(a);
       const g = Math.atan2(-dy, dx);
-      L.cajaCentro('blanco', hx + dx * W / 2, hy + dy * W / 2, b + 0.02, W, 0.045, 1.15, g, { redondeo: 0.02 });
+      L.cajaCentro(k, hx + dx * W / 2, hy + dy * W / 2, b + 0.02, W, 0.045, 1.15, g, { redondeo: 0.02 });
     }
     x.sombra(c);
   },
   cocinalena(L, c, x) {
+    // la cocina de leña: negra, con la chapa de arriba, la puerta del fuego, el horno y la barra de delante
     const b = x.b;
-    const { x0, y0, x1, y1 } = c;
-    L.caja('negro', x0, y0, b, x1, y1, b + 0.82);
-    L.caja('metal', x0 - 0.02, y0 - 0.02, b + 0.82, x1 + 0.02, y1 + 0.02, b + 0.87, { redondeo: 0.01 });
-    L.caja(x.ruina ? 'hollin' : 'fuego', x0 + 0.18, y1 - 0.02, b + 0.22, x0 + 0.58, y1 + 0.012, b + 0.56, { redondeo: 0.01 });
-    if (!x.ruina) L.cilindro('negro', x1 - 0.25, y0 + 0.2, b + 0.87, b + 1.7, 0.07, { segs: 10 });
-    else L.barra('negro', x1 - 0.1, y1 + 0.25, x1 + 0.6, y1 + 0.75, b + 0.07, 0.07, { segs: 10 });
+    const F = frente(c, c.mira || 's');
+    const { W, D } = F;
+    F.caja(L, 'negro', 0, 0, b, W, D, b + 0.82);
+    F.caja(L, 'metal', -0.02, -0.02, b + 0.82, W + 0.02, D, b + 0.87, { redondeo: 0.01 });
+    const wf = Math.min(0.38, W * 0.34);
+    F.caja(L, x.ruina ? 'hollin' : 'fuego', 0.12, -0.012, b + 0.46, 0.12 + wf, 0.02, b + 0.7, { redondeo: 0.01 });
+    F.caja(L, 'negro', 0.1, -0.02, b + 0.12, 0.14 + wf, 0.0, b + 0.36, { redondeo: 0.01 });
+    F.caja(L, 'metal', W * 0.52, -0.014, b + 0.2, W - 0.1, 0.02, b + 0.7, { redondeo: 0.01 });
+    const [ax, ay] = F.pt(0.04, -0.07), [bx, by] = F.pt(W - 0.04, -0.07);
+    L.barra('metal', ax, ay, bx, by, b + 0.79, 0.015, { segs: 6 });
+    if (x.ruina) {
+      // ceniza y hollín por el suelo
+      const [hx, hy] = F.pt(W * 0.3, -0.35);
+      L.cilindro('hollin', hx, hy, b, b + 0.012, 0.32, { segs: 14 });
+      trozos(L, 'hollin', hx, hy, b, 4, azar(semillaDe(c)), 0.1, 0.3);
+    }
     x.sombra(c);
   },
   chimenea(L, c, x) {
+    if (c.esquina) { chimeneaEsquina(L, c, x); return; }
     const b = x.b;
     const { x0, y0, x1, y1 } = c;
     L.caja('chimenea_piedra', x0, y0, b, x1, y1, b + 1.15);
@@ -377,12 +472,15 @@ const MUEBLES = {
     const F = frente(c, OPUESTO[atras]);
     const { W, D } = F;
     const { x0, y0, x1, y1 } = c;
+    const k = c.color || 'madera', kp = c.puertas || 'madera_osc';
     for (const u of [0.06, W - 0.1]) for (const v of [0.06, D - 0.1]) F.caja(L, 'madera_osc', u, v, b, u + 0.04, v + 0.04, b + 0.08, { redondeo: 0 });
-    F.caja(L, 'madera', 0, 0.01, b + 0.08, W, D, b + 0.5);
+    F.caja(L, k, 0, 0.01, b + 0.08, W, D, b + 0.5);
     const n = 3;
     for (let i = 0; i < n; i++) {
       const u0 = (W / n) * i + 0.025, u1 = (W / n) * (i + 1) - 0.025;
-      F.caja(L, x.ruina && i === 1 ? 'agujero' : 'madera_osc', u0, -0.012, b + 0.11, u1, 0.012, b + 0.47, { redondeo: 0.01 });
+      // dos puertas y un hueco en medio (la Play va ahí)
+      F.caja(L, i === 1 ? 'agujero' : kp, u0, -0.012, b + 0.11, u1, 0.012, b + 0.47, { redondeo: 0.01 });
+      if (i !== 1) F.caja(L, 'metal', (u0 + u1) / 2 - 0.05, -0.03, b + 0.36, (u0 + u1) / 2 + 0.05, -0.01, b + 0.38, { redondeo: 0 });
     }
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     const ta = (c.teleAncho || 1.32) / 2, th = (c.teleAncho || 1.32) * 0.5625;
@@ -410,16 +508,33 @@ const MUEBLES = {
     L.caja('negro', c.x0, c.y0, b + 0.9, c.x1, c.y1, b + 1.52, { redondeo: 0.02 });
   },
   armario(L, c, x) {
-    const b = x.b, H = 2.0;
+    const b = x.b, H = c.alto || 2.0;
     const F = frente(c, c.mira || 's');
     const { W, D } = F;
-    F.caja(L, 'madera', 0, 0.01, b, W, D, b + H);
-    const n = Math.max(2, Math.round(W / 0.5));
-    for (let i = 0; i < n; i++) {
-      const u0 = (W / n) * i + 0.015, u1 = (W / n) * (i + 1) - 0.015;
-      F.caja(L, 'madera_osc', u0, -0.01, b + 0.05, u1, 0.014, b + H - 0.05, { redondeo: 0.01 });
-      const uh = i % 2 ? u0 + 0.06 : u1 - 0.08;
-      F.caja(L, 'metal', uh, -0.03, b + 0.9, uh + 0.025, -0.008, b + 1.2, { redondeo: 0 });
+    const r = azar(semillaDe(c));
+    F.caja(L, c.color || 'madera', 0, 0.01, b, W, D, b + H);
+    if (c.correderas) {
+      // empotrado de puertas correderas: dos hojas anchas, una un poco por delante de la otra
+      const n = Math.max(2, Math.round(W / 0.75));
+      const caida = x.ruina ? Math.floor(r() * n) : -1;
+      for (let i = 0; i < n; i++) {
+        const u0 = (W / n) * i + 0.01, u1 = (W / n) * (i + 1) - 0.01, dv = i % 2 ? 0 : -0.025;
+        if (i === caida) { F.caja(L, 'agujero', u0, -0.004, b + 0.05, u1, 0.014, b + H - 0.05, { redondeo: 0 }); continue; }
+        F.caja(L, c.puertas || 'madera_osc', u0, dv - 0.01, b + 0.04, u1, dv + 0.014, b + H - 0.04, { redondeo: 0.01 });
+        const uh = i % 2 ? u0 + 0.05 : u1 - 0.07;
+        F.caja(L, 'metal', uh, dv - 0.03, b + 0.8, uh + 0.02, dv - 0.01, b + 1.3, { redondeo: 0 });
+      }
+      F.caja(L, c.color || 'madera', -0.02, -0.06, b + H - 0.04, W + 0.02, D, b + H + 0.04, { redondeo: 0.01 });
+    } else {
+      const n = Math.max(2, Math.round(W / 0.5));
+      const caida = x.ruina ? Math.floor(r() * n) : -1;
+      for (let i = 0; i < n; i++) {
+        const u0 = (W / n) * i + 0.015, u1 = (W / n) * (i + 1) - 0.015;
+        if (i === caida) { F.caja(L, 'agujero', u0, -0.004, b + 0.05, u1, 0.014, b + H - 0.05, { redondeo: 0 }); continue; }
+        F.caja(L, c.puertas || 'madera_osc', u0, -0.01, b + 0.05, u1, 0.014, b + H - 0.05, { redondeo: 0.01 });
+        const uh = i % 2 ? u0 + 0.06 : u1 - 0.08;
+        F.caja(L, 'metal', uh, -0.03, b + 0.9, uh + 0.025, -0.008, b + 1.2, { redondeo: 0 });
+      }
     }
     x.sombra(c);
   },
@@ -455,6 +570,23 @@ const MUEBLES = {
     const b = x.b;
     const F = frente(c, c.mira || 'n');
     const { W, D } = F;
+    if (c.mueble) {
+      // lavabo con mueble debajo (dos puertas) y la encimera blanca con la pila
+      F.caja(L, c.color || 'madera', 0, 0.03, b + 0.08, W, D, b + 0.8, { redondeo: 0.01 });
+      F.caja(L, 'negro', 0.03, 0.06, b, W - 0.03, D, b + 0.08, { redondeo: 0 });
+      for (const [u0, u1] of [[0.03, W / 2 - 0.01], [W / 2 + 0.01, W - 0.03]]) {
+        F.caja(L, x.ruina && u0 > 0.1 ? 'agujero' : c.puertas || 'madera_osc', u0, 0.012, b + 0.12, u1, 0.035, b + 0.76, { redondeo: 0.01 });
+      }
+      const roto = !!x.ruina;
+      F.caja(L, 'blanco', -0.01, -0.01, b + 0.8, roto ? W * 0.55 : W + 0.01, D, b + 0.86, { redondeo: 0.02 });
+      if (roto) trozos(L, 'blanco', ...F.pt(W * 0.75, -0.35), b, 4, azar(semillaDe(c)), 0.12, 0.3);
+      const [px, py] = F.pt(W / 2, D * 0.45);
+      if (!roto) L.cilindro('metal', px, py, b + 0.858, b + 0.866, Math.min(W, D) * 0.32, { segs: 20 });
+      const [gx, gy] = F.pt(W / 2, D - 0.07);
+      L.cilindro('metal', gx, gy, b + 0.86, b + 1.02, 0.02, { segs: 8 });
+      x.sombra(c);
+      return;
+    }
     const [cx, cy] = F.pt(W / 2, D / 2);
     L.cilindro('blanco', cx, cy, b, b + 0.7, 0.08, { rArriba: 0.1, segs: 12 });
     if (!x.ruina) {
@@ -486,14 +618,22 @@ const MUEBLES = {
     const b = x.b, H = c.alto || 1.8;
     const F = frente(c, c.mira || 'n');
     const { W, D } = F;
-    const k = 'madera_osc', t = 0.04;
+    const k = c.color || 'madera_osc', t = 0.04;
     const r = azar(semillaDe(c));
+    const bajo = c.bajo || 0;   // la parte de abajo, con puertas de madera
     F.caja(L, k, 0, D - 0.03, b, W, D, b + H, { redondeo: 0.01 });
     F.caja(L, k, 0, 0, b, t, D, b + H, { redondeo: 0.01 });
     F.caja(L, k, W - t, 0, b, W, D, b + H, { redondeo: 0.01 });
     F.caja(L, k, 0, 0, b + H - 0.05, W, D, b + H, { redondeo: 0.01 });
     F.caja(L, k, 0, 0, b, W, D, b + 0.12, { redondeo: 0.01 });
-    const baldas = [0.56, 1.0, 1.42];
+    const baldas = bajo ? [bajo, bajo + (H - bajo) * 0.36, bajo + (H - bajo) * 0.68] : [0.56, 1.0, 1.42];
+    if (bajo) {
+      // las puertas de abajo, con su tirador
+      for (const [u0, u1] of [[t, W / 2 - 0.006], [W / 2 + 0.006, W - t]]) {
+        F.caja(L, x.ruina && u0 > t ? 'agujero' : k, u0, -0.012, b + 0.13, u1, 0.03, b + bajo - 0.01, { redondeo: 0.01 });
+        F.caja(L, 'metal', u0 < W / 2 ? u1 - 0.06 : u0 + 0.04, -0.03, b + bajo - 0.2, u0 < W / 2 ? u1 - 0.04 : u0 + 0.06, -0.012, b + bajo - 0.08, { redondeo: 0 });
+      }
+    }
     baldas.forEach((z, i) => {
       if (x.ruina && i === 1) {
         // una balda descolgada
@@ -504,11 +644,24 @@ const MUEBLES = {
       F.caja(L, k, t, 0.03, b + z, W - t, D - 0.03, b + z + 0.03, { redondeo: 0 });
     });
     const libros = ['funda1', 'funda2', 'tela1', 'tela2', 'funda3'];
-    for (const z of [0.12, 0.59, 1.03, 1.45]) {
+    const estantes = bajo ? baldas.map((z) => z + 0.03) : [0.12, 0.59, 1.03, 1.45];
+    for (const z of estantes) {
       if (x.ruina && z > 0.5 && z < 1.2) continue;
       let u = t + 0.05;
       while (u < W - t - 0.14) {
         const q = r();
+        if (c.contenido === 'copas') {
+          // copas y botellas
+          const [px, py] = F.pt(u + 0.05, D * 0.5);
+          if (q < 0.6) { L.cilindro('cristal', px, py, b + z, b + z + 0.13, 0.035, { rArriba: 0.045, segs: 10 }); u += 0.1; }
+          else {
+            const kb = q < 0.8 ? 'planta' : 'cerezo';
+            L.cilindro(kb, px, py, b + z, b + z + 0.22, 0.04, { segs: 10 });
+            L.cilindro(kb, px, py, b + z + 0.22, b + z + 0.3, 0.015, { segs: 8 });
+            u += 0.11;
+          }
+          continue;
+        }
         if (q < 0.4) {
           const [px, py] = F.pt(u + 0.06, D * 0.55);
           L.cilindro('blanco', px, py, b + z, b + z + 0.1, 0.05, { segs: 10 });
@@ -520,7 +673,7 @@ const MUEBLES = {
         } else u += 0.12;
       }
     }
-    if (!x.ruina) F.caja(L, 'cristal', t, -0.004, b + 0.12, W - t, 0.012, b + H - 0.05, { redondeo: 0, libre: true });
+    if (!x.ruina) F.caja(L, 'cristal', t, -0.004, b + Math.max(0.12, bajo), W - t, 0.012, b + H - 0.05, { redondeo: 0, libre: true });
     else {
       trozos(L, 'cristal', ...F.pt(W / 2, -0.35), b, 7, r, 0.12, 0.35);
       trozos(L, 'blanco', ...F.pt(W * 0.3, -0.45), b, 4, r, 0.1, 0.25);
@@ -528,16 +681,18 @@ const MUEBLES = {
     x.sombra(c);
   },
   mueble(L, c, x) {
-    const b = x.b;
+    const b = x.b, H = (c.alto || 0.85) - 0.05;
     const F = frente(c, c.mira || 'n');
     const { W, D } = F;
-    F.caja(L, 'madera', 0, 0.01, b, W, D, b + 0.8);
+    const k = c.color || 'madera', kp = c.puertas || 'madera_osc';
+    F.caja(L, k, 0, 0.01, b, W, D, b + H);
     const n = Math.max(2, Math.round(W / 0.45));
     for (let i = 0; i < n; i++) {
       const u0 = (W / n) * i + 0.02, u1 = (W / n) * (i + 1) - 0.02;
-      F.caja(L, x.ruina && i % 2 === 0 ? 'agujero' : 'madera_osc', u0, -0.01, b + 0.06, u1, 0.014, b + 0.76, { redondeo: 0.01 });
+      F.caja(L, x.ruina && i % 2 === 0 ? 'agujero' : kp, u0, -0.01, b + 0.06, u1, 0.014, b + H - 0.04, { redondeo: 0.01 });
+      if (kp === k) F.caja(L, 'metal', (u0 + u1) / 2 - 0.05, -0.03, b + H - 0.14, (u0 + u1) / 2 + 0.05, -0.012, b + H - 0.12, { redondeo: 0 });
     }
-    F.caja(L, 'madera_osc', -0.02, -0.02, b + 0.8, W + 0.02, D, b + 0.85);
+    F.caja(L, kp === k ? k : 'madera_osc', -0.02, -0.02, b + H, W + 0.02, D, b + H + 0.05);
     x.sombra(c);
   },
   planta(L, c, x) {
@@ -645,7 +800,19 @@ const MUEBLES = {
   },
   zen(L, c, x) {
     const b = x.b;
-    L.caja('zen', c.x0, c.y0, b, c.x1, c.y1, b + 0.025, { redondeo: 0.012 });
+    if (c.rayas) {
+      // la alfombra de rayas de colores
+      const colores = ['tela1', 'blanco', 'tela2', 'funda1', 'blanco', 'funda3', 'cenefa', 'blanco'];
+      const largoX = c.x1 - c.x0 >= c.y1 - c.y0;
+      const lg = largoX ? c.x1 - c.x0 : c.y1 - c.y0;
+      const n = Math.max(8, Math.round(lg / 0.11));
+      for (let i = 0; i < n; i++) {
+        const a0 = (largoX ? c.x0 : c.y0) + (lg / n) * i, a1 = a0 + lg / n;
+        const kc = colores[i % colores.length];
+        if (largoX) L.caja(kc, a0, c.y0, b, a1, c.y1, b + 0.02, { redondeo: 0 });
+        else L.caja(kc, c.x0, a0, b, c.x1, a1, b + 0.02, { redondeo: 0 });
+      }
+    } else L.caja('zen', c.x0, c.y0, b, c.x1, c.y1, b + 0.025, { redondeo: 0.012 });
     const r = azar(semillaDe(c));
     for (const [px, py, rr] of c.cojines || []) {
       if (!x.ruina) { L.cilindro('cojin', px, py, b + 0.02, b + 0.15, rr); continue; }
@@ -654,7 +821,205 @@ const MUEBLES = {
       L.barra('cojin', qx - 0.06, qy, qx + 0.06, qy + 0.02, b + rr * 0.9, rr * 0.9, { segs: 14 });
       L.esfera('relleno', qx + 0.1, qy + 0.1, b + 0.05, 0.07, { detalle: 0 });
     }
-    planta(L, 14.2, 0.72, b, 0.2, !!x.ruina);
+    const [qx, qy] = c.planta || [14.2, 0.72];
+    planta(L, qx, qy, b, 0.2, !!x.ruina);
+  },
+  // ---------- lo que salió del vídeo del 9 de noviembre ----------
+  radiador(L, c, x) {
+    const b = x.b;
+    const F = frente(c, c.mira || 's');
+    const { W, D } = F;
+    const n = Math.max(4, Math.round(W / 0.08));
+    for (let i = 0; i < n; i++) {
+      const u0 = (W / n) * i + 0.007, u1 = (W / n) * (i + 1) - 0.007;
+      F.caja(L, 'blanco', u0, 0, b + 0.14, u1, D, b + 0.72, { redondeo: 0.012 });
+    }
+    F.caja(L, 'blanco', 0, D * 0.3, b + 0.17, W, D * 0.7, b + 0.69, { redondeo: 0 });
+  },
+  puertita(L, c, x) {
+    // una puerta de madera oscura con su marco (la de debajo de la escalera)
+    const b = x.b, H = c.alto || 1.9;
+    const F = frente(c, c.mira || 'w');
+    const { W, D } = F;
+    const k = c.color || 'cerezo';
+    F.caja(L, k, -0.05, 0, b, 0.02, D, b + H + 0.05, { redondeo: 0.005 });
+    F.caja(L, k, W - 0.02, 0, b, W + 0.05, D, b + H + 0.05, { redondeo: 0.005 });
+    F.caja(L, k, -0.05, 0, b + H, W + 0.05, D, b + H + 0.06, { redondeo: 0.005 });
+    if (!x.ruina) {
+      F.caja(L, k, 0.02, D * 0.35, b + 0.01, W - 0.02, D, b + H, { redondeo: 0.01 });
+      F.caja(L, 'madera_osc', 0.1, D * 0.35 - 0.008, b + 0.16, W - 0.1, D * 0.35, b + H * 0.47, { redondeo: 0 });
+      F.caja(L, 'madera_osc', 0.1, D * 0.35 - 0.008, b + H * 0.53, W - 0.1, D * 0.35, b + H - 0.14, { redondeo: 0 });
+      const [px, py] = F.pt(W - 0.1, D * 0.35 - 0.025);
+      L.esfera('dorado', px, py, b + Math.min(1.0, H * 0.52), 0.025, { detalle: 0 });
+    } else {
+      // descolgada: el hueco negro y la puerta tirada delante
+      F.caja(L, 'agujero', 0.02, D * 0.5, b + 0.01, W - 0.02, D, b + H, { redondeo: 0 });
+      const [mx, my] = F.pt(W / 2, -H * 0.45);
+      L.cajaCentro(k, mx, my, b, F.horiz ? W - 0.05 : H * 0.9, F.horiz ? H * 0.9 : W - 0.05, 0.04, 0.12, { redondeo: 0.01 });
+    }
+  },
+  campana(L, c, x) {
+    // va colgada en la pared: solo se ve cuando la pared se ve entera
+    const b = x.b;
+    const F = frente(c, c.mira || 's');
+    const { W, D } = F;
+    if (c.tipo === 'obra') {
+      // la de la cocina de leña: de obra, alicatada, con un listón de madera abajo
+      F.caja(L, 'madera', -0.02, -0.03, b + 1.62, W + 0.02, D, b + 1.7, { redondeo: 0.01 });
+      F.caja(L, 'azulejo', 0, 0, b + 1.7, W, D, b + 1.86, { redondeo: 0.01 });
+      F.caja(L, 'azulejo', W * 0.08, D * 0.18, b + 1.86, W * 0.92, D, b + 2.02, { redondeo: 0.01 });
+      F.caja(L, 'azulejo', W * 0.22, D * 0.42, b + 2.02, W * 0.78, D, b + 2.5, { redondeo: 0.01 });
+    } else {
+      // de acero, con su tubo hasta el techo
+      F.caja(L, 'metal', 0, 0, b + 1.58, W, D, b + 1.65, { redondeo: 0.01 });
+      F.caja(L, 'metal', W * 0.14, D * 0.2, b + 1.65, W * 0.86, D, b + 1.8, { redondeo: 0.01 });
+      F.caja(L, 'metal', W / 2 - 0.13, D - 0.24, b + 1.8, W / 2 + 0.13, D, b + 2.5, { redondeo: 0.01 });
+    }
+  },
+  altos(L, c, x) {
+    // muebles altos de cocina, colgados
+    const b = x.b;
+    const F = frente(c, c.mira || 's');
+    const { W, D } = F;
+    const k = c.color || 'madera_osc', kp = c.puertas || 'madera';
+    const z0 = b + (c.desde || 1.45), z1 = b + (c.hasta || 2.15);
+    F.caja(L, k, 0, 0.02, z0, W, D, z1, { redondeo: 0.01 });
+    const n = Math.max(1, Math.round(W / 0.42));
+    for (let i = 0; i < n; i++) {
+      const u0 = (W / n) * i + 0.015, u1 = (W / n) * (i + 1) - 0.015;
+      F.caja(L, kp, u0, 0, z0 + 0.02, u1, 0.03, z1 - 0.02, { redondeo: 0.01 });
+      const uh = i % 2 ? u0 + 0.04 : u1 - 0.06;
+      F.caja(L, 'metal', uh, -0.02, z0 + 0.05, uh + 0.02, 0, z0 + 0.19, { redondeo: 0 });
+    }
+  },
+  espejo(L, c, x) {
+    const b = x.b;
+    const F = frente(c, c.mira || 'n');
+    const { W, D } = F;
+    F.caja(L, 'blanco', -0.03, 0, b + 1.05, W + 0.03, D, b + 1.85, { redondeo: 0.01 });
+    F.caja(L, 'cristal', 0.02, -0.012, b + 1.09, W - 0.02, D * 0.5, b + 1.81, { redondeo: 0, libre: true });
+  },
+  chimeneacolumna(L, c, x) {
+    // el tiro de la chimenea de esquina, hasta el techo, con su rejilla (colgado de la pared)
+    const b = x.b;
+    const { a, G } = esquinaDe(c);
+    const ancho = a * Math.SQRT2 * 0.74;
+    G.pieza(L, 'interior', 0, 0.21, b + 1.23, ancho, 0.42, 1.27, { redondeo: 0.02 });
+    // el listón de madera de las dos esquinas de delante y la rejilla
+    G.pieza(L, 'madera_osc', -ancho / 2 + 0.015, 0.415, b + 1.23, 0.035, 0.035, 1.27, { redondeo: 0.008 });
+    G.pieza(L, 'madera_osc', ancho / 2 - 0.015, 0.415, b + 1.23, 0.035, 0.035, 1.27, { redondeo: 0.008 });
+    G.pieza(L, 'metal', 0, 0.425, b + 1.85, ancho * 0.32, 0.012, 0.14, { redondeo: 0 });
+  },
+  piano(L, c, x) {
+    // piano digital negro, con su silla delante y un cactus encima
+    const b = x.b;
+    const F = frente(c, c.mira || 'n');
+    const { W, D } = F;
+    F.caja(L, 'negro', 0, D * 0.12, b, 0.06, D, b + 0.78, { redondeo: 0.01 });
+    F.caja(L, 'negro', W - 0.06, D * 0.12, b, W, D, b + 0.78, { redondeo: 0.01 });
+    F.caja(L, 'negro', 0.06, D * 0.72, b + 0.08, W - 0.06, D, b + 0.6, { redondeo: 0 });
+    F.caja(L, 'negro', 0, 0, b + 0.7, W, D, b + 0.79, { redondeo: 0.01 });
+    F.caja(L, x.ruina ? 'agujero' : 'blanco', 0.07, 0.015, b + 0.79, W - 0.07, D * 0.42, b + 0.805, { redondeo: 0 });
+    if (!x.ruina) {
+      const n = Math.round((W - 0.14) / 0.045);
+      for (let i = 0; i < n; i++) {
+        if ([2, 6].includes(i % 7)) continue;
+        const u = 0.07 + (W - 0.14) * (i + 1) / (n + 1);
+        F.caja(L, 'negro', u - 0.011, 0.015 + D * 0.12, b + 0.8, u + 0.011, D * 0.42, b + 0.815, { redondeo: 0 });
+      }
+    }
+    F.caja(L, 'negro', 0, D * 0.42, b + 0.79, W, D, b + 0.98, { redondeo: 0.01 });
+    F.caja(L, 'blanco', W * 0.38, D * 0.48, b + 0.98, W * 0.62, D * 0.52, b + 1.18, { redondeo: 0 });
+    const [qx, qy] = F.pt(W - 0.16, D * 0.65);
+    L.cilindro('blanco', qx, qy, b + 0.98, b + 1.08, 0.07, { rArriba: 0.08 });
+    L.cilindro('planta', qx, qy, b + 1.08, b + 1.3, 0.04, { rArriba: 0.03, segs: 10 });
+    const [sx, sy] = F.pt(W / 2, -0.38);
+    const ks = { asiento: 'tela_oscura', patas: 'negro' };
+    if (!x.ruina) silla(L, sx, sy, OPUESTO[c.mira || 'n'], b, ks);
+    else sillaTirada(L, sx + 0.2, sy - 0.1, b, 2.2, ks);
+    x.sombra(c);
+  },
+  zapatero(L, c, x) {
+    // zapatero negro de cubos con zapatillas dentro y una lámpara encima
+    const b = x.b, H = 0.74;
+    const F = frente(c, c.mira || 'n');
+    const { W, D } = F;
+    const r = azar(semillaDe(c));
+    const colores = ['blanco', 'tela1', 'tela2', 'blanco', 'funda2', 'negro'];
+    F.caja(L, 'negro', 0, 0, b, W, D, b + H, { redondeo: 0.01 });
+    const cols = Math.max(2, Math.round(W / 0.38)), filas = 2;
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < filas; j++) {
+        const u0 = 0.035 + i * (W - 0.07) / cols + 0.015, u1 = 0.035 + (i + 1) * (W - 0.07) / cols - 0.015;
+        const z0 = b + 0.035 + j * (H - 0.07) / filas + 0.015, z1 = b + 0.035 + (j + 1) * (H - 0.07) / filas - 0.015;
+        F.caja(L, 'agujero', u0, -0.003, z0, u1, 0.012, z1, { redondeo: 0 });
+        if (x.ruina) continue;
+        const kz = colores[Math.floor(r() * colores.length)];
+        F.caja(L, kz, u0 + 0.02, -0.006, z0, (u0 + u1) / 2 - 0.01, 0.0, z0 + 0.1, { redondeo: 0.02 });
+        F.caja(L, kz, (u0 + u1) / 2 + 0.01, -0.006, z0, u1 - 0.02, 0.0, z0 + 0.1, { redondeo: 0.02 });
+      }
+    }
+    const [lx, ly] = F.pt(W * 0.25, D / 2);
+    L.cilindro('negro', lx, ly, b + H, b + H + 0.3, 0.025, { segs: 8 });
+    L.cilindro('almohada', lx, ly, b + H + 0.28, b + H + 0.48, 0.17, { rArriba: 0.12, segs: 16 });
+    if (x.ruina) {
+      // las zapatillas por el suelo
+      const [zx, zy] = F.pt(W / 2, -0.45);
+      for (let k = 0; k < 7; k++) L.cajaCentro(colores[k % colores.length], zx + (r() - 0.5) * 1.1, zy + (r() - 0.5) * 0.6, b, 0.26, 0.1, 0.1, r() * Math.PI, { redondeo: 0.03 });
+    }
+    x.sombra(c);
+  },
+  zenmueble(L, c, x) {
+    // mueble bajo blanco con la fuente del Buda encima y el bambú de la suerte en una garrafa azul
+    const b = x.b, H = c.alto || 0.42;
+    const F = frente(c, c.mira || 's');
+    const { W, D } = F;
+    F.caja(L, 'blanco', 0, 0, b, W, D, b + 0.06, { redondeo: 0.01 });
+    F.caja(L, 'blanco', 0, 0, b + H - 0.05, W, D, b + H, { redondeo: 0.01 });
+    F.caja(L, 'blanco', 0, 0, b, 0.045, D, b + H, { redondeo: 0.01 });
+    F.caja(L, 'blanco', W - 0.045, 0, b, W, D, b + H, { redondeo: 0.01 });
+    F.caja(L, 'blanco', W / 2 - 0.02, 0, b, W / 2 + 0.02, D, b + H, { redondeo: 0 });
+    F.caja(L, 'interior', 0.045, D - 0.03, b + 0.06, W - 0.045, D, b + H - 0.05, { redondeo: 0 });
+    F.caja(L, 'negro', W * 0.3, D * 0.15, b + H, W * 0.92, D * 0.88, b + H + 0.02, { redondeo: 0 });
+    const [gx, gy] = F.pt(W * 0.15, D * 0.5);
+    L.cilindro('agua', gx, gy, b + H, b + H + 0.32, 0.1, { segs: 16 });
+    const [rx, ry] = F.pt(W * 0.62, D * 0.62);
+    const [bx, by] = F.pt(W * 0.62, D * 0.3);
+    if (!x.ruina) {
+      for (const [dx, dy, hh] of [[-0.03, 0, 0.55], [0.03, 0.02, 0.48], [0, -0.03, 0.62]]) {
+        L.cilindro('planta', gx + dx, gy + dy, b + H + 0.25, b + H + 0.25 + hh, 0.012, { segs: 6 });
+        L.esfera('hoja', gx + dx, gy + dy, b + H + 0.25 + hh, 0.05, { escala: [1, 1.4, 1], detalle: 0 });
+      }
+      L.esfera('negro', rx, ry, b + H + 0.15, 0.15, { escala: [1.1, 1.25, 0.8], detalle: 1 });
+      L.esfera('dorado', bx, by, b + H + 0.09, 0.075, { escala: [1.15, 0.9, 1], detalle: 1 });
+      L.esfera('dorado', bx, by, b + H + 0.19, 0.04, { detalle: 1 });
+      L.esfera('agua', rx, ry, b + H + 0.04, 0.09, { escala: [1.3, 0.25, 1], detalle: 1 });
+    } else {
+      // el Buda tirado por el suelo y el agua derramada
+      const [tx, ty] = F.pt(W * 0.6, -0.3);
+      L.esfera('dorado', tx, ty, b + 0.07, 0.075, { escala: [1.15, 0.9, 1], detalle: 1 });
+      L.esfera('dorado', tx + 0.12, ty + 0.05, b + 0.04, 0.04, { detalle: 1 });
+      L.cilindro('agua', tx - 0.25, ty, b, b + 0.01, 0.35, { segs: 16 });
+      L.esfera('seca', gx, gy, b + H + 0.36, 0.08, { escala: [1.2, 0.6, 1], detalle: 0 });
+    }
+    x.sombra(c);
+  },
+  micro(L, c, x) {
+    // microondas encima de la encimera (su base es la altura de la encimera)
+    const b = x.b;
+    const F = frente(c, c.mira || 'e');
+    const { W, D } = F;
+    F.caja(L, c.color || 'negro', 0, 0, b, W, D, b + 0.27, { redondeo: 0.02 });
+    F.caja(L, x.ruina ? 'agujero' : 'negro', 0.04, -0.008, b + 0.04, W * 0.66, 0.01, b + 0.23, { redondeo: 0 });
+    F.caja(L, 'metal', W * 0.72, -0.008, b + 0.06, W - 0.04, 0.01, b + 0.21, { redondeo: 0 });
+  },
+  cenefa(L, c, x) {
+    // la tira de azulejo azul que hace de «alfombra» en el suelo de la entrada
+    const b = x.b, t = 0.09, z0 = b + 0.001, z1 = b + 0.006;
+    L.caja('cenefa', c.x0, c.y0, z0, c.x1, c.y0 + t, z1, { redondeo: 0 });
+    L.caja('cenefa', c.x0, c.y1 - t, z0, c.x1, c.y1, z1, { redondeo: 0 });
+    L.caja('cenefa', c.x0, c.y0, z0, c.x0 + t, c.y1, z1, { redondeo: 0 });
+    L.caja('cenefa', c.x1 - t, c.y0, z0, c.x1, c.y1, z1, { redondeo: 0 });
   },
   cerrado(L, c, x) {
     // una habitación que no entra: tapada a la altura de las paredes cortadas
@@ -675,6 +1040,8 @@ const MUEBLES = {
 
 // ---------- escaleras y barandillas ----------
 
+// Un tramo de escalera. Si va macizo hasta el suelo, por los lados es de yeso y solo la huella es del material del escalón;
+// con «cenefa», cada tabica lleva la tira de azulejo azul.
 function tramo(L, s, b, clave) {
   const n = s.pasos;
   const dz = (s.hasta - s.desde) / n;
@@ -686,8 +1053,19 @@ function tramo(L, s, b, clave) {
     if (s.sube === 's') { y0 = s.y0 + (s.y1 - s.y0) * t0; y1 = s.y0 + (s.y1 - s.y0) * t1; }
     if (s.sube === 'n') { y1 = s.y1 - (s.y1 - s.y0) * t0; y0 = s.y1 - (s.y1 - s.y0) * t1; }
     const arriba = s.desde + dz * (k + 1);
-    const abajo = s.volado ? Math.max(0, arriba - 0.32) : 0;
-    L.caja(clave, x0, y0, b + abajo, x1, y1, b + arriba, { redondeo: 0.02 });
+    if (s.volado) { L.caja(clave, x0, y0, b + Math.max(0, arriba - 0.32), x1, y1, b + arriba, { redondeo: 0.02 }); continue; }
+    const grueso = Math.min(0.07, arriba * 0.5);
+    if (arriba - grueso > 0.02) L.caja(s.lados || 'interior', x0, y0, b, x1, y1, b + arriba - grueso, { redondeo: 0.01 });
+    L.caja(clave, x0, y0, b + arriba - grueso, x1, y1, b + arriba, { redondeo: 0.015 });
+    if (s.cenefa) {
+      const z0 = b + arriba - dz + 0.015, z1 = b + arriba - grueso - 0.01;
+      if (z1 - z0 < 0.03) continue;
+      const e = 0.008;
+      if (s.sube === 'e') L.caja('cenefa', x0 - e, y0 + 0.02, z0, x0, y1 - 0.02, z1, { redondeo: 0 });
+      if (s.sube === 'w') L.caja('cenefa', x1, y0 + 0.02, z0, x1 + e, y1 - 0.02, z1, { redondeo: 0 });
+      if (s.sube === 's') L.caja('cenefa', x0 + 0.02, y0 - e, z0, x1 - 0.02, y0, z1, { redondeo: 0 });
+      if (s.sube === 'n') L.caja('cenefa', x0 + 0.02, y1, z0, x1 - 0.02, y1 + e, z1, { redondeo: 0 });
+    }
   }
 }
 
@@ -731,12 +1109,20 @@ function muro(lotes, m) {
   const base = m.base || 0;
   const huecos = [...m.huecos].sort((p, q) => p.desde - q.desde);
   const versiones = m.lado === 'int' ? [['int', MURO_BAJO]] : [[m.lado + '_alto', MURO_ALTO], [m.lado + '_bajo', MURO_BAJO]];
+  // revestido: { cara: 'n' | 's' | 'e' | 'w', material } — por esa cara la pared va alicatada
+  const rv = m.revestido;
+  const signo = rv && (rv.cara === 'e' || rv.cara === 's') ? 1 : -1;
   for (const [nombre, H] of versiones) {
     const L = lotes[nombre];
     const pieza = (u0, u1, h0, h1, k = m.material) => {
       if (u1 - u0 < 0.01 || h1 - h0 < 0.01) return;
       if (horiz) L.caja(k, u0, z - t / 2, base + h0, u1, z + t / 2, base + h1);
       else L.caja(k, z - t / 2, u0, base + h0, z + t / 2, u1, base + h1);
+      if (rv && k === m.material) {
+        const f0 = z + signo * t / 2, f1 = f0 + signo * 0.018;
+        if (horiz) L.caja(rv.material, u0, f0, base + h0, u1, f1, base + h1, { redondeo: 0 });
+        else L.caja(rv.material, f0, u0, base + h0, f1, u1, base + h1, { redondeo: 0 });
+      }
     };
     const vidrio = (u0, u1, h0, h1) => {
       if (h1 - h0 < 0.02) return;
@@ -754,8 +1140,10 @@ function muro(lotes, m) {
         if (H > l) pieza(hu.desde, hu.hasta, l, H);
       } else if (hu.tipo === 'porton') {
         if (H > 2.3) pieza(hu.desde, hu.hasta, 2.3, H);
-      } else if (H > 2.1) {
-        pieza(hu.desde, hu.hasta, 2.1, H);
+      } else {
+        if (H > 2.1) pieza(hu.desde, hu.hasta, 2.1, H);
+        // la puerta de la calle, cerrada (de su color)
+        if (hu.hoja) pieza(hu.desde + 0.03, hu.hasta - 0.03, 0, Math.min(2.08, H), hu.hoja);
       }
       cur = hu.hasta;
     }
@@ -878,6 +1266,27 @@ function muroRuina(lotes, m, r, Lsuelo) {
   }
 }
 
+// ---------- cosas colgadas de las paredes ----------
+// Campanas, muebles altos, espejos y el tiro de la chimenea van con su pared: se ven cuando la pared se ve entera
+// y desaparecen cuando se corta (si no, quedarían flotando). En las paredes de dentro, que van siempre cortadas, no salen.
+const COLGADOS = new Set(['campana', 'altos', 'espejo', 'chimeneacolumna']);
+const esColgado = (c) => COLGADOS.has(c.t);
+
+function paredDe(def, c) {
+  const lado = c.pared || OPUESTO[c.mira || 's'];
+  const vertical = lado === 'w' || lado === 'e';
+  const ref = lado === 'w' ? c.x0 : lado === 'e' ? c.x1 : lado === 'n' ? c.y0 : c.y1;
+  const [a0, a1] = vertical ? [c.y0, c.y1] : [c.x0, c.x1];
+  for (const m of def.muros) {
+    const mv = Math.abs(m.x0 - m.x1) < 1e-6;
+    if (mv !== vertical || Math.abs((vertical ? m.x0 : m.y0) - ref) > 0.35) continue;
+    const b0 = vertical ? Math.min(m.y0, m.y1) : Math.min(m.x0, m.x1);
+    const b1 = vertical ? Math.max(m.y0, m.y1) : Math.max(m.x0, m.x1);
+    if (Math.min(a1, b1) - Math.max(a0, b0) > Math.min(0.2, (a1 - a0) / 2)) return m.lado;
+  }
+  return null;
+}
+
 // ---------- sombras blandas ----------
 
 function mallaSombras(rects, textura, opacidad, mats) {
@@ -929,7 +1338,7 @@ export function construirRuina(p, estilo) {
   const LR = new Lote(estilo, 240 + def.nivel, { proporcion: 0.2 });
   for (const c of def.cosas) {
     const f = MUEBLES[c.t];
-    if (f) f(LR, c, { b: c.base || 0, ruina: true, sombra: () => {} });
+    if (f && !esColgado(c)) f(LR, c, { b: c.base || 0, ruina: true, sombra: () => {} });
   }
   const lotesRuina = nuevosLotes(estilo, 70);
   const rRuina = azar(555 + def.nivel * 31);
@@ -963,15 +1372,23 @@ function construirPlanta(def, estilo, conRuina = false) {
     L.caja('losa', s.x0, s.y0, -0.27, s.x1, s.y1, b - 0.04, { redondeo: 0 });
     L.caja(s.suelo, s.x0, s.y0, b - 0.06, s.x1, s.y1, b, { redondeo: 0 });
   }
+  const lotesColgados = {};
   for (const c of def.cosas) {
     const f = MUEBLES[c.t];
     if (!f) continue;
+    if (esColgado(c)) {
+      const lado = paredDe(def, c);
+      if (!lado || lado === 'int') continue;
+      lotesColgados[lado] ??= new Lote(estilo, 300 + def.nivel, { proporcion: 0.2 });
+      f(lotesColgados[lado], c, { b: c.base || 0, ruina: false, sombra: () => {} });
+      continue;
+    }
     f(LM, c, ctx(c));
     if (LR) f(LR, c, ctx(c, true));
-    if (!['alfombra', 'zen', 'bloque'].includes(c.t)) ocupado.push(c);
+    if (!['alfombra', 'zen', 'bloque', 'cenefa', 'micro'].includes(c.t)) ocupado.push(c);
   }
   for (const e of def.escaleras) {
-    tramo(L, e, 0, def.nivel === 2 && e.x1 <= 11.01 ? 'suelo_baldosa' : 'madera');
+    tramo(L, e, 0, e.huella || (def.nivel === 2 && e.x1 <= 11.01 ? 'suelo_baldosa' : 'madera'));
     ocupado.push(e);
   }
   for (const br of def.barandas) baranda(L, br, 0);
@@ -1001,6 +1418,7 @@ function construirPlanta(def, estilo, conRuina = false) {
       bajoRuina: conRuina ? lotesRuina[l + '_bajo'].mallas(mats) : new THREE.Group(),
     };
     muros[l].altoRuina.visible = muros[l].bajoRuina.visible = false;
+    if (lotesColgados[l]) muros[l].alto.add(lotesColgados[l].mallas(mats));
     grupo.add(muros[l].alto, muros[l].bajo, muros[l].altoRuina, muros[l].bajoRuina);
   }
   const s = mallaSombras(sombras, texturaSombra(), estilo.sombra, mats);
