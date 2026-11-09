@@ -175,6 +175,20 @@ export class Lote {
     this.add(key, geo);
   }
 
+  // Tubo recto entre dos puntos del espacio [x, y, z] (x este, y sur, z altura): barandillas de escalera
+  tubo(key, a, b, r, o = {}) {
+    if (this.e.voxel) return this.caja(key, Math.min(a[0], b[0]) - r, Math.min(a[1], b[1]) - r, Math.min(a[2], b[2]) - r, Math.max(a[0], b[0]) + r, Math.max(a[1], b[1]) + r, Math.max(a[2], b[2]) + r, o);
+    const segs = this.e.plano ? (o.segs ?? 6) : (o.segs ?? 10);
+    const dir = new THREE.Vector3(b[0] - a[0], b[2] - a[2], b[1] - a[1]);
+    const largo = dir.length();
+    if (largo < 0.001) return;
+    const geo = new THREE.CylinderGeometry(r, r, largo, segs);
+    q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    m4.compose(pos.set((a[0] + b[0]) / 2 - CX, (a[2] + b[2]) / 2, (a[1] + b[1]) / 2 - CZ), q, esc.set(1, 1, 1));
+    geo.applyMatrix4(m4);
+    this.add(key, geo);
+  }
+
   esfera(key, cx, cy, cz, r, o = {}) {
     const [ex, ey, ez] = o.escala || [1, 1, 1];
     if (this.e.voxel) return this.caja(key, cx - r * ex, cy - r * ez, cz - r * ey, cx + r * ex, cy + r * ez, cz + r * ey, o);

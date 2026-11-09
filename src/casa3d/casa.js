@@ -156,6 +156,54 @@ function girado(cx, cy, fx, fy) {
 
 const DIAGONAL = { nw: [1, 1], ne: [-1, 1], sw: [1, -1], se: [-1, -1] };
 
+// El mueble del Buda, delante de la esquina achaflanada del salón del medio (mirando al centro del salón):
+// dos huecos abiertos con la balda del medio, la bandeja negra, la fuente con el Buda, la garrafa con el bambú
+// y, en la esquina de la ventana, las cañas de bambú apoyadas en la pared.
+function zenEsquina(L, c, x) {
+  const b = x.b, H = c.alto || 0.45, W = c.ancho || 1.2, D = c.fondo || 0.45;
+  const [cx, cy] = c.centro;
+  const [sx, sy] = DIAGONAL[c.esquina];
+  const G = girado(cx, cy, sx / Math.SQRT2, sy / Math.SQRT2);
+  G.pieza(L, 'blanco', 0, 0, b, W, D, 0.06, { redondeo: 0.01 });
+  G.pieza(L, 'blanco', 0, 0, b + H - 0.05, W, D, 0.05, { redondeo: 0.01 });
+  for (const u of [-W / 2 + 0.025, W / 2 - 0.025, -W * 0.12]) G.pieza(L, 'blanco', u, 0, b, 0.05, D, H, { redondeo: 0.008 });
+  G.pieza(L, 'blanco', W * 0.19, 0, b + H * 0.5, W * 0.6, D - 0.02, 0.03, { redondeo: 0 });
+  G.pieza(L, 'interior', 0, -D / 2 + 0.015, b + 0.06, W - 0.08, 0.03, H - 0.11, { redondeo: 0 });
+  G.pieza(L, 'negro', W * 0.14, 0, b + H, W * 0.6, D * 0.72, 0.02, { redondeo: 0 });
+  const [gx, gy] = G.p(-W * 0.36, 0);
+  const [rx, ry] = G.p(0.02, -0.06), [bx, by] = G.p(0.02, 0.07);
+  if (!x.ruina) {
+    L.cilindro('agua', gx, gy, b + H, b + H + 0.36, 0.12, { segs: 16 });
+    for (const [du, dv, hh] of [[-0.04, 0, 0.72], [0.04, 0.03, 0.6], [0, -0.04, 0.8], [0.03, -0.02, 0.52]]) {
+      const [qx, qy] = G.p(-W * 0.36 + du, dv);
+      L.cilindro('planta', qx, qy, b + H + 0.25, b + H + 0.25 + hh, 0.012, { segs: 6 });
+      L.esfera('hoja', qx, qy, b + H + 0.25 + hh, 0.07, { escala: [1.2, 1.4, 1.2], detalle: 0 });
+    }
+    L.esfera('negro', rx, ry, b + H + 0.17, 0.15, { escala: [1.2, 1.35, 0.85], detalle: 1 });
+    L.esfera('dorado', bx, by, b + H + 0.1, 0.08, { escala: [1.2, 0.9, 1], detalle: 1 });
+    L.esfera('dorado', bx, by, b + H + 0.21, 0.042, { detalle: 1 });
+    const [vx, vy] = G.p(W * 0.27, 0.04), [ox, oy] = G.p(W * 0.4, 0.06);
+    L.cilindro('cerezo', vx, vy, b + H + 0.02, b + H + 0.16, 0.035, { segs: 10 });
+    L.cilindro('alfombra1', ox, oy, b + H + 0.02, b + H + 0.07, 0.07, { segs: 14 });
+  } else {
+    // el Buda tirado por el suelo y el agua derramada
+    const [tx, ty] = G.p(0.1, D / 2 + 0.35);
+    L.esfera('dorado', tx, ty, b + 0.07, 0.08, { escala: [1.2, 0.9, 1], detalle: 1 });
+    L.cilindro('agua', tx + 0.2, ty, b, b + 0.01, 0.38, { segs: 16 });
+    L.cilindro('agua', gx, gy, b + H, b + H + 0.2, 0.12, { segs: 16 });
+    L.esfera('seca', gx, gy, b + H + 0.28, 0.1, { escala: [1.2, 0.6, 1], detalle: 0 });
+  }
+  if (c.canas) {
+    // las cañas de bambú apoyadas en la pared, en la esquina de la ventana
+    for (const [du, dv, hh, a] of [[0.1, 0.0, 1.9, 0.06], [0.16, 0.04, 1.75, 0.09], [0.22, -0.02, 1.95, 0.04], [0.28, 0.03, 1.6, 0.1]]) {
+      const [kx, ky] = G.p(W / 2 + du, -D / 2 + 0.08 + dv);
+      if (x.ruina) { L.cajaCentro('lena', kx + 0.3, ky + 0.3, b, 0.04, 0.04, hh * 0.9, G.g + 0.4, { inclina: 1.5, redondeo: 0.01 }); continue; }
+      L.cajaCentro('lena', kx, ky, b, 0.04, 0.04, hh, G.g, { inclina: -a, redondeo: 0.01 });
+    }
+  }
+  x.sombra({ x0: cx - 0.75, y0: cy - 0.75, x1: cx + 0.75, y1: cy + 0.75 });
+}
+
 // La chimenea de esquina, torcida: la espalda va de una pared a la otra (c.lado metros por cada pared)
 // y el frente mira al centro del salón. (c.x0, c.y0) es la esquina de dentro de las paredes.
 function esquinaDe(c) {
@@ -508,10 +556,30 @@ const MUEBLES = {
     L.caja('negro', c.x0, c.y0, b + 0.9, c.x1, c.y1, b + 1.52, { redondeo: 0.02 });
   },
   armario(L, c, x) {
-    const b = x.b, H = c.alto || 2.0;
+    // empotrado: va dentro de la pared y se dibuja con ella (alto si la pared se ve entera, cortado si no)
+    const b = x.b, H = x.alto || (c.empotrado && x.ruina ? 1.3 : c.alto || 2.0);
     const F = frente(c, c.mira || 's');
     const { W, D } = F;
     const r = azar(semillaDe(c));
+    if (c.empotrado) {
+      // el hueco de la pared y el marco de madera alrededor de las puertas
+      F.caja(L, x.muro || 'interior', 0, 0.04, b, W, D, b + H, { redondeo: 0.01 });
+      F.caja(L, c.color || 'madera', 0, 0.0, b, 0.05, 0.06, b + H, { redondeo: 0.005 });
+      F.caja(L, c.color || 'madera', W - 0.05, 0.0, b, W, 0.06, b + H, { redondeo: 0.005 });
+      if (H > 2.2) F.caja(L, c.color || 'madera', 0, -0.02, b + 2.2, W, 0.06, b + 2.3, { redondeo: 0.01 });
+      const n = Math.max(2, Math.round((W - 0.1) / 0.8));
+      const caida = x.ruina ? Math.floor(r() * n) : -1;
+      const tope = Math.min(H, 2.2) - 0.02;
+      for (let i = 0; i < n; i++) {
+        const u0 = 0.05 + ((W - 0.1) / n) * i, u1 = 0.05 + ((W - 0.1) / n) * (i + 1), dv = i % 2 ? 0.03 : 0.0;
+        if (i === caida) { F.caja(L, 'agujero', u0, 0.035, b + 0.02, u1, 0.05, b + tope, { redondeo: 0 }); continue; }
+        F.caja(L, c.puertas || 'madera_osc', u0, dv, b + 0.02, u1 + (i % 2 ? 0 : 0.03), dv + 0.025, b + tope, { redondeo: 0.008 });
+        const [kx, ky] = F.pt(i % 2 ? u0 + 0.08 : u1 - 0.08, dv - 0.004);
+        if (tope > 1.05) L.cilindro('blanco', kx, ky, b + 1.0, b + 1.006, 0.028, { segs: 12 });
+      }
+      if (!x.ruina) x.sombra({ ...c, y0: c.y0 - 0.1 });
+      return;
+    }
     F.caja(L, c.color || 'madera', 0, 0.01, b, W, D, b + H);
     if (c.correderas) {
       // empotrado de puertas correderas: dos hojas anchas, una un poco por delante de la otra
@@ -577,11 +645,14 @@ const MUEBLES = {
       for (const [u0, u1] of [[0.03, W / 2 - 0.01], [W / 2 + 0.01, W - 0.03]]) {
         F.caja(L, x.ruina && u0 > 0.1 ? 'agujero' : c.puertas || 'madera_osc', u0, 0.012, b + 0.12, u1, 0.035, b + 0.76, { redondeo: 0.01 });
       }
-      const roto = !!x.ruina;
-      F.caja(L, 'blanco', -0.01, -0.01, b + 0.8, roto ? W * 0.55 : W + 0.01, D, b + 0.86, { redondeo: 0.02 });
-      if (roto) trozos(L, 'blanco', ...F.pt(W * 0.75, -0.35), b, 4, azar(semillaDe(c)), 0.12, 0.3);
+      const roto = !!x.ruina, tapa = c.tapa || 'blanco';
+      F.caja(L, tapa, -0.01, -0.01, b + 0.8, roto ? W * 0.55 : W + 0.01, D, b + 0.86, { redondeo: 0.02 });
+      if (roto) trozos(L, tapa, ...F.pt(W * 0.75, -0.35), b, 4, azar(semillaDe(c)), 0.12, 0.3);
       const [px, py] = F.pt(W / 2, D * 0.45);
-      if (!roto) L.cilindro('metal', px, py, b + 0.858, b + 0.866, Math.min(W, D) * 0.32, { segs: 20 });
+      if (!roto) {
+        L.cilindro('blanco', px, py, b + 0.858, b + 0.885, Math.min(W, D) * 0.36, { segs: 22 });
+        L.cilindro('metal', px, py, b + 0.885, b + 0.888, 0.025, { segs: 10 });
+      }
       const [gx, gy] = F.pt(W / 2, D - 0.07);
       L.cilindro('metal', gx, gy, b + 0.86, b + 1.02, 0.02, { segs: 8 });
       x.sombra(c);
@@ -696,8 +767,43 @@ const MUEBLES = {
     x.sombra(c);
   },
   planta(L, c, x) {
-    planta(L, (c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, x.b, Math.min(c.x1 - c.x0, c.y1 - c.y0) / 2, !!x.ruina);
+    const cx = (c.x0 + c.x1) / 2, cy = (c.y0 + c.y1) / 2, r = Math.min(c.x1 - c.x0, c.y1 - c.y0) / 2;
+    if (c.pie && !x.ruina) {
+      // en su pie dorado de tres patas
+      L.cilindro('dorado', cx, cy, x.b + c.pie - 0.03, x.b + c.pie, r * 0.85, { segs: 14 });
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        L.cilindro('dorado', cx + Math.cos(a) * r * 0.75, cy + Math.sin(a) * r * 0.75, x.b, x.b + c.pie, 0.015, { segs: 6 });
+      }
+    }
+    planta(L, cx, cy, x.b + (c.pie && !x.ruina ? c.pie : 0), r, !!x.ruina);
     x.sombra(c);
+  },
+  estatua(L, c, x) {
+    // la figura de madera tallada, alta, con su bastón
+    const b = x.b, cx = (c.x0 + c.x1) / 2, cy = (c.y0 + c.y1) / 2;
+    if (x.ruina) {
+      L.barra('madera', cx - 0.6, cy + 0.3, cx + 0.5, cy + 0.3, b + 0.12, 0.12, { segs: 10 });
+      L.esfera('madera', cx + 0.62, cy + 0.3, b + 0.1, 0.09, { detalle: 1 });
+      return;
+    }
+    L.cilindro('madera_osc', cx, cy, b, b + 0.14, 0.16, { segs: 10 });
+    L.cilindro('madera', cx, cy, b + 0.14, b + 1.15, 0.1, { rArriba: 0.13, segs: 12 });
+    L.esfera('madera', cx, cy, b + 1.3, 0.1, { detalle: 1 });
+    L.cilindro('madera_osc', cx, cy, b + 1.36, b + 1.46, 0.08, { rArriba: 0.05, segs: 10 });
+    L.cilindro('madera_osc', cx + 0.15, cy, b, b + 1.6, 0.015, { segs: 6 });
+    x.sombra(c);
+  },
+  puf(L, c, x) {
+    const b = x.b, cx = (c.x0 + c.x1) / 2, cy = (c.y0 + c.y1) / 2, r = Math.min(c.x1 - c.x0, c.y1 - c.y0) / 2;
+    if (x.ruina) { L.barra(c.color || 'funda1', cx - 0.2, cy, cx + 0.2, cy, b + r * 0.9, r * 0.9, { segs: 14 }); return; }
+    L.cilindro(c.color || 'funda1', cx, cy, b, b + 0.36, r, { segs: 18 });
+    L.cilindro(c.color2 || 'alfombra1', cx, cy, b + 0.36, b + 0.4, r * 0.9, { segs: 18 });
+    x.sombra(c);
+  },
+  tabique(L, c, x) {
+    // un trozo de pared baja (el cuartito de debajo de la escalera, su «doble fondo»)
+    L.caja(c.color || 'interior', c.x0, c.y0, x.b, c.x1, c.y1, x.b + (c.alto || 1), { redondeo: 0.01 });
   },
   alfombra(L, c, x) {
     L.caja(c.color || 'alfombra1', c.x0, c.y0, x.b, c.x1, c.y1, x.b + 0.02, { redondeo: 0.01 });
@@ -896,8 +1002,8 @@ const MUEBLES = {
     const b = x.b;
     const F = frente(c, c.mira || 'n');
     const { W, D } = F;
-    F.caja(L, 'blanco', -0.03, 0, b + 1.05, W + 0.03, D, b + 1.85, { redondeo: 0.01 });
-    F.caja(L, 'cristal', 0.02, -0.012, b + 1.09, W - 0.02, D * 0.5, b + 1.81, { redondeo: 0, libre: true });
+    F.caja(L, c.marco || 'blanco', -0.03, 0, b + 1.05, W + 0.03, D, b + 1.85, { redondeo: 0.01 });
+    F.caja(L, 'cristal', 0.03, -0.012, b + 1.1, W - 0.03, D * 0.5, b + 1.8, { redondeo: 0, libre: true });
   },
   chimeneacolumna(L, c, x) {
     // el tiro de la chimenea de esquina, hasta el techo, con su rejilla (colgado de la pared)
@@ -971,6 +1077,7 @@ const MUEBLES = {
   },
   zenmueble(L, c, x) {
     // mueble bajo blanco con la fuente del Buda encima y el bambú de la suerte en una garrafa azul
+    if (c.esquina) { zenEsquina(L, c, x); return; }
     const b = x.b, H = c.alto || 0.42;
     const F = frente(c, c.mira || 's');
     const { W, D } = F;
@@ -1053,9 +1160,11 @@ function tramo(L, s, b, clave) {
     if (s.sube === 's') { y0 = s.y0 + (s.y1 - s.y0) * t0; y1 = s.y0 + (s.y1 - s.y0) * t1; }
     if (s.sube === 'n') { y1 = s.y1 - (s.y1 - s.y0) * t0; y0 = s.y1 - (s.y1 - s.y0) * t1; }
     const arriba = s.desde + dz * (k + 1);
-    if (s.volado) { L.caja(clave, x0, y0, b + Math.max(0, arriba - 0.32), x1, y1, b + arriba, { redondeo: 0.02 }); continue; }
     const grueso = Math.min(0.07, arriba * 0.5);
-    if (arriba - grueso > 0.02) L.caja(s.lados || 'interior', x0, y0, b, x1, y1, b + arriba - grueso, { redondeo: 0.01 });
+    if (s.volado) {
+      // al aire: la losa por debajo va forrada de madera (como el techo inclinado de la entrada del medio)
+      L.caja(s.bajo || 'madera', x0, y0, b + Math.max(0, arriba - 0.3), x1, y1, b + arriba - grueso, { redondeo: 0.01 });
+    } else if (arriba - grueso > 0.02) L.caja(s.lados || 'interior', x0, y0, b, x1, y1, b + arriba - grueso, { redondeo: 0.01 });
     L.caja(clave, x0, y0, b + arriba - grueso, x1, y1, b + arriba, { redondeo: 0.015 });
     if (s.cenefa) {
       const z0 = b + arriba - dz + 0.015, z1 = b + arriba - grueso - 0.01;
@@ -1067,6 +1176,37 @@ function tramo(L, s, b, clave) {
       if (s.sube === 'n') L.caja('cenefa', x0 + 0.02, y1, z0, x1 - 0.02, y1 + e, z1, { redondeo: 0 });
     }
   }
+  if (s.barandilla) barandillaEscalera(L, s, b);
+}
+
+// Barandilla de acero por un lado del tramo (s.barandilla: 'n', 's', 'e' o 'w'): postes, pasamanos y tres varillas
+function barandillaEscalera(L, s, b) {
+  const n = s.pasos, dz = (s.hasta - s.desde) / n;
+  const largoX = s.sube === 'e' || s.sube === 'w';
+  const L0 = largoX ? s.x1 - s.x0 : s.y1 - s.y0;
+  const borde = 0.05;
+  const pt = (t) => {
+    let x = 0, y = 0;
+    if (s.sube === 'e') x = s.x0 + L0 * t;
+    if (s.sube === 'w') x = s.x1 - L0 * t;
+    if (s.sube === 's') y = s.y0 + L0 * t;
+    if (s.sube === 'n') y = s.y1 - L0 * t;
+    if (largoX) y = s.barandilla === 'n' ? s.y0 + borde : s.y1 - borde;
+    else x = s.barandilla === 'w' ? s.x0 + borde : s.x1 - borde;
+    return [x, y];
+  };
+  const escalon = (t) => b + s.desde + dz * Math.min(n, Math.floor(t * n) + 1);
+  const linea = (t) => b + s.desde + dz + (s.hasta - s.desde) * t;
+  const H = 0.9, ta = 0.03, tb = 0.97;
+  const np = Math.max(2, Math.round(L0 / 0.85));
+  for (let i = 0; i <= np; i++) {
+    const t = ta + ((tb - ta) * i) / np;
+    const [px, py] = pt(t);
+    L.cilindro('metal', px, py, escalon(t), linea(t) + H, 0.02, { segs: 8 });
+  }
+  const [ax, ay] = pt(ta), [bx, by] = pt(tb);
+  L.tubo('metal', [ax, ay, linea(ta) + H], [bx, by, linea(tb) + H], 0.026);
+  for (const hh of [0.22, 0.42, 0.62]) L.tubo('metal', [ax, ay, linea(ta) + hh], [bx, by, linea(tb) + hh], 0.009, { segs: 6 });
 }
 
 function baranda(L, br, b0) {
@@ -1099,7 +1239,34 @@ function baranda(L, br, b0) {
 
 // ---------- muros con corte ----------
 
+// Pared en diagonal: la esquina achaflanada del salón del medio. Va con las paredes de su lado (m.lado) y tapa
+// por arriba el triángulo que deja con la esquina (m.esquina) para que no se vea suelo detrás.
+function muroDiagonal(lotes, m, r = null) {
+  const t = m.material === 'piedra' ? 0.34 : 0.24;
+  const base = m.base || 0;
+  const dx = m.x1 - m.x0, dy = m.y1 - m.y0, largo = Math.hypot(dx, dy);
+  const g = Math.atan2(-dy, dx);
+  const [ex, ey] = m.esquina;
+  for (const [nombre, H] of [[m.lado + '_alto', MURO_ALTO], [m.lado + '_bajo', MURO_BAJO]]) {
+    const L = lotes[nombre];
+    if (!r) {
+      L.cajaCentro(m.material, (m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2, base, largo + t * 0.5, t, H, g, { redondeo: 0.02 });
+      triangulosOrientados(L, m.material, [[[m.x0, m.y0, base + H], [ex, ey, base + H], [m.x1, m.y1, base + H]]]);
+      continue;
+    }
+    // en ruinas: a trozos de distinta altura
+    for (let i = 0; i < 3; i++) {
+      const f = (i + 0.5) / 3;
+      const h = H >= MURO_ALTO ? MURO_ALTO * (0.4 + r() * 0.45) : H - r() * 0.18;
+      L.cajaCentro(m.material, m.x0 + dx * f, m.y0 + dy * f, base, largo / 3 + 0.02, t, h, g, { redondeo: 0.015 });
+    }
+  }
+}
+
+const VENTANAS = { ventana: [0.9, 2.1], ventanal: [0.25, 2.1], ventanuco: [1.45, 2.0] };
+
 function muro(lotes, m) {
+  if (m.diagonal) { muroDiagonal(lotes, m); return; }
   const horiz = m.y0 === m.y1;
   const a = horiz ? Math.min(m.x0, m.x1) : Math.min(m.y0, m.y1);
   const z = horiz ? m.y0 : m.x0;
@@ -1132,9 +1299,8 @@ function muro(lotes, m) {
     let cur = a - ext;
     for (const hu of huecos) {
       pieza(cur, hu.desde, 0, H);
-      if (hu.tipo === 'ventana' || hu.tipo === 'ventanal') {
-        const s = hu.tipo === 'ventana' ? 0.9 : 0.25;
-        const l = 2.1;
+      if (VENTANAS[hu.tipo]) {
+        const [s, l] = VENTANAS[hu.tipo];
         pieza(hu.desde, hu.hasta, 0, Math.min(s, H));
         if (H > s) vidrio(hu.desde, hu.hasta, s, Math.min(l, H));
         if (H > l) pieza(hu.desde, hu.hasta, l, H);
@@ -1154,6 +1320,7 @@ function muro(lotes, m) {
 // Muro en ruinas (3 semanas sin limpiar): el mismo muro a trozos de distinta altura, con algún boquete,
 // sin cristales y con tablas clavadas en las ventanas. Lo que se cae va al suelo, con los muebles rotos (Lsuelo).
 function muroRuina(lotes, m, r, Lsuelo) {
+  if (m.diagonal) { muroDiagonal(lotes, m, r); return; }
   const horiz = m.y0 === m.y1;
   const a = horiz ? Math.min(m.x0, m.x1) : Math.min(m.y0, m.y1);
   const z = horiz ? m.y0 : m.x0;
@@ -1202,10 +1369,10 @@ function muroRuina(lotes, m, r, Lsuelo) {
     let cur = ini;
     for (const hu of huecos) {
       macizos.push([cur, hu.desde, 0, H]);
-      if (hu.tipo === 'ventana' || hu.tipo === 'ventanal') {
-        const s = hu.tipo === 'ventana' ? 0.9 : 0.25;
+      if (VENTANAS[hu.tipo]) {
+        const [s, l] = VENTANAS[hu.tipo];
         macizos.push([hu.desde, hu.hasta, 0, Math.min(s, H)]);
-        if (H > 2.1) macizos.push([hu.desde, hu.hasta, 2.1, H]);
+        if (H > l) macizos.push([hu.desde, hu.hasta, l, H]);
       } else if (hu.tipo === 'porton') {
         if (H > 2.3) macizos.push([hu.desde, hu.hasta, 2.3, H]);
       } else if (H > 2.1) macizos.push([hu.desde, hu.hasta, 2.1, H]);
@@ -1230,7 +1397,7 @@ function muroRuina(lotes, m, r, Lsuelo) {
     // tablas clavadas en las ventanas (por dentro), solo en la versión alta
     if (H >= MURO_ALTO) {
       for (const hu of huecos) {
-        if (hu.tipo !== 'ventana' && hu.tipo !== 'ventanal') continue;
+        if (!VENTANAS[hu.tipo]) continue;
         const ancho = hu.hasta - hu.desde;
         const n = Math.max(1, Math.round(ancho / 1.3));
         const off = (dentro ?? 1) * (t / 2 + 0.03);
@@ -1258,7 +1425,7 @@ function muroRuina(lotes, m, r, Lsuelo) {
     }
   }
   for (const hu of huecos) {
-    if (hu.tipo !== 'ventana' && hu.tipo !== 'ventanal') continue;
+    if (!VENTANAS[hu.tipo]) continue;
     for (let k = 0; k < 4; k++) {
       const [px, py] = plano(hu.desde + r() * (hu.hasta - hu.desde), (dentro ?? 1) * (t / 2 + 0.1 + r() * 0.4));
       Lsuelo.cajaCentro('cristal', px, py, base, 0.1 + r() * 0.12, 0.06 + r() * 0.1, 0.012, r() * Math.PI, { redondeo: 0 });
@@ -1271,6 +1438,16 @@ function muroRuina(lotes, m, r, Lsuelo) {
 // y desaparecen cuando se corta (si no, quedarían flotando). En las paredes de dentro, que van siempre cortadas, no salen.
 const COLGADOS = new Set(['campana', 'altos', 'espejo', 'chimeneacolumna']);
 const esColgado = (c) => COLGADOS.has(c.t);
+// Lo empotrado (el armario del pasillo de abajo) va dentro de la pared: se dibuja dos veces, entero con la pared alta
+// y cortado con la baja, para que nunca parezca un mueble suelto.
+const esEmpotrado = (c) => !!c.empotrado;
+function materialPared(def, c) {
+  const lado = c.pared || OPUESTO[c.mira || 's'];
+  const vertical = lado === 'w' || lado === 'e';
+  const ref = lado === 'w' ? c.x0 : lado === 'e' ? c.x1 : lado === 'n' ? c.y0 : c.y1;
+  const m = def.muros.find((m) => (Math.abs(m.x0 - m.x1) < 1e-6) === vertical && Math.abs((vertical ? m.x0 : m.y0) - ref) < 0.35);
+  return m ? m.material : 'interior';
+}
 
 function paredDe(def, c) {
   const lado = c.pared || OPUESTO[c.mira || 's'];
@@ -1338,7 +1515,7 @@ export function construirRuina(p, estilo) {
   const LR = new Lote(estilo, 240 + def.nivel, { proporcion: 0.2 });
   for (const c of def.cosas) {
     const f = MUEBLES[c.t];
-    if (f && !esColgado(c)) f(LR, c, { b: c.base || 0, ruina: true, sombra: () => {} });
+    if (f && !esColgado(c)) f(LR, c, { b: c.base || 0, ruina: true, sombra: () => {}, muro: esEmpotrado(c) ? materialPared(def, c) : undefined });
   }
   const lotesRuina = nuevosLotes(estilo, 70);
   const rRuina = azar(555 + def.nivel * 31);
@@ -1383,6 +1560,18 @@ function construirPlanta(def, estilo, conRuina = false) {
       f(lotesColgados[lado], c, { b: c.base || 0, ruina: false, sombra: () => {} });
       continue;
     }
+    if (esEmpotrado(c)) {
+      const lado = paredDe(def, c) || 'int';
+      const muro = materialPared(def, c);
+      const versiones = lado === 'int' ? [['int', MURO_BAJO]] : [[lado + '_alto', MURO_ALTO], [lado + '_bajo', MURO_BAJO]];
+      for (const [k, H] of versiones) {
+        lotesColgados[k] ??= new Lote(estilo, 320 + def.nivel, { proporcion: 0.2 });
+        f(lotesColgados[k], c, { ...ctx(c), alto: H, muro, sombra: k.endsWith('_bajo') ? () => {} : ctx(c).sombra });
+      }
+      if (LR) f(LR, c, { ...ctx(c, true), muro });
+      ocupado.push(c);
+      continue;
+    }
     f(LM, c, ctx(c));
     if (LR) f(LR, c, ctx(c, true));
     if (!['alfombra', 'zen', 'bloque', 'cenefa', 'micro'].includes(c.t)) ocupado.push(c);
@@ -1408,6 +1597,7 @@ function construirPlanta(def, estilo, conRuina = false) {
   mueblesRuina.visible = false;
   grupo.add(muebles, mueblesRuina);
   const int = { normal: lotesMuro.int.mallas(mats), ruina: conRuina ? lotesRuina.int.mallas(mats) : new THREE.Group() };
+  if (lotesColgados.int) int.normal.add(lotesColgados.int.mallas(mats));
   int.ruina.visible = false;
   grupo.add(int.normal, int.ruina);
   const muros = {};
@@ -1419,6 +1609,8 @@ function construirPlanta(def, estilo, conRuina = false) {
     };
     muros[l].altoRuina.visible = muros[l].bajoRuina.visible = false;
     if (lotesColgados[l]) muros[l].alto.add(lotesColgados[l].mallas(mats));
+    if (lotesColgados[l + '_alto']) muros[l].alto.add(lotesColgados[l + '_alto'].mallas(mats));
+    if (lotesColgados[l + '_bajo']) muros[l].bajo.add(lotesColgados[l + '_bajo'].mallas(mats));
     grupo.add(muros[l].alto, muros[l].bajo, muros[l].altoRuina, muros[l].bajoRuina);
   }
   const s = mallaSombras(sombras, texturaSombra(), estilo.sombra, mats);

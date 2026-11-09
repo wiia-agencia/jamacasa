@@ -17,6 +17,8 @@ function recortar(r, zonas) {
 
 // Parte un muro por las zonas y decide en cada trozo hacia dónde da (n, s, e, w) o si queda dentro (int)
 function recortarMuro(m, zonas) {
+  // las paredes en diagonal (la esquina achaflanada del salón del medio) se quedan como están si caen dentro
+  if (m.diagonal) return dentro((m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2, zonas, 0.3) ? [m] : [];
   const horiz = Math.abs(m.y0 - m.y1) < 1e-6;
   const fijo = horiz ? m.y0 : m.x0;
   const a = horiz ? Math.min(m.x0, m.x1) : Math.min(m.y0, m.y1);

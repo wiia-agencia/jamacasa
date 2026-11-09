@@ -256,7 +256,7 @@ export function construirMohoParedes(def, estilo, mats, muros) {
   const r = azar(313 + def.nivel * 7);
   const lotes = { n: new Lote(estilo, 1), s: new Lote(estilo, 2), e: new Lote(estilo, 3), w: new Lote(estilo, 4) };
   for (const m of def.muros) {
-    if (!lotes[m.lado]) continue;
+    if (!lotes[m.lado] || m.diagonal) continue;
     const horiz = m.y0 === m.y1;
     const a = horiz ? Math.min(m.x0, m.x1) : Math.min(m.y0, m.y1);
     const b = horiz ? Math.max(m.x0, m.x1) : Math.max(m.y0, m.y1);
@@ -321,7 +321,7 @@ export function construirBrillos(def, estilo, mats, muros) {
   // destellos grandes en los cristales (dentro de cada pared alta)
   const matDestello = mats.registrar(new THREE.SpriteMaterial({ map: texturaBrillo(), color: '#ffffff', transparent: true, depthWrite: false }));
   for (const m of def.muros) {
-    if (!['n', 's', 'e', 'w'].includes(m.lado)) continue;
+    if (!['n', 's', 'e', 'w'].includes(m.lado) || m.diagonal) continue;
     for (const h of m.huecos) {
       if (h.tipo !== 'ventana' && h.tipo !== 'ventanal') continue;
       const u = (h.desde + h.hasta) / 2;
