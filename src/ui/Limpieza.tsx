@@ -28,7 +28,7 @@ export function ChapaEstado({ t }: { t: Tarea }) {
 }
 
 export function Limpieza() {
-  const { estado, config, abrir, yo } = useCasa();
+  const { estado, config, abrir, yo, abrirHistorial } = useCasa();
   const w = estado.semana;
   const escena = useMemo(() => escenaCasa(estado), [estado]);
   const basura = semanaBasura(estado, w);
@@ -124,7 +124,7 @@ export function Limpieza() {
       </Seccion>
 
       {historial.length > 0 && (
-        <Seccion titulo="Semanas anteriores">
+        <Seccion titulo="Semanas anteriores" extra={<button type="button" className="enlace" onClick={() => abrirHistorial(undefined, 'mes')}>Ver todo</button>}>
           <div className="caja" style={{ padding: 16 }}>
             <div className="rotacion">
               <span />

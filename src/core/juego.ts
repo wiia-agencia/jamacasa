@@ -126,10 +126,25 @@ export function calcularRacha(config: Config, tareas: Tarea[], semanaActual: num
   return { actual, historial };
 }
 
-export function calcularMedallas(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], racha: SemanaRacha[]): Record<MiembroId, Record<string, number>> {
+/** Una medalla ganada y cuándo (para el historial). */
+export interface MedallaGanada { miembro: MiembroId; medalla: string; ts: number }
+
+/** Si se pasa `registro`, apunta en él cada medalla con el momento en que se ganó. */
+export function calcularMedallas(
+  config: Config,
+  normas: Normas,
+  tareas: Tarea[],
+  basura: SemanaBasura[],
+  racha: SemanaRacha[],
+  registro?: MedallaGanada[],
+): Record<MiembroId, Record<string, number>> {
   const r: Record<MiembroId, Record<string, number>> = {};
   for (const m of config.miembros) r[m.id] = {};
-  const dar = (m: MiembroId, id: string) => { if (r[m]) r[m][id] = (r[m][id] ?? 0) + 1; };
+  const dar = (m: MiembroId, id: string, ts: number) => {
+    if (!r[m]) return;
+    r[m][id] = (r[m][id] ?? 0) + 1;
+    registro?.push({ miembro: m, medalla: id, ts });
+  };
 
   for (const m of config.miembros) {
     const suyas = tareas.filter((t) => t.miembro === m.id).sort((a, b) => a.semana - b.semana);
@@ -142,21 +157,23 @@ export function calcularMedallas(config: Config, normas: Normas, tareas: Tarea[]
         if (!i.resuelto) continue;
         if (i.aprobado) {
           suspSeguidos = 0;
-          if (i.media === 10) dar(m.id, 'quirofano');
+          const cuando = i.resueltoEn ?? i.fin;
+          if (i.media === 10) dar(m.id, 'quirofano', cuando);
           const p = partes(i.hecho.ts);
-          if (i.n === 1 && diaSemana(i.hecho.ts) === 0 && i.hecho.ts <= fin) dar(m.id, 'pole');
-          if (diaSemana(i.hecho.ts) === 6 && p.h >= 22 && i.hecho.ts <= fin) dar(m.id, 'limite');
+          if (i.n === 1 && diaSemana(i.hecho.ts) === 0 && i.hecho.ts <= fin) dar(m.id, 'pole', cuando);
+          if (diaSemana(i.hecho.ts) === 6 && p.h >= 22 && i.hecho.ts <= fin) dar(m.id, 'limite', cuando);
         } else {
-          dar(m.id, 'chapuzas');
+          dar(m.id, 'chapuzas', i.resueltoEn ?? i.fin);
           suspSeguidos++;
-          if (suspSeguidos === 2) dar(m.id, 'repetidor');
+          if (suspSeguidos === 2) dar(m.id, 'repetidor', i.resueltoEn ?? i.fin);
         }
       }
       if (t.estado === 'aprobada') {
-        if ((t.nota ?? 0) >= 9) { seguidasNueve++; if (seguidasNueve === 3) { dar(m.id, 'suelo'); seguidasNueve = 0; } }
+        const aprobadaEn = t.intentos.find((i) => i.resuelto && i.aprobado)?.resueltoEn ?? fin;
+        if ((t.nota ?? 0) >= 9) { seguidasNueve++; if (seguidasNueve === 3) { dar(m.id, 'suelo', aprobadaEn); seguidasNueve = 0; } }
         else seguidasNueve = 0;
         const limpia = t.intentos[0].aprobado && t.primerHecho !== undefined && t.primerHecho <= fin;
-        if (limpia) { seguidasSinRed++; if (seguidasSinRed === 4) { dar(m.id, 'sinred'); seguidasSinRed = 0; } }
+        if (limpia) { seguidasSinRed++; if (seguidasSinRed === 4) { dar(m.id, 'sinred', aprobadaEn); seguidasSinRed = 0; } }
         else seguidasSinRed = 0;
       } else if (!t.enCurso && t.estado !== 'esperando') {
         seguidasNueve = 0;
@@ -169,8 +186,9 @@ export function calcularMedallas(config: Config, normas: Normas, tareas: Tarea[]
   for (const t of tareas) {
     for (const i of t.intentos) {
       if (!i.resuelto) continue;
-      if (!i.aprobado) for (const v of i.votos) if (v.nota < normas.notaMinima && v.fotos.length > 0) dar(v.autor, 'ojo');
-      if (i.resueltoEn === i.fin) for (const j of i.sinVotar) dar(j, 'fantasma');
+      const cuando = i.resueltoEn ?? i.fin;
+      if (!i.aprobado) for (const v of i.votos) if (v.nota < normas.notaMinima && v.fotos.length > 0) dar(v.autor, 'ojo', cuando);
+      if (i.resueltoEn === i.fin) for (const j of i.sinVotar) dar(j, 'fantasma', cuando);
     }
   }
 
@@ -178,7 +196,9 @@ export function calcularMedallas(config: Config, normas: Normas, tareas: Tarea[]
   for (const m of config.miembros) {
     let seguidas = 0;
     for (const s of basura.filter((x) => x.responsable === m.id && x.cerrada)) {
-      if (s.quejas === 0) { seguidas++; if (seguidas === 3) { dar(m.id, 'basurero'); seguidas = 0; } }
+      // se cierra al acabar la semana (o al resolverse el último aviso, si quedó alguno abierto)
+      const cerradaEn = Math.max(finSemana(s.semana), ...s.avisos.map((a) => a.resueltoEn ?? 0));
+      if (s.quejas === 0) { seguidas++; if (seguidas === 3) { dar(m.id, 'basurero', cerradaEn); seguidas = 0; } }
       else seguidas = 0;
     }
   }
@@ -187,7 +207,7 @@ export function calcularMedallas(config: Config, normas: Normas, tareas: Tarea[]
   let previa = 0;
   for (const h of racha) {
     if (h.estado === 'ok') previa++;
-    else if (h.estado === 'rota') { if (previa > 0) for (const c of h.culpables) dar(c, 'rompe'); previa = 0; }
+    else if (h.estado === 'rota') { if (previa > 0) for (const c of h.culpables) dar(c, 'rompe', finSemana(h.semana)); previa = 0; }
   }
   return r;
 }

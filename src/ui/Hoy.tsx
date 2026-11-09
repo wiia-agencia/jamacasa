@@ -467,12 +467,12 @@ function RankingMini() {
 }
 
 function LoUltimo() {
-  const { estado } = useCasa();
+  const { estado, abrirHistorial } = useCasa();
   const [todas, setTodas] = useState(false);
   const lista = estado.noticias.slice(0, todas ? 40 : 8);
   if (!lista.length) return null;
   return (
-    <Seccion titulo="Lo último en la casa">
+    <Seccion titulo="Lo último en la casa" extra={<button type="button" className="enlace" onClick={() => abrirHistorial()}>Historial</button>}>
       <div className="lista">
         {lista.map((n) => (
           <div key={n.id} className="item noticia">

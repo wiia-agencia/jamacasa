@@ -4,7 +4,7 @@ import type { Gasto, Transferencia } from '../core/cuentas';
 import type { Estado } from '../core/estado';
 import type { DefMedalla } from '../core/juego';
 import type { Intento, Tarea } from '../core/limpieza';
-import type { Config, DatosGasto, Miembro, MiembroId, Zona } from '../core/tipos';
+import type { Config, DatosGasto, Evento, Miembro, MiembroId, Zona } from '../core/tipos';
 import type { Almacen } from '../datos/almacen';
 import type { EstadoAvisos } from '../datos/avisos';
 
@@ -50,11 +50,16 @@ export interface Ctx {
   almacen: Almacen;
   config: Config;
   estado: Estado;
+  /** Todo lo apuntado y el reloj (para el historial, que vuelve a hacer la cuenta parando el reloj en otro día) */
+  eventos: Evento[];
+  ahora: number;
   yo: MiembroId;
   acciones: Acciones;
   abrir(h: Hoja): void;
   cerrar(): void;
   ir(p: Pantalla): void;
+  /** El historial: el calendario con todo lo que ha pasado (abre en ese día, o en hoy) */
+  abrirHistorial(dia?: number, vista?: 'dia' | 'mes'): void;
   avisar(texto: string): void;
   cambiarYo(m: MiembroId): void;
   tema: 'auto' | 'claro' | 'oscuro';

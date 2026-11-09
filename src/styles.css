@@ -1040,3 +1040,51 @@ textarea.entrada { min-height: 84px; resize: vertical; }
 .cifra-tarjeta .cifra { font-size: 2.1rem; line-height: 1.05; }
 .cifra-tarjeta .cifra.mal { color: var(--vermello); }
 .cifra-tarjeta .peq { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ——— Historial: el calendario de la casa ——— */
+.historial .cabecera { gap: 12px; }
+.cal-tarjeta { padding: 14px 10px 12px; }
+.cal-mes { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 4px 8px; }
+.cal-mes .titulo-seccion { text-align: center; }
+.cal-mes .icono-boton:disabled { opacity: 0.3; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.cal-cab { font-size: 0.68rem; font-weight: 750; color: var(--texto-3); text-align: center; padding: 2px 0 4px; }
+.cal-dia {
+  appearance: none; border: 0; background: none; color: var(--texto); font: inherit; cursor: pointer;
+  min-height: 50px; border-radius: 12px; padding: 7px 0 5px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.cal-dia .num { font-size: var(--t-s); font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.cal-dia .pts { display: flex; gap: 2px; height: 6px; }
+.cal-dia .pt, .cal-leyenda .pt { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--texto-3)); display: inline-block; }
+.cal-dia .mk { display: flex; gap: 3px; height: 10px; font-size: 10px; line-height: 10px; font-weight: 800; }
+.m-dinero { color: var(--verde); }
+.m-medalla { color: var(--ouro); }
+.m-espacio { color: var(--c, var(--texto-2)); }
+.cal-dia.hoy { box-shadow: inset 0 0 0 1.5px var(--linea); }
+.cal-dia.hoy .num { font-weight: 800; }
+.cal-dia.elegido { background: var(--boton); color: var(--sobre-boton); box-shadow: none; }
+.cal-dia.elegido .pt { box-shadow: 0 0 0 1.5px var(--sobre-boton); }
+.cal-dia:disabled { color: var(--texto-3); opacity: 0.4; cursor: default; }
+.cal-leyenda { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; margin-top: 10px; font-size: var(--t-xs); color: var(--texto-3); }
+.cal-leyenda span { display: inline-flex; align-items: center; gap: 4px; }
+.pestanas { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--papel-2); box-shadow: inset 0 0 0 1px var(--linea); }
+.pestanas button {
+  appearance: none; border: 0; background: none; font: inherit; font-size: var(--t-s); font-weight: 700;
+  color: var(--texto-2); min-height: 40px; border-radius: 11px; padding: 0 8px;
+}
+.pestanas button[aria-selected='true'] { background: var(--papel); color: var(--texto); box-shadow: 0 2px 8px -4px rgba(14, 42, 71, 0.45); }
+.hist-fecha { font-size: var(--t-xl); }
+.hist-persona { align-items: flex-start !important; }
+.hist-persona > .placa, .hist-persona > .chapa { margin-top: 2px; }
+.hist-etiquetas { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.hist-medallas { display: flex; flex-direction: column; gap: 8px; }
+.hist-medalla { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radio); background: var(--ouro-suave); }
+.hist-medalla.mala { background: var(--vermello-suave); }
+.hist-medalla .moneda, .moneda-mini {
+  width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 1.15rem;
+  background: radial-gradient(circle at 35% 30%, #fff6d6, var(--ouro) 70%); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12);
+}
+.hist-medalla.mala .moneda, .moneda-mini.mala { background: radial-gradient(circle at 35% 30%, #ffe1dc, #f08a7e 70%); }
+.hist-semanas { grid-template-columns: auto repeat(3, minmax(0, 1fr)) auto; }
+.hist-semanas .sem { text-align: left; font: inherit; font-size: var(--t-s); font-weight: 650; color: var(--texto-2); white-space: nowrap; }

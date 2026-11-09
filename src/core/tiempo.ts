@@ -122,6 +122,13 @@ export function mesSiguiente(m: string): string {
   return `${y}-${String(mm).padStart(2, '0')}`;
 }
 
+export function mesAnterior(m: string): string {
+  let [y, mm] = m.split('-').map(Number);
+  mm -= 1;
+  if (mm < 1) { mm = 12; y -= 1; }
+  return `${y}-${String(mm).padStart(2, '0')}`;
+}
+
 export function mesesEntre(desde: string, hasta: string): string[] {
   const r: string[] = [];
   let m = desde;

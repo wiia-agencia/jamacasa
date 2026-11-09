@@ -2,6 +2,7 @@ import confetti from 'canvas-confetti';
 import { House, MessageCircle, Sparkles, Trophy, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sinLeer } from './core/chat';
+import { diaLocal } from './core/tiempo';
 import { avisosBasuraAbiertos, derivar, paraPuntuar, tuyosAbiertos } from './core/estado';
 import type { Evento, MiembroId, TipoEvento } from './core/tipos';
 import type { Almacen } from './datos/almacen';
@@ -13,6 +14,7 @@ import { Contexto, type Acciones, type Ctx, type Hoja, type Pantalla } from './u
 import { Chat } from './ui/Chat';
 import { Cuentas } from './ui/Cuentas';
 import { Entrada } from './ui/Entrada';
+import { Historial } from './ui/Historial';
 import { Hojas } from './ui/hojas';
 import { Hoy } from './ui/Hoy';
 import { Juego } from './ui/Juego';
@@ -102,6 +104,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
   const [yo, setYo] = useState<MiembroId>(almacen.yo);
   const [pantalla, setPantalla] = useState<Pantalla>('hoy');
   const [hoja, setHoja] = useState<Hoja | null>(null);
+  const [historial, setHistorial] = useState<{ dia: number; vista: 'dia' | 'mes' } | null>(null);
   const [tostada, setTostada] = useState('');
   const temporizador = useRef<number>(0);
 
@@ -149,12 +152,16 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
   useEffect(() => {
     const irA = (p: unknown) => {
       if (p === 'hoy' || p === 'limpieza' || p === 'cuentas' || p === 'juego' || p === 'chat') {
+        setHistorial(null);
         setPantalla(p);
+        window.scrollTo({ top: 0 });
+      } else if (p === 'historial') {
+        setHistorial({ dia: diaLocal(Date.now()), vista: 'dia' });
         window.scrollTo({ top: 0 });
       }
     };
     const h = location.hash.slice(1);
-    if (['hoy', 'limpieza', 'cuentas', 'juego', 'chat'].includes(h)) {
+    if (['hoy', 'limpieza', 'cuentas', 'juego', 'chat', 'historial'].includes(h)) {
       irA(h);
       history.replaceState(null, '', location.pathname + location.search);
     }
@@ -254,7 +261,10 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     acciones,
     abrir: (h) => (h.tipo === 'sorteo' ? setSorteo(true) : setHoja(h)),
     cerrar: () => setHoja(null),
-    ir: (p) => { setPantalla(p); window.scrollTo({ top: 0 }); },
+    ir: (p) => { setHistorial(null); setPantalla(p); window.scrollTo({ top: 0 }); },
+    eventos,
+    ahora,
+    abrirHistorial: (dia, vista = 'dia') => { setHoja(null); setHistorial({ dia: dia ?? diaLocal(ahora), vista }); window.scrollTo({ top: 0 }); },
     avisar,
     cambiarYo: (m) => { almacen.cambiarYo?.(m); setYo(m); },
     tema,
@@ -290,11 +300,17 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       )}
       {errorCarga && <div className="banda-prueba" role="alert" style={{ background: 'var(--vermello-suave)', color: 'var(--vermello)' }}>{errorCarga}</div>}
       <div className="app">
-        {pantalla === 'hoy' && <Hoy />}
-        {pantalla === 'limpieza' && <Limpieza />}
-        {pantalla === 'cuentas' && <Cuentas />}
-        {pantalla === 'juego' && <Juego />}
-        {pantalla === 'chat' && <Chat />}
+        {historial ? (
+          <Historial dia={historial.dia} vista={historial.vista} onCerrar={() => { setHistorial(null); window.scrollTo({ top: 0 }); }} />
+        ) : (
+          <>
+            {pantalla === 'hoy' && <Hoy />}
+            {pantalla === 'limpieza' && <Limpieza />}
+            {pantalla === 'cuentas' && <Cuentas />}
+            {pantalla === 'juego' && <Juego />}
+            {pantalla === 'chat' && <Chat />}
+          </>
+        )}
       </div>
       <nav className="nav" aria-label="Secciones">
         <div className="nav-dentro">
