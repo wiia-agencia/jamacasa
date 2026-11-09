@@ -34,8 +34,10 @@ function recortarMuro(m, zonas) {
     if (u1 - u0 < 0.05) continue;
     const mid = (u0 + u1) / 2;
     const [px, py] = horiz ? [mid, fijo] : [fijo, mid];
-    const menos = horiz ? dentro(px, py - 0.25, zonas) : dentro(px - 0.25, py, zonas);
-    const mas = horiz ? dentro(px, py + 0.25, zonas) : dentro(px + 0.25, py, zonas);
+    // se mira a cada lado del muro (más lejos si es grueso, como el del armario empotrado)
+    const d = 0.25 + (m.grosor || 0) / 2;
+    const menos = horiz ? dentro(px, py - d, zonas) : dentro(px - d, py, zonas);
+    const mas = horiz ? dentro(px, py + d, zonas) : dentro(px + d, py, zonas);
     if (!menos && !mas) continue;
     const lado = menos && mas ? 'int' : horiz ? (menos ? 's' : 'n') : (menos ? 'e' : 'w');
     const ult = trozos[trozos.length - 1];
