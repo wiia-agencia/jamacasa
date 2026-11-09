@@ -1315,7 +1315,7 @@ function muro(lotes, m) {
         const tope = Math.min(H, 2.18);
         const mc = hu.marco ? 0.06 : 0;
         const d0 = hu.desde + mc, d1 = hu.hasta - mc;
-        const n = Math.max(2, Math.round((d1 - d0) / 0.75));
+        const n = hu.hojas || Math.max(2, Math.round((d1 - d0) / 0.75));
         const ancho = (d1 - d0) / n;
         const tabla = (u0, u1, p, q, h0, h1, k) => {
           const [p0, p1] = sg > 0 ? [cara + p, cara + q] : [cara - q, cara - p];
