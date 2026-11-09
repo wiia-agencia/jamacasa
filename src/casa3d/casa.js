@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ALTURA, MURO_ALTO, MURO_BAJO, PLANTAS, TEJADOS, JARDIN, FOCO, GARAJE } from './datos.js';
 import { enfocar } from './foco.js';
-import { construirSuciedad, construirBrillos, construirMohoParedes } from './suciedad.js';
+import { construirSuciedad, construirBrillos, construirMohoParedes, construirBasura } from './suciedad.js';
 import { Lote, Materiales, CX, CZ, azar } from './geometria.js';
 import { texturaSombra, texturaCirculo, texturaHaloZonas } from './texturas.js';
 import { SUCIEDAD } from './estilos.js';
@@ -1618,6 +1618,9 @@ function construirPlanta(def, estilo, conRuina = false) {
 
   const { piezas: suciedad, animados } = construirSuciedad(def, estilo, mats, ocupado);
   for (const p of suciedad) grupo.add(p);
+  const basura = construirBasura(def, estilo, mats);
+  for (const g of [...basura.bolsas, ...basura.moscas]) { g.visible = false; grupo.add(g); }
+  animados.moscas.push(...basura.moscas);
   const { grupo: grupoBrillos, sprites: brillos } = construirBrillos(def, estilo, mats, muros);
   grupo.add(grupoBrillos);
   const grietas = [];   // con las paredes en ruinas ya no hacen falta
@@ -1638,7 +1641,7 @@ function construirPlanta(def, estilo, conRuina = false) {
   grupo.add(halo);
 
   const cerrados = def.cosas.filter((c) => c.t === 'cerrado');
-  return { def, grupo, materiales: mats, muros, int, muebles, mueblesRuina, suciedad, animados, brillos, grietas, moho, halo, huella, cerrados, conRuina, ruina: false, deCara: {} };
+  return { def, grupo, materiales: mats, muros, int, muebles, mueblesRuina, suciedad, basura, animados, brillos, grietas, moho, halo, huella, cerrados, conRuina, ruina: false, deCara: {} };
 }
 
 // ---------- tejados (el piso de José va cerrado) ----------

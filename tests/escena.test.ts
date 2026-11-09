@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { avisosDeEvento } from '../src/core/avisos';
 import { zonaDe, semanaInicial } from '../src/core/calendario';
-import { escenaCasa, pisoDe, semanasSinLimpiar } from '../src/core/escena';
+import { diasSinLimpiar, escenaCasa, pisoDe, semanasSinLimpiar } from '../src/core/escena';
 import { derivar, tareaDe } from '../src/core/estado';
 import { HORA, inicioSemana } from '../src/core/tiempo';
 import type { Config, Evento } from '../src/core/tipos';
@@ -61,7 +61,7 @@ describe('la casa en 3D', () => {
     const e = derivar(config, lista, dia(s, 1, 19));
     const piso = zonaDe(config, s, 'a')!.id as 'abajo' | 'medio' | 'arriba';
     expect(tareaDe(e, s, 'a')!.empezada).toBe(lista[0].ts);
-    expect(escenaCasa(e)!.pisos[piso]).toEqual(['limpiando', 0]);
+    expect(escenaCasa(e)!.pisos[piso]).toEqual(['limpiando', 0, 1]);
     expect(e.noticias.some((x) => x.texto.startsWith('Ana ha empezado a limpiar'))).toBe(true);
     const avisos = avisosDeEvento(config, lista, lista[0].id);
     expect(avisos.map((x) => x.para).sort()).toEqual(['b', 'c']);
@@ -97,6 +97,34 @@ describe('la casa en 3D', () => {
     const tarde = [...semanaLimpia(s, {}).filter((x) => x.autor !== dueño && x.datos?.de !== dueño), ev('zona_hecha', dueño, dia(w, 1, 9), { semana: s })];
     expect(semanasSinLimpiar(derivar(config, tarde.slice(0, -1), dia(w, 1, 8)), 'abajo', w)).toBe(1);
     expect(semanasSinLimpiar(derivar(config, tarde, dia(w, 1, 10)), 'abajo', w)).toBe(0);
+  });
+
+  it('la suciedad va por días: el lunes después de limpiar, casi nada; el domingo siguiente, ya una semana', () => {
+    const lista = semanaLimpia(s, {});   // los tres limpian el miércoles de la primera semana
+    const piso = zonaDe(config, s, 'a')!.id as 'abajo' | 'medio' | 'arriba';
+    const lunes = derivar(config, lista, dia(s + 1, 0, 10));
+    expect(diasSinLimpiar(lunes, piso)).toBe(5);
+    expect(escenaCasa(lunes)!.pisos[piso]).toEqual(['sucio', 0, 5]);
+    const domingo = derivar(config, lista, dia(s + 1, 6, 20));
+    expect(escenaCasa(domingo)!.pisos[piso]).toEqual(['sucio', 1, 11]);
+    // si lo limpian el domingo, el lunes lleva un día
+    const dueño = config.miembros.find((m) => zonaDe(config, s + 1, m.id)!.id === piso)!.id;
+    const tarde = [...lista, ev('zona_hecha', dueño, dia(s + 1, 6, 18), { semana: s + 1 })];
+    expect(diasSinLimpiar(derivar(config, tarde, dia(s + 2, 0, 9)), piso)).toBe(1);
+  });
+
+  it('la basura llena sale en la cocina y se va acumulando hasta que la sacan', () => {
+    const resp = derivar(config, [], dia(s, 0, 10)).basura!;
+    const otro = config.miembros.find((m) => m.id !== resp)!.id;
+    const llena = ev('basura_llena', otro, dia(s, 1, 9));
+    expect(escenaCasa(derivar(config, [llena], dia(s, 1, 10)))!.basura).toEqual({ bolsas: 1, dias: 0 });
+    expect(escenaCasa(derivar(config, [llena], dia(s, 3, 10)))!.basura).toEqual({ bolsas: 3, dias: 2 });
+    const sacada = ev('basura_sacada', resp, dia(s, 1, 12));
+    expect(escenaCasa(derivar(config, [llena, sacada], dia(s, 1, 13)))!.basura).toBeNull();
+    // si se pasa el plazo, sigue ahí hasta que la sacan
+    const tardisima = ev('basura_sacada', resp, dia(s, 3, 12));
+    expect(escenaCasa(derivar(config, [llena, tardisima], dia(s, 3, 11)))!.basura).toEqual({ bolsas: 3, dias: 2 });
+    expect(escenaCasa(derivar(config, [llena, tardisima], dia(s, 3, 13)))!.basura).toBeNull();
   });
 
   it('racha con 3 pisos seguidos de 9 o más, y corona para el rey del mes', () => {

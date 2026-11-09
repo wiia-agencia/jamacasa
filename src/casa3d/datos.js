@@ -120,6 +120,8 @@ export const PLANTAS = [
     ],
     barandas: [],
     suciedad: [[11.9, 1.0, 15.9, 5.9, 0], [13.1, 7.2, 17.2, 8.3, 0]],
+    // lo primero que aparece después de limpiar: el lunes una camiseta y un papel; el martes, un charco en la cocina
+    primeros: { ropa: [12.6, 5.6], papel: [15.55, 2.1], charco: [12.55, 2.45] },
     sitios: { pie: [15.0, 5.45, 'n'], barrer: [14.6, 5.5, 'n'], esperar: [15.0, 5.45, 'n'], relax: { pose: 'cocinar', x: 12.3, y: 2.7, mira: 'w' } },
   },
   {
@@ -174,6 +176,7 @@ export const PLANTAS = [
       { puntos: [[11, -1.8], [19.3, -1.8], [19.3, 5.0], [17.5, 5.0]], tipo: 'balaustrada' },
     ],
     suciedad: [[11.4, 2.3, 15.9, 5.8, 0], [11.2, 6.3, 12.7, 8.7, 0], [11.3, -1.6, 17.2, -0.3, 0], [17.7, -1.5, 19.0, 4.7, 0]],
+    primeros: { ropa: [15.1, 4.7], papel: [11.9, 4.6], charco: [14.9, 2.55] },
     sitios: { pie: [14.6, 4.8, 'n'], barrer: [14.4, 4.7, 'n'], esperar: [14.6, 4.8, 'n'], relax: { pose: 'meditar', x: 12.75, y: 1.62, mira: 'n' } },
   },
   {
@@ -268,6 +271,10 @@ export const PLANTAS = [
       { puntos: [[9.84, 5.95], [9.84, 7.85]], base: P },
     ],
     suciedad: [[11.4, 1.95, 16.2, 5.8, 0], [11.2, 6.2, 12.7, 8.7, 0], [7.0, 1.0, 9.9, 4.0, P], [4.0, 4.4, 10.6, 5.25, P], [7.6, 5.6, 9.6, 7.9, P]],
+    // donde se deja la basura: en la cocina, debajo de la ventana, entre el fregadero y el lavavajillas
+    // (un poco separada de la pared para que se vea por encima de la pared cortada)
+    basura: [7.45, 0.5, 8.75, 1.3, P],
+    primeros: { ropa: [12.7, 4.6], papel: [13.3, 2.9], charco: [9.6, 2.0, P] },
     sitios: { pie: [13.0, 5.0, 'n'], barrer: [13.4, 4.7, 'n'], esperar: [13.0, 5.0, 'n'], relax: { pose: 'play', x: 16.92, y: 2.5, mira: 'w' } },
   },
 ];

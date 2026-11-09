@@ -48,6 +48,7 @@ export class Materiales {
     if (key === 'hollin') return '#2b2724';
     if (key === 'agujero') return '#1e1b18';
     if (key === 'relleno') return '#f1ece0';
+    if (key === 'marca') return '#8f7656';
     return key.startsWith('#') ? key : this.e.paleta[key] || '#ff00ff';
   }
 
@@ -58,7 +59,7 @@ export class Materiales {
     const m = e.toon
       ? new THREE.MeshToonMaterial({ ...comun, gradientMap: texturaEscalones(e.toon) })
       : new THREE.MeshStandardMaterial({ ...comun, roughness: e.rugosidad, metalness: 0, flatShading: e.plano });
-    const liso = ['cristal', 'coche_cristal', 'agua', 'fuego', 'mancha', 'mancha2', 'moho', 'mugre', 'toxico', 'agujero'].includes(key);
+    const liso = ['cristal', 'coche_cristal', 'agua', 'fuego', 'mancha', 'mancha2', 'moho', 'mugre', 'toxico', 'agujero', 'marca'].includes(key);
     if (e.bump && !liso) { m.bumpMap = texturaRuido(); m.bumpScale = e.bump; }
     if (e.grano && !liso) m.map = texturaGrano();
     if (key === 'cristal' || key === 'coche_cristal') { m.transparent = true; m.opacity = 0.5; m.roughness = 0.2; m.depthWrite = false; }
@@ -67,6 +68,7 @@ export class Materiales {
     if (key === 'moho') { m.transparent = true; m.opacity = 0.62; m.depthWrite = false; }
     if (key === 'mugre') { m.transparent = true; m.opacity = 0.42; m.depthWrite = false; }
     if (key === 'mancha2') { m.transparent = true; m.opacity = 0.5; m.depthWrite = false; }
+    if (key === 'marca') { m.transparent = true; m.opacity = 0.42; m.depthWrite = false; }
     if (key === 'toxico') { m.transparent = true; m.opacity = 0.88; m.emissive = new THREE.Color('#3f7a12'); m.emissiveIntensity = 0.6; }
     if (key === 'fuego') { m.emissive = new THREE.Color(this.hex(key)); m.emissiveIntensity = 1.1; }
     if (key === 'metal') { m.metalness = 0.25; m.roughness = 0.55; }

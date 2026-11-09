@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DIA_NIVEL, DIAS_DE_NIVEL, nivelDeDias } from './suciedad.js';
 import { construirCasa, construirRuina, liberar } from './casa.js';
 import { crearMonigote } from './monigotes.js';
 import { ESTILOS } from './estilos.js';
@@ -21,6 +22,14 @@ const INSIGNIAS = {
   castigado: ['Castigado', 'mal'],
   debe: ['Debe su piso', 'medio'],
 };
+
+// [estado, nivel, días sin limpiar] de un piso en la escena. Las escenas pueden dar los días (la app) o solo el nivel.
+function estadoPiso(esc, piso) {
+  const [estado, nivel = 0, dias] = esc.pisos[piso];
+  if (estado !== 'sucio' && estado !== 'limpiando') return [estado, nivel, 0];
+  const d = dias ?? DIAS_DE_NIVEL[Math.min(3, Math.max(0, nivel))] ?? 6;
+  return [estado, estado === 'sucio' ? nivelDeDias(d) : 0, d];
+}
 
 function etiquetaEstado(estado, nivel, corto) {
   if (estado === 'sucio') {
@@ -249,12 +258,14 @@ export function crearVisor(contenedor, opciones = {}) {
     }
   }
 
-  function pintarPlanta(p, estado, nivel, modo, color, destacada) {
+  // dias: días desde la última vez que se limpió (la suciedad sale poco a poco, día a día)
+  function pintarPlanta(p, estado, nivel, modo, color, destacada, dias = 0) {
     let k = 0;
     for (const s of p.suciedad) {
-      const n = s.userData.nivel ?? 0;
-      if (estado === 'sucio') s.visible = n <= nivel;
-      else if (estado === 'limpiando') s.visible = n === 0 && (k++ % 5) < 2;
+      const u = s.userData, d = u.dia ?? DIA_NIVEL[u.nivel ?? 0], h = u.hasta ?? Infinity;
+      const toca = dias >= d && dias <= h;
+      if (estado === 'sucio') s.visible = toca;
+      else if (estado === 'limpiando') s.visible = toca && d < DIA_NIVEL[2] && (k++ % 5) < 2;
       else s.visible = false;
     }
     for (const g of p.grietas) g.visible = estado === 'sucio' && nivel >= 3;
@@ -307,11 +318,18 @@ export function crearVisor(contenedor, opciones = {}) {
 
     for (const p of casa.plantas) {
       const piso = p.def.piso;
-      const [estado, nivel] = esc.pisos[piso];
+      const [estado, nivel, dias] = estadoPiso(esc, piso);
       const quien = ORDEN_PERSONAS.find((id) => TURNOS[id] === piso);
       const esDest = p.def.nivel === dest;
       const modo = esDest ? 'normal' : st.vista === 'transparente' ? 'fantasma' : casa.modo === 'foco' ? 'fondo' : 'apagado';
-      pintarPlanta(p, estado, nivel, modo, PERSONAS[quien].color, esDest);
+      pintarPlanta(p, estado, nivel, modo, PERSONAS[quien].color, esDest, dias);
+      // la basura llena, esperando a que alguien la saque: bolsas que se acumulan y, al segundo día, moscas
+      if (p.basura) {
+        const b = esc.basura || null;
+        const n = b ? Math.max(0, Math.min(p.basura.bolsas.length, b.bolsas || 0)) : 0;
+        p.basura.bolsas.forEach((g, i) => { g.visible = i < n; });
+        p.basura.moscas.forEach((m) => { m.visible = n > 0 && (b.dias || 0) >= 1; });
+      }
     }
     if (casa.garaje) {
       casa.garaje.grupo.visible = garajeVisible();
@@ -380,7 +398,7 @@ export function crearVisor(contenedor, opciones = {}) {
       }
       const piso = Object.values(PISOS).find((q) => q.nivel === e.nivel);
       const quien = ORDEN_PERSONAS.find((id) => TURNOS[id] === piso.id);
-      const [estado, nivel] = esc.pisos[piso.id];
+      const [estado, nivel] = estadoPiso(esc, piso.id);
       const est = etiquetaEstado(estado, nivel, estrecho);
       const tuyo = piso.id === mio;
       e.el.classList.toggle('c3-tuyo', tuyo);

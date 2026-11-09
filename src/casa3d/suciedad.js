@@ -3,6 +3,11 @@ import { Lote, CX, CZ, azar } from './geometria.js';
 import { SUCIEDAD } from './estilos.js';
 import { texturaBrillo, texturaTelarana, texturaPeste, texturaNiebla } from './texturas.js';
 
+// La suciedad va por días desde la última vez que se limpió el piso (lo pidió Javi el 9 de noviembre):
+//   día 1 · una camiseta y un papel · día 2 · un charco de agua · día 3 · el charco seco deja su marca
+//   día 4 · ropa y basura acumulándose · días 5 y 6 · lo normal de una semana entera
+//   2.ª semana (7–13) · desorden · 3.ª semana (14–20) · asco · 4.ª semana (21 o más) · ruina
+// Cada pieza lleva el día desde el que sale (userData.dia) y, si se va, el último (userData.hasta).
 // Niveles de suciedad de un piso (cada uno suma lo de los anteriores):
 //   0 · lo normal de una semana (algo de ropa, latas, polvo)
 //   1 · una semana sin limpiar: desorden, el doble de lío y bolsas de basura
@@ -12,6 +17,39 @@ import { texturaBrillo, texturaTelarana, texturaPeste, texturaNiebla } from './t
 // Niveles de brillo de un piso limpio: 1 normal · 2 con brillos · 3 reluciente (destellos en las ventanas)
 
 const GEO_MOSCA = new THREE.SphereGeometry(0.035, 6, 4);
+
+// Día desde el que sale cada nivel (el 0 y el 1 se reparten por días dentro de su semana)
+export const DIA_NIVEL = { 0: 4, 1: 7, 2: 14, 3: 21 };
+export const nivelDeDias = (d) => (d >= DIA_NIVEL[3] ? 3 : d >= DIA_NIVEL[2] ? 2 : d >= DIA_NIVEL[1] ? 1 : 0);
+// Para las escenas que solo dicen el nivel: unos días típicos de cada semana
+export const DIAS_DE_NIVEL = { 0: 6, 1: 10, 2: 17, 3: 24 };
+
+// Las bolsas de basura que esperan a que alguien las saque (cuando alguien ha dado a «Basura llena»):
+// van en la cocina de arriba, debajo de la ventana, y se van acumulando con los días; al segundo, moscas.
+export function construirBasura(def, estilo, mats) {
+  if (!def.basura) return { bolsas: [], moscas: [] };
+  const [x0, y0, x1, y1, base] = def.basura;
+  const r = azar(77);
+  const bolsas = [], moscas = [];
+  const sitios = [[0.45, 0.78], [0.2, 0.5], [0.72, 0.45], [0.88, 0.85]];
+  sitios.forEach(([fx, fy], k) => {
+    const L = new Lote(estilo, 2100 + k);
+    const x = x0 + (x1 - x0) * fx, y = y0 + (y1 - y0) * fy;
+    L.esfera(SUCIEDAD.bolsa, x, y, base + 0.27, 0.27, { escala: [1, 1.1, 0.92], detalle: 1 });
+    L.cilindro(SUCIEDAD.bolsa, x, y, base + 0.53, base + 0.64, 0.05, { segs: 6 });
+    L.esfera(SUCIEDAD.bolsa, x + 0.05, y, base + 0.66, 0.045, { detalle: 0 });
+    const g = L.mallas(mats, { sinBordes: true });
+    g.userData = { bolsa: k };
+    bolsas.push(g);
+  });
+  const matMosca = mats.registrar(new THREE.MeshBasicMaterial({ color: '#15171c' }));
+  for (let k = 0; k < 5; k++) {
+    const m = new THREE.Mesh(GEO_MOSCA, matMosca);
+    m.userData = { cx: (x0 + x1) / 2 - CX, cy: base + 0.75 + r() * 0.25, cz: (y0 + y1) / 2 - CZ, rad: 0.2 + r() * 0.25, vel: 4 + r() * 4, fase: r() * 6.28 };
+    moscas.push(m);
+  }
+  return { bolsas, moscas };
+}
 
 export function construirSuciedad(def, estilo, mats, ocupado) {
   const r = azar(101 + def.nivel * 17);
@@ -28,7 +66,7 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
   };
   const meter = (L, nivel, extra = {}) => {
     const g = L.mallas(mats, { sinBordes: true });
-    g.userData = { nivel, ...extra };
+    g.userData = { nivel, dia: DIA_NIVEL[nivel], ...extra };
     piezas.push(g);
     return g;
   };
@@ -68,18 +106,43 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
   };
 
   const focos = [];   // sitios donde salen moscas y peste
-  for (const [x0, y0, x1, y1, base] of def.suciedad) {
+  def.suciedad.forEach(([x0, y0, x1, y1, base], iz) => {
     const area = (x1 - x0) * (y1 - y0);
-    // nivel 0 y 1: basura normal (el 1 añade el doble y bolsas)
+    // la primera semana, día a día: en la zona grande, el lunes una camiseta y un papel, el martes un charco
+    // de agua que el miércoles ya es una marca seca, y del jueves al sábado lo demás
+    if (iz === 0) {
+      // en el centro de la zona, para que se vean bien
+      const cx0 = x0 + (x1 - x0) * 0.2, cx1 = x0 + (x1 - x0) * 0.8, cy0 = y0 + (y1 - y0) * 0.2, cy1 = y0 + (y1 - y0) * 0.75;
+      const fijos = def.primeros || {};
+      for (const t of ['ropa', 'papel']) {
+        const p = fijos[t] || sitio(cx0, cy0, cx1, cy1);
+        if (!p) continue;
+        const L = new Lote(estilo, 480 + piezas.length);
+        basura(L, t, p[0], p[1], p[2] ?? base, r() * Math.PI);
+        meter(L, 0, { tipo: t, dia: 1 });
+      }
+      const p = fijos.charco || sitio(cx0, cy0, cx1, cy1, 0.3);
+      if (p) {
+        const [x, y] = p, bc = p[2] ?? base;
+        const La = new Lote(estilo, 490);
+        for (const [dx, dy, rr] of [[0, 0, 0.32], [0.28, 0.1, 0.18], [-0.22, 0.14, 0.15]]) La.cilindro('agua', x + dx, y + dy, bc + 0.004, bc + 0.012, rr, { segs: 18 });
+        meter(La, 0, { tipo: 'charco', dia: 2, hasta: 2 });
+        const Lm = new Lote(estilo, 491);
+        for (const [dx, dy, rr] of [[0, 0, 0.32], [0.28, 0.1, 0.18], [-0.22, 0.14, 0.15]]) Lm.cilindro('marca', x + dx, y + dy, bc + 0.004, bc + 0.008, rr, { segs: 18 });
+        meter(Lm, 0, { tipo: 'marca', dia: 3 });
+      }
+    }
+    // el resto de la primera semana (del jueves al sábado) y la segunda (desorden: el doble y bolsas), repartidos por días
     for (const [nivel, dens] of [[0, 1.05], [1, 0.75]]) {
       const n = Math.max(nivel === 0 ? 4 : 3, Math.round(area / dens));
       for (let i = 0; i < n; i++) {
         const p = sitio(x0, y0, x1, y1);
         if (!p) continue;
-        const t = nivel === 1 && i % 4 === 0 ? 'bolsa' : tipos[Math.floor(r() * tipos.length)];
+        const t = nivel === 1 && i % 4 === 0 ? 'bolsa' : nivel === 0 && i % 3 === 0 ? 'ropa' : tipos[Math.floor(r() * tipos.length)];
         const L = new Lote(estilo, 500 + piezas.length);
         basura(L, t, p[0], p[1], base, r() * Math.PI);
-        meter(L, nivel, { tipo: t });
+        const dia = nivel === 0 ? (iz === 0 ? 4 : 3) + Math.floor((i * (iz === 0 ? 3 : 4)) / n) : 7 + Math.floor((i * 7) / n);
+        meter(L, nivel, { tipo: t, dia });
         if (t === 'bolsa' || t === 'plato' || t === 'pizza') focos.push([p[0], p[1], base, nivel]);
       }
     }
@@ -98,7 +161,7 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
           for (let k = 0; k < 4; k++) L.cilindro(SUCIEDAD.plato, x + 0.55, y + 0.1, base + k * 0.035, base + k * 0.035 + 0.025, 0.15 - k * 0.005, { segs: 16 });
           focos.push([x + 0.55, y + 0.1, base, 2]);
         }
-        meter(L, 2, { tipo: 'moho' });
+        meter(L, 2, { tipo: 'moho', dia: 14 + Math.floor((i * 6) / n) });
       }
     }
     // nivel 2: manchas asquerosas en el suelo
@@ -110,7 +173,7 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
         const L = new Lote(estilo, 1100 + piezas.length);
         const [x, y] = p;
         for (let k = 0; k < 3; k++) L.cilindro('mancha2', x + (r() - 0.5) * 0.4, y + (r() - 0.5) * 0.35, base + 0.006 + k * 0.001, base + 0.009 + k * 0.001, 0.12 + r() * 0.2, { segs: 14 });
-        meter(L, 2, { tipo: 'mancha' });
+        meter(L, 2, { tipo: 'mancha', dia: 14 + Math.floor((i * 6) / n) });
       }
     }
     // nivel 3: la ruina del suelo: agujeros con tablas levantadas, charcos verdes y montones de escombros
@@ -163,13 +226,13 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
         L.barra('rata_cola', ox - 0.13, oy, ox - 0.38, oy + 0.06, 0.035, 0.012, { segs: 5 });
         const g = L.mallas(mats, { sinBordes: true });
         g.scale.setScalar(1.35);
-        g.userData = { nivel: 3, tipo: 'rata', a: [a[0] - CX, a[1] - CZ], b: [b[0] - CX, b[1] - CZ], base, vel: 0.9 + r() * 0.8, fase: r() * 6.28 };
+        g.userData = { nivel: 3, dia: DIA_NIVEL[3], tipo: 'rata', a: [a[0] - CX, a[1] - CZ], b: [b[0] - CX, b[1] - CZ], base, vel: 0.9 + r() * 0.8, fase: r() * 6.28 };
         g.position.set(a[0] - CX, base, a[1] - CZ);
         piezas.push(g);
         animados.ratas.push(g);
       }
     }
-  }
+  });
 
   // telarañas: en las esquinas de cada zona (arriba) y bajo los muebles (abajo)
   const matTela = mats.registrar(new THREE.SpriteMaterial({ map: texturaTelarana(), color: '#ffffff', transparent: true, opacity: 0.9, depthWrite: false }));
@@ -184,7 +247,7 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
       const tam = nivel === 3 ? 1.3 : 0.95;
       s.scale.setScalar(tam);
       s.position.set(x - CX, baseZona(x) + h, y - CZ);
-      s.userData = { nivel };
+      s.userData = { nivel, dia: nivel === 2 ? 16 : DIA_NIVEL[3] };
       s.renderOrder = 3;
       piezas.push(s);
     });
@@ -197,7 +260,7 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
     const tam = nivel === 3 ? 0.85 : 0.6;
     s.scale.setScalar(tam);
     s.position.set((k % 3 ? o.x1 : o.x0) - CX, (o.base || 0) + 0.4, (k % 4 < 2 ? o.y1 : o.y0) - CZ);
-    s.userData = { nivel };
+    s.userData = { nivel, dia: nivel === 2 ? 18 : DIA_NIVEL[3] };
     s.renderOrder = 3;
     piezas.push(s);
   });
@@ -211,14 +274,14 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
     if (i % 2 === 1 && n < 2) return;
     for (let k = 0; k < 3; k++) {
       const m = new THREE.Mesh(GEO_MOSCA, matMosca);
-      m.userData = { nivel, cx: x - CX, cy: b + 0.55 + r() * 0.25, cz: y - CZ, rad: 0.18 + r() * 0.2, vel: 4 + r() * 4, fase: r() * 6.28 };
+      m.userData = { nivel, dia: DIA_NIVEL[nivel], cx: x - CX, cy: b + 0.55 + r() * 0.25, cz: y - CZ, rad: 0.18 + r() * 0.2, vel: 4 + r() * 4, fase: r() * 6.28 };
       piezas.push(m);
       animados.moscas.push(m);
     }
     for (let k = 0; k < 2; k++) {
       const s = new THREE.Sprite(matPeste);
       s.scale.setScalar(n >= 3 ? 0.6 : 0.42);
-      s.userData = { nivel, cx: x - CX + (k ? 0.18 : -0.12), cz: y - CZ, b: b + 0.3, fase: r() + k * 0.5 };
+      s.userData = { nivel, dia: DIA_NIVEL[nivel] + 1, cx: x - CX + (k ? 0.18 : -0.12), cz: y - CZ, b: b + 0.3, fase: r() + k * 0.5 };
       piezas.push(s);
       animados.peste.push(s);
     }
@@ -230,7 +293,7 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
       const tam = 1.6 + r() * 1.2;
       s.scale.set(tam, tam * 0.5, 1);
       s.position.set(x0 + r() * (x1 - x0) - CX, base + 0.25, y0 + r() * (y1 - y0) - CZ);
-      s.userData = { nivel: 3, tam, fase: r() * 6.28, sube: 0 };
+      s.userData = { nivel: 3, dia: DIA_NIVEL[3], tam, fase: r() * 6.28, sube: 0 };
       piezas.push(s);
       animados.niebla.push(s);
     }
@@ -243,7 +306,7 @@ export function construirSuciedad(def, estilo, mats, ocupado) {
       const tam = 0.9 + r() * 0.6;
       s.scale.set(tam, tam, 1);
       s.position.set(x - CX, b + 0.3, y - CZ);
-      s.userData = { nivel: 3, tam, fase: k / 3 + r() * 0.2, sube: 1.6, cx: x - CX, cz: y - CZ, b };
+      s.userData = { nivel: 3, dia: DIA_NIVEL[3], tam, fase: k / 3 + r() * 0.2, sube: 1.6, cx: x - CX, cz: y - CZ, b };
       piezas.push(s);
       animados.niebla.push(s);
     }
