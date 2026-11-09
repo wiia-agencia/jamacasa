@@ -1271,7 +1271,7 @@ function muro(lotes, m) {
   const a = horiz ? Math.min(m.x0, m.x1) : Math.min(m.y0, m.y1);
   const z = horiz ? m.y0 : m.x0;
   const t = m.grosor ?? (m.material === 'piedra' ? 0.34 : m.lado === 'int' ? 0.12 : 0.24);
-  const ext = m.lado === 'int' ? 0.06 : t / 2;
+  const ext = m.lado === 'int' ? 0.06 : (m.ext ?? t / 2);
   const fin = (horiz ? Math.max(m.x0, m.x1) : Math.max(m.y0, m.y1)) + ext;
   const base = m.base || 0;
   const huecos = [...m.huecos].sort((p, q) => p.desde - q.desde);
@@ -1307,23 +1307,32 @@ function muro(lotes, m) {
       } else if (hu.tipo === 'porton') {
         if (H > 2.3) pieza(hu.desde, hu.hasta, 2.3, H);
       } else if (hu.tipo === 'armario') {
-        // armario empotrado: la pared sigue entera y, por una cara, lleva las puertas correderas a ras
+        // armario empotrado: la pared sigue entera y, por una cara, lleva las puertas correderas a ras,
+        // como una puerta doble (con su marco si lo lleva)
         pieza(hu.desde, hu.hasta, 0, H);
         const sg = hu.cara === 's' || hu.cara === 'e' ? 1 : -1;
         const cara = z + sg * t / 2;
         const tope = Math.min(H, 2.18);
-        const n = Math.max(2, Math.round((hu.hasta - hu.desde) / 0.75));
-        const ancho = (hu.hasta - hu.desde) / n;
-        const tabla = (u0, u1, d0, d1, h0, h1, k) => {
-          const [p0, p1] = sg > 0 ? [cara + d0, cara + d1] : [cara - d1, cara - d0];
+        const mc = hu.marco ? 0.06 : 0;
+        const d0 = hu.desde + mc, d1 = hu.hasta - mc;
+        const n = Math.max(2, Math.round((d1 - d0) / 0.75));
+        const ancho = (d1 - d0) / n;
+        const tabla = (u0, u1, p, q, h0, h1, k) => {
+          const [p0, p1] = sg > 0 ? [cara + p, cara + q] : [cara - q, cara - p];
           if (horiz) L.caja(k, u0, p0, base + h0, u1, p1, base + h1, { redondeo: 0.006 });
           else L.caja(k, p0, u0, base + h0, p1, u1, base + h1, { redondeo: 0.006 });
         };
         for (let i = 0; i < n; i++) {
-          const u0 = hu.desde + ancho * i + 0.012, u1 = hu.desde + ancho * (i + 1) - 0.012, d = i % 2 ? 0 : 0.012;
+          const u0 = d0 + ancho * i + 0.012, u1 = d0 + ancho * (i + 1) - 0.012, d = i % 2 ? 0 : 0.012;
           tabla(u0, u1, d, d + 0.02, 0.03, tope, hu.puertas || 'madera_osc');
           const uh = i % 2 ? u0 + 0.05 : u1 - 0.07;
           if (tope > 1.35) tabla(uh, uh + 0.02, d + 0.02, d + 0.035, 0.85, 1.3, 'metal');
+        }
+        if (mc) {
+          // el marco, como el de las puertas: dos jambas y el larguero de arriba
+          const hm = Math.min(H, 2.26);
+          tabla(hu.desde, d0, 0, 0.03, 0, hm, hu.puertas || 'madera_osc');
+          tabla(d1, hu.hasta, 0, 0.03, 0, hm, hu.puertas || 'madera_osc');
         }
         if (H > 2.24) tabla(hu.desde, hu.hasta, 0, 0.03, 2.18, 2.26, hu.puertas || 'madera_osc');
       } else {
@@ -1345,7 +1354,7 @@ function muroRuina(lotes, m, r, Lsuelo) {
   const a = horiz ? Math.min(m.x0, m.x1) : Math.min(m.y0, m.y1);
   const z = horiz ? m.y0 : m.x0;
   const t = m.grosor ?? (m.material === 'piedra' ? 0.34 : m.lado === 'int' ? 0.12 : 0.24);
-  const ext = m.lado === 'int' ? 0.06 : t / 2;
+  const ext = m.lado === 'int' ? 0.06 : (m.ext ?? t / 2);
   const fin = (horiz ? Math.max(m.x0, m.x1) : Math.max(m.y0, m.y1)) + ext;
   const ini = a - ext, largo = fin - ini;
   const base = m.base || 0;

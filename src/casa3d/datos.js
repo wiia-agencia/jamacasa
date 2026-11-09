@@ -53,10 +53,10 @@ export const PLANTAS = [
     // por dónde va el brillo de «tu piso» en la casa entera
     zonasHalo: [[0, 0, 17.5, 9], [11, -1.8, 19.3, 0], [17.5, -1.8, 19.3, 5]],
     suelos: [
-      // el garaje llega hasta el pasillo: detrás de la pared del fondo del salón, a la izquierda del pasillo
-      S(0, 0, 11, 9, 'suelo_cemento'), S(11, 6.95, 13.3, 9, 'suelo_cemento'),
-      // baldosa de barro en todo el piso (cocina, salón, pasillo y baño)
-      S(11, 0, 17.5, 6.95, 'suelo_barro'), S(13.3, 6.95, 17.5, 9, 'suelo_barro'),
+      // el garaje: el bloque de piedra y, por debajo de la casa, hasta la pared de la cocina
+      S(0, 0, 13.1, 9, 'suelo_cemento'),
+      // baldosa de barro en la cocina-salón (unos 4 m de ancho), el pasillo del garaje y el baño
+      S(13.1, 0, 17.5, 9, 'suelo_barro'),
       S(11, -1.8, 17.5, 0, 'suelo_porche', { fuera: true }),
       S(17.5, -1.8, 19.3, 5, 'suelo_porche', { fuera: true }),
     ],
@@ -64,27 +64,30 @@ export const PLANTAS = [
       M(0, 0, 11, 0, 'n', 'piedra', [h(0.9, 1.9, 'ventana'), h(3.8, 6.5, 'porton'), h(8.4, 9.4, 'ventana')]),
       M(0, 0, 0, 9, 'w', 'piedra'),
       M(0, 9, 11, 9, 's', 'piedra'),
+      // por debajo de la casa, entre el bloque de piedra y la cocina, sigue el garaje
+      M(11, 0, 13.1, 0, 'n', 'liso'),
+      M(11, 9, 13.1, 9, 's', 'piedra'),
       // la cocina va alicatada de blanco (por dentro)
-      M(11, 0, 17.5, 0, 'n', 'liso', [h(15.3, 16.5, 'ventana')], { revestido: { cara: 's', material: 'azulejo' } }),
+      M(13.1, 0, 17.5, 0, 'n', 'liso', [h(15.3, 16.5, 'ventana')], { revestido: { cara: 's', material: 'azulejo' } }),
       // la ventana con el radiador, debajo de lo alto de la escalera y en la esquina del sofá;
       // y en el baño, la ventanita que se abre desde la ducha
       M(17.5, 0, 17.5, 6.95, 'e', 'liso', [h(1.1, 1.95, 'puerta'), h(5.3, 6.4, 'ventana')]),
       M(17.5, 6.95, 17.5, 9, 'e', 'liso', [h(7.95, 8.65, 'ventanuco')], { revestido: { cara: 'w', material: 'azulejo' } }),
-      M(11, 9, 13.3, 9, 's', 'piedra'),
-      M(13.3, 9, 15.0, 9, 's', 'liso'),
-      M(15.0, 9, 17.5, 9, 's', 'liso', [], { revestido: { cara: 'n', material: 'azulejo' } }),
-      M(11, 0, 11, 6.95, 'int', 'piedra', [], { revestido: { cara: 'e', material: 'azulejo' } }),
+      // la pared de la cocina (fuegos, nevera y el mueble) sigue recta hasta el fondo de la casa, sin esquinas:
+      // al final, ya en el pasillo, la puerta del garaje, pegada al armario (Javi, 9 de noviembre)
+      M(13.1, 0, 13.1, 9, 'int', 'piedra', [h(7.85, 8.65, 'puerta', { rotulo: 'garaje' })], { revestido: { cara: 'e', material: 'azulejo' } }),
+      // la sala de la caldera, dentro del garaje
       M(6.7, 0, 6.7, 4.2, 'int', 'interior', [h(2.6, 3.4)]),
       M(6.7, 4.2, 11, 4.2, 'int', 'interior'),
-      // la pared del fondo del salón (detrás, el garaje) y el pasillo del garaje, pegado al baño: a la derecha,
-      // la puerta del garaje, y al fondo, el armario empotrado, a ras de la pared (Javi, 9 de noviembre)
-      M(11, 6.95, 13.3, 6.95, 'int', 'interior'),
-      M(13.3, 6.95, 13.3, 9, 'int', 'interior', [h(7.55, 8.25, 'puerta', { rotulo: 'garaje' })]),
-      M(13.6, 8.6, 14.7, 8.6, 's', 'liso', [h(13.38, 14.93, 'armario', { cara: 'n', puertas: 'cerezo' })], { grosor: 0.6 }),
+      M(11, 0, 11, 4.2, 'int', 'interior'),
+      // el fondo del pasillo del garaje es el armario empotrado: parte de la pared, con sus dos puertas a ras,
+      // como una puerta más pero doble (Javi, 9 de noviembre)
+      M(13.1, 9, 14.68, 9, 's', 'liso', [h(13.27, 14.62, 'armario', { cara: 'n', puertas: 'cerezo', marco: true })]),
       // el baño: lo que el sofá más la puerta. Su puerta, nada más pasar el pasillo; dentro, el lavabo delante,
       // pegado el váter y pegada la ducha, contra la ventanita. Nada más
-      M(15.0, 6.95, 15.0, 9, 'int', 'interior', [], { revestido: { cara: 'e', material: 'azulejo' } }),
-      M(15.0, 6.95, 17.5, 6.95, 'int', 'interior', [h(15.06, 15.84, 'puerta', { rotulo: 'baño' })], { revestido: { cara: 's', material: 'azulejo' } }),
+      M(14.68, 9, 17.5, 9, 's', 'liso', [], { revestido: { cara: 'n', material: 'azulejo' } }),
+      M(14.68, 6.95, 14.68, 9, 'int', 'interior', [], { revestido: { cara: 'e', material: 'azulejo' } }),
+      M(14.68, 6.95, 17.5, 6.95, 'int', 'interior', [h(14.95, 15.7, 'puerta', { rotulo: 'baño' })], { revestido: { cara: 's', material: 'azulejo' } }),
     ],
     cosas: [
       C('lena', 0.35, 0.35, 2.3, 2.5),
@@ -98,28 +101,28 @@ export const PLANTAS = [
       C('pilar', 2.9, 3.25, 3.2, 3.55), C('pilar', 2.9, 6.4, 3.2, 6.7), C('pilar', 8.15, 6.4, 8.45, 6.7),
       // cocina: muebles forrados de ladrillo con puertas de madera y encimera de granito rosa.
       // La del fregadero acaba debajo de la ventana; después, el radiador.
-      C('encimera', 11.19, 0.14, 16.05, 0.74, { mira: 's', fregadero: [15.35, 0.44], frente: 'ladrillo', puertas: 'madera', tapa: 'granito' }),
+      C('encimera', 13.29, 0.14, 16.05, 0.74, { mira: 's', fregadero: [15.35, 0.44], frente: 'ladrillo', puertas: 'madera', tapa: 'granito' }),
       C('radiador', 16.2, 0.14, 16.9, 0.22, { mira: 's' }),
       // en la pared del garaje: la cocina de leña con su campana de azulejo, la vitro con el horno y su campana, y la nevera
-      C('cocinalena', 11.19, 0.86, 11.89, 1.95, { mira: 'e' }),
-      C('campana', 11.17, 0.72, 11.97, 2.1, { mira: 'e', tipo: 'obra' }),
-      C('encimera', 11.19, 1.95, 11.79, 3.8, { mira: 'e', vitro: [11.49, 2.7], horno: [11.49, 2.7], frente: 'ladrillo', puertas: 'madera', tapa: 'granito' }),
-      C('campana', 11.17, 2.42, 11.67, 2.98, { mira: 'e' }),
-      C('altos', 11.17, 3.02, 11.52, 3.8, { mira: 'e', color: 'madera_osc', puertas: 'madera' }),
-      C('micro', 11.24, 3.3, 11.68, 3.74, { mira: 'e', color: 'pelota', base: 0.92 }),
-      C('nevera', 11.19, 3.88, 11.84, 4.53, { mira: 'e', color: 'metal' }),
-      // el mueble de madera de la pared del garaje (el armario empotrado del pasillo va con su pared, en muros)
-      C('mueble', 11.19, 5.15, 11.64, 6.75, { mira: 'e', alto: 0.85 }),
-      C('mesa', 13.65, 2.5, 14.65, 4.5, { sillas: 3, eje: 'v' }),
+      C('cocinalena', 13.29, 0.86, 13.99, 1.95, { mira: 'e' }),
+      C('campana', 13.27, 0.72, 14.07, 2.1, { mira: 'e', tipo: 'obra' }),
+      C('encimera', 13.29, 1.95, 13.89, 3.8, { mira: 'e', vitro: [13.59, 2.7], horno: [13.59, 2.7], frente: 'ladrillo', puertas: 'madera', tapa: 'granito' }),
+      C('campana', 13.27, 2.42, 13.77, 2.98, { mira: 'e' }),
+      C('altos', 13.27, 3.02, 13.62, 3.8, { mira: 'e', color: 'madera_osc', puertas: 'madera' }),
+      C('micro', 13.34, 3.3, 13.78, 3.74, { mira: 'e', color: 'pelota', base: 0.92 }),
+      C('nevera', 13.29, 3.88, 13.94, 4.53, { mira: 'e', color: 'metal' }),
+      // el mueble de madera, en la misma pared, justo antes del pasillo del garaje
+      C('mueble', 13.29, 5.15, 13.74, 6.75, { mira: 'e', alto: 0.85 }),
+      C('mesa', 14.72, 3.0, 15.62, 5.0, { sillas: 3, eje: 'v' }),
       // el sofá, de dos plazas, ocupa toda la pared del baño: de la esquina de la ventana a la puerta
-      C('sofa', 15.9, 6.05, 17.36, 6.88, { respaldo: 's', tela: 'tela_gris' }),
+      C('sofa', 15.8, 6.05, 17.36, 6.88, { respaldo: 's', tela: 'tela_gris' }),
       C('radiador', 17.3, 5.45, 17.38, 6.0, { mira: 'w' }),
       // el baño: nada más abrir la puerta, el lavabo con su espejo delante; pegado, el váter, y pegada a él,
       // la ducha, contra la pared de la ventanita (se abre desde dentro de la ducha)
-      C('lavabo', 15.1, 8.42, 16.02, 8.86, { mira: 'n', mueble: true, color: 'ladrillo', puertas: 'cerezo', tapa: 'granito' }),
-      C('espejo', 15.16, 8.86, 15.96, 8.88, { mira: 'n', marco: 'cerezo' }),
-      C('inodoro', 16.12, 8.2, 16.54, 8.86, { mira: 'n' }),
-      C('ducha', 16.64, 8.0, 17.37, 8.86),
+      C('lavabo', 14.9, 8.42, 15.74, 8.86, { mira: 'n', mueble: true, color: 'ladrillo', puertas: 'cerezo', tapa: 'granito' }),
+      C('espejo', 14.94, 8.86, 15.7, 8.88, { mira: 'n', marco: 'cerezo' }),
+      C('inodoro', 15.9, 8.2, 16.35, 8.86, { mira: 'n' }),
+      C('ducha', 16.57, 8.0, 17.37, 8.86),
       // debajo de la escalera, una puertita para aprovechar el hueco (lo de dentro da igual)
       C('puertita', 16.08, 3.72, 16.15, 4.44, { mira: 'w', alto: 1.05 }),
       ...COLUMNAS_PORCHE,
@@ -132,10 +135,10 @@ export const PLANTAS = [
       { t: 'tramo', x0: 16.15, y0: 4.65, x1: 17.25, y1: 5.95, sube: 's', desde: ALTURA * 10 / 15, hasta: ALTURA, pasos: 5, volado: true, bajo: 'interior', huella: 'suelo_barro', cenefa: true, barandilla: 'w' },
     ],
     barandas: [],
-    suciedad: [[11.9, 1.0, 15.9, 5.9, 0], [15.12, 7.12, 17.3, 7.95, 0], [13.52, 7.1, 14.86, 8.15, 0]],
+    suciedad: [[14.1, 0.95, 16.0, 5.9, 0], [14.85, 7.12, 17.3, 7.95, 0], [13.42, 7.1, 14.5, 8.7, 0]],
     // lo primero que aparece después de limpiar: el lunes una camiseta y un papel; el martes, un charco en la cocina
-    primeros: { ropa: [12.6, 5.6], papel: [15.55, 2.1], charco: [12.55, 2.45] },
-    sitios: { pie: [15.0, 5.45, 'n'], barrer: [14.6, 5.5, 'n'], esperar: [15.0, 5.45, 'n'], relax: { pose: 'cocinar', x: 12.3, y: 2.7, mira: 'w' } },
+    primeros: { ropa: [14.55, 5.75], papel: [15.55, 2.1], charco: [14.45, 2.3] },
+    sitios: { pie: [15.2, 5.58, 'n'], barrer: [14.45, 5.6, 'n'], esperar: [15.2, 5.58, 'n'], relax: { pose: 'cocinar', x: 14.32, y: 2.7, mira: 'w' } },
   },
   {
     nivel: 1, piso: 'medio', nombre: 'Planta 1',
@@ -311,8 +314,8 @@ export const JARDIN = {
 // Zonas de limpieza de cada planta (lo demás no se dibuja en esta vista).
 // abajo: cocina, baño y escalera · medio: entrada, salón y escalera · arriba: salón (con la entradilla) y cocina
 export const FOCO = {
-  // lo que se limpia abajo: cocina, salón, el pasillo del garaje y el baño (lo de detrás de la pared del fondo es garaje)
-  0: { zonas: [[11, 0, 17.5, 6.95], [13.3, 6.95, 17.5, 9]] },
+  // lo que se limpia abajo: la cocina-salón, el pasillo del garaje (con el armario al fondo) y el baño
+  0: { zonas: [[13.1, 0, 17.5, 9]] },
   // la terraza va con el salón del medio (Javi, 9 de noviembre)
   1: { zonas: [[11, 0, 17.5, 9], [11, -1.8, 17.5, 0], [17.5, -1.8, 19.3, 5]], muros: [M(11, 1.05, 11, 9, 'w', 'piedra')] },
   2: {
@@ -328,8 +331,8 @@ export const FOCO = {
 // El garaje no entra en la rotación: es una tarea extra que sale cuando alguien se apunta
 export const GARAJE = {
   nombre: 'Garaje', puntos: 15,
-  zonas: [[0, 0, 11, 9], [11, 6.95, 13.3, 9]],
-  desplazar: 6.6,
+  zonas: [[0, 0, 13.1, 9]],
+  desplazar: 5.5,
   suciedad: [[0.6, 2.7, 6.4, 7.9, 0], [3.3, 6.8, 8.0, 7.95, 0]],
   sitios: { pie: [9.6, 5.5, 'n'], barrer: [9.6, 5.5, 'n'], esperar: [9.6, 5.5, 'n'], relax: { pose: 'pie', x: 9.6, y: 5.5, mira: 'n' } },
 };
