@@ -76,8 +76,8 @@ export const PLANTAS = [
       M(6.7, 0, 6.7, 4.2, 'int', 'interior', [h(2.6, 3.4)]),
       M(6.7, 4.2, 11, 4.2, 'int', 'interior'),
       // el fondo del pasillo del garaje es el armario empotrado: parte de la pared, con sus dos puertas a ras,
-      // como una puerta más pero doble (Javi, 9 de noviembre)
-      M(11, 9, 13.42, 9, 's', 'liso', [h(11.17, 13.36, 'armario', { cara: 'n', puertas: 'cerezo', marco: true, hojas: 2 })]),
+      // como una puerta más pero doble, y una franja de pared blanca a cada lado (Javi, 9 de noviembre)
+      M(11, 9, 13.42, 9, 's', 'liso', [h(11.42, 13.11, 'armario', { cara: 'n', puertas: 'cerezo', marco: true, hojas: 2 })]),
       // el baño, muy ancho: el sofá más la puerta. Su puerta, nada más pasar el pasillo; dentro, el lavabo delante,
       // pegado el váter y pegada la ducha, contra la ventanita. Nada más
       M(13.42, 9, 17.5, 9, 's', 'liso', [], { revestido: { cara: 'n', material: 'azulejo' } }),
