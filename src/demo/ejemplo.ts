@@ -30,9 +30,9 @@ export function configEjemplo(inicio: string, desde: string): Config {
     inicio,
     semilla: 11,
     miembros: [
-      { id: 'ana', nombre: 'Ana', color: 'naranja', figura: 'mortal' },
-      { id: 'bruno', nombre: 'Bruno', color: 'verde', figura: 'escala' },
-      { id: 'carla', nombre: 'Carla', color: 'azul', figura: 'pino' },
+      { id: 'ana', nombre: 'Ana', color: 'naranja', figura: 'mortal', aspecto: { alto: 1.66, pelo: 'largo', colorPelo: '#3a2a22' } },
+      { id: 'bruno', nombre: 'Bruno', color: 'verde', figura: 'escala', aspecto: { alto: 1.8, pelo: 'corto', colorPelo: '#5a3a24', barba: 'normal' } },
+      { id: 'carla', nombre: 'Carla', color: 'azul', figura: 'pino', aspecto: { alto: 1.62, pelo: 'largo', colorPelo: '#b5653a' } },
     ],
     zonas: ZONAS,
     alquiler: { total: 120000, paga: 'bruno', partes: { ana: 40000, bruno: 40000, carla: 40000 }, dia: 10, desde },

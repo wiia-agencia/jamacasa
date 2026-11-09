@@ -2,8 +2,17 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { texturaCirculo, texturaEscalones, texturaPeste, texturaNube, texturaBrillo, texturaCartel } from './texturas.js';
 
-// Muñeco sencillo con el color de cada uno y unas cuantas poses
+// Muñeco sencillo con el color de cada uno y unas cuantas poses.
+// El aspecto de cada uno lo pasa la app (persona.aspecto); sin él, sale el muñeco de siempre:
+//   alto (en metros), pelo ('corto' | 'tupe' | 'calvo' | 'fino' | 'largo'), colorPelo,
+//   barba (nada | 'corta' | 'normal'), colorBarba y ropa ('normal' | 'ancha').
+const ALTO_BASE = 1.75;
 export function crearMonigote(persona, estilo) {
+  const A = persona.aspecto || {};
+  // la altura, un poco exagerada para que se vea quién es más alto
+  const s = Math.pow(Math.min(2.1, Math.max(1.4, A.alto || ALTO_BASE)) / ALTO_BASE, 1.6);
+  const ancha = A.ropa === 'ancha';
+  const tipoPelo = A.pelo || 'corto';
   const P = estilo.paleta;
   const voxel = !!estilo.voxel;
   const plano = !!estilo.plano;
@@ -13,14 +22,15 @@ export function crearMonigote(persona, estilo) {
     : new THREE.MeshStandardMaterial({ color, roughness: r, metalness: 0, flatShading: plano });
   const mCamiseta = mat(persona.color);
   const mPiel = mat(P.piel, 0.7);
-  const mPelo = mat(P.pelo, 0.85);
+  const mPelo = mat(A.colorPelo || P.pelo, 0.85);
+  const mBarba = mat(A.colorBarba || A.colorPelo || P.pelo, 0.9);
   const mPantalon = mat(P.pantalon, 0.85);
   const mNegro = mat('#1d2129', 0.5);
   const mCepillo = mat('#e9b44c', 0.8);
   const mPalo = mat('#9a6a3f', 0.8);
   const mPolvo = new THREE.MeshBasicMaterial({ color: '#b9b2a7', transparent: true, opacity: 0.6, depthWrite: false });
   const mVapor = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.7, depthWrite: false });
-  const materiales = [mCamiseta, mPiel, mPelo, mPantalon, mNegro, mCepillo, mPalo, mPolvo, mVapor];
+  const materiales = [mCamiseta, mPiel, mPelo, mBarba, mPantalon, mNegro, mCepillo, mPalo, mPolvo, mVapor];
 
   const caja = (w, h, d, m, r = 0.06) => {
     const rr = Math.min(r, w * 0.45, h * 0.45, d * 0.45);
@@ -39,6 +49,7 @@ export function crearMonigote(persona, estilo) {
 
   const raiz = new THREE.Group();
   const cuerpo = new THREE.Group();
+  cuerpo.scale.setScalar(s);
   raiz.add(cuerpo);
 
   // piernas, con el pivote en la cadera
@@ -46,7 +57,7 @@ export function crearMonigote(persona, estilo) {
   for (const lado of [-1, 1]) {
     const g = new THREE.Group();
     g.position.set(0.1 * lado, 0.48, 0);
-    const p = capsula(0.085, 0.3, mPantalon);
+    const p = capsula(ancha ? 0.1 : 0.085, 0.3, mPantalon);
     p.position.y = -0.24;
     const z = caja(0.15, 0.08, 0.23, mNegro, 0.03);
     z.position.set(0, -0.44, 0.035);
@@ -67,8 +78,9 @@ export function crearMonigote(persona, estilo) {
   cruzadas.visible = false;
   cuerpo.add(cruzadas);
 
-  const tronco = caja(0.44, 0.52, 0.3, mCamiseta, 0.11);
-  tronco.position.y = 0.73;
+  // con la ropa ancha, la camiseta más ancha y más larga, y las mangas y el pantalón más holgados
+  const tronco = caja(ancha ? 0.5 : 0.44, ancha ? 0.57 : 0.52, ancha ? 0.33 : 0.3, mCamiseta, 0.11);
+  tronco.position.y = ancha ? 0.705 : 0.73;
   cuerpo.add(tronco);
 
   // brazos, con el pivote en el hombro
@@ -76,8 +88,8 @@ export function crearMonigote(persona, estilo) {
   for (const lado of [-1, 1]) {
     const g = new THREE.Group();
     g.rotation.order = 'YXZ';
-    g.position.set(0.29 * lado, 0.93, 0);
-    const b = capsula(0.07, 0.29, mCamiseta);
+    g.position.set((ancha ? 0.315 : 0.29) * lado, 0.93, 0);
+    const b = capsula(ancha ? 0.085 : 0.07, 0.29, mCamiseta);
     b.position.y = -0.2;
     const mano = bola(0.075, mPiel);
     mano.position.y = -0.41;
@@ -91,16 +103,77 @@ export function crearMonigote(persona, estilo) {
   cuerpo.add(cabeza);
   cabeza.add(voxel ? caja(0.5, 0.5, 0.5, mPiel, 0) : bola(0.27, mPiel));
   if (voxel) {
-    const pelo = caja(0.54, 0.16, 0.54, mPelo, 0);
-    pelo.position.set(0, 0.2, -0.01);
-    const nuca = caja(0.54, 0.34, 0.12, mPelo, 0);
-    nuca.position.set(0, 0.06, -0.22);
-    cabeza.add(pelo, nuca);
+    if (tipoPelo !== 'calvo') {
+      const pelo = caja(0.54, tipoPelo === 'fino' ? 0.12 : 0.16, 0.54, mPelo, 0);
+      pelo.position.set(0, 0.2, -0.01);
+      const nuca = caja(0.54, 0.34, 0.12, mPelo, 0);
+      nuca.position.set(0, 0.06, -0.22);
+      cabeza.add(pelo, nuca);
+    }
+    if (tipoPelo === 'tupe') {
+      const tupe = caja(0.32, 0.1, 0.18, mPelo, 0);
+      tupe.position.set(0, 0.32, 0.13);
+      cabeza.add(tupe);
+    }
+    if (tipoPelo === 'largo') {
+      const melena = caja(0.56, 0.46, 0.14, mPelo, 0);
+      melena.position.set(0, -0.12, -0.22);
+      cabeza.add(melena);
+    }
+    if (A.barba) {
+      const barba = caja(0.52, A.barba === 'corta' ? 0.15 : 0.22, 0.08, mBarba, 0);
+      barba.position.set(0, A.barba === 'corta' ? -0.18 : -0.2, 0.235);
+      cabeza.add(barba);
+    }
   } else {
-    const pelo = new THREE.Mesh(new THREE.SphereGeometry(0.288, plano ? 8 : 22, plano ? 4 : 10, 0, Math.PI * 2, 0, Math.PI * 0.52), mPelo);
-    pelo.position.set(0, 0.025, -0.025);
-    pelo.rotation.x = -0.25;
-    cabeza.add(pelo);
+    const [sa, sb] = plano ? [8, 4] : [22, 10];
+    const casquete = (r, hasta, inclina) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, sa, sb, 0, Math.PI * 2, 0, Math.PI * hasta), mPelo);
+      m.rotation.x = inclina;
+      return m;
+    };
+    if (tipoPelo === 'corto' || tipoPelo === 'largo') {
+      const pelo = casquete(0.288, 0.52, -0.25);
+      pelo.position.set(0, 0.025, -0.025);
+      cabeza.add(pelo);
+    }
+    if (tipoPelo === 'tupe') {
+      // tupé corto: los lados cortos y el pelo de delante, levantado hacia arriba y un poco hacia delante
+      const pelo = casquete(0.282, 0.5, -0.3);
+      pelo.position.set(0, 0.018, -0.02);
+      const tupe = bola(0.105, mPelo);
+      tupe.scale.set(1.3, 0.7, 0.95);
+      tupe.rotation.x = 0.85;
+      tupe.position.set(0, 0.205, 0.165);
+      cabeza.add(pelo, tupe);
+    }
+    if (tipoPelo === 'fino') {
+      // pelo fino y pegado a la cabeza, con un flequillo corto hacia un lado
+      const pelo = casquete(0.281, 0.5, -0.28);
+      pelo.position.set(0, 0.016, -0.012);
+      const flequillo = bola(0.1, mPelo);
+      flequillo.scale.set(1.5, 0.38, 0.75);
+      flequillo.rotation.set(0.5, 0, 0.22);
+      flequillo.position.set(0.04, 0.165, 0.19);
+      cabeza.add(pelo, flequillo);
+    }
+    if (tipoPelo === 'largo') {
+      const melena = caja(0.5, 0.44, 0.14, mPelo, 0.07);
+      melena.position.set(0, -0.1, -0.17);
+      cabeza.add(melena);
+    }
+    if (A.barba) {
+      // la barba: una capa por la mandíbula y la barbilla, de oreja a oreja, con su bigote
+      const normal = A.barba === 'normal';
+      const r = normal ? 0.288 : 0.276;
+      const barba = new THREE.Mesh(new THREE.SphereGeometry(r, sa, plano ? 4 : 12, -Math.PI * 0.08, Math.PI * 1.16,
+        Math.PI * (normal ? 0.57 : 0.63), Math.PI * (normal ? 0.39 : 0.29)), mBarba);
+      if (normal) barba.scale.y = 1.06;
+      const bigote = capsula(normal ? 0.022 : 0.015, normal ? 0.11 : 0.09, mBarba);
+      bigote.rotation.z = Math.PI / 2;
+      bigote.position.set(0, -0.085, 0.262);
+      cabeza.add(barba, bigote);
+    }
   }
   const ojos = new THREE.Group();
   for (const lado of [-1, 1]) {
@@ -117,6 +190,7 @@ export function crearMonigote(persona, estilo) {
   materiales.push(sombra.material);
   sombra.rotation.x = -Math.PI / 2;
   sombra.position.y = 0.016;
+  sombra.scale.setScalar(s);
   raiz.add(sombra);
 
   // escoba
@@ -322,14 +396,14 @@ export function crearMonigote(persona, estilo) {
       brazos[1].rotation.set(-0.7, -0.3, 0);
       escoba.visible = true;
     } else if (nombre === 'meditar') {
-      cuerpo.position.y = -0.33;
+      cuerpo.position.y = -0.33 * s;
       for (const p of piernas) p.visible = false;
       cruzadas.visible = true;
       brazos[0].rotation.set(-0.45, 0.55, -0.35);
       brazos[1].rotation.set(-0.45, -0.55, 0.35);
       ojos.scale.set(1, 0.2, 1);
     } else if (nombre === 'play') {
-      cuerpo.position.y = -0.05;
+      cuerpo.position.y = -0.05 * s;
       for (const p of piernas) p.rotation.x = -1.45;
       brazos[0].rotation.set(-1.0, 0.36, 0);
       brazos[1].rotation.set(-1.0, -0.36, 0);
@@ -339,7 +413,7 @@ export function crearMonigote(persona, estilo) {
       brazos[1].rotation.set(-1.2, -0.12, 0);
       sarten.visible = true;
     } else if (nombre === 'sofa') {
-      cuerpo.position.y = -0.05;
+      cuerpo.position.y = -0.05 * s;
       for (const p of piernas) p.rotation.x = -1.45;
       brazos[0].rotation.set(-1.0, 0.36, 0);
       brazos[1].rotation.set(-0.9, -0.5, 0);
@@ -352,7 +426,7 @@ export function crearMonigote(persona, estilo) {
       cabeza.rotation.x = 0.28;
       movil.visible = true;
     } else if (nombre === 'triste') {
-      cuerpo.position.y = -0.36;
+      cuerpo.position.y = -0.36 * s;
       for (const p of piernas) p.rotation.x = -2.15;
       brazos[0].rotation.set(-1.35, 0.25, 0);
       brazos[1].rotation.set(-1.35, -0.25, 0);
@@ -370,71 +444,71 @@ export function crearMonigote(persona, estilo) {
   }
 
   function animar(t, fase = 0) {
-    const s = t + fase;
-    tronco.scale.y = 1 + Math.sin(s * 2.2) * 0.012;
+    const t2 = t + fase;
+    tronco.scale.y = 1 + Math.sin(t2 * 2.2) * 0.012;
     if (poseActual === 'barrer') {
-      escoba.rotation.y = Math.sin(s * 6) * 0.35;
-      cuerpo.rotation.y = Math.sin(s * 6) * 0.08;
+      escoba.rotation.y = Math.sin(t2 * 6) * 0.35;
+      cuerpo.rotation.y = Math.sin(t2 * 6) * 0.08;
       for (const p of polvo) {
-        const k = (s * 0.9 + p.userData.fase) % 1;
+        const k = (t2 * 0.9 + p.userData.fase) % 1;
         p.position.set(0.14 + Math.sin(k * 9 + p.userData.fase * 7) * 0.25, 0.06 + k * 0.35, 0.7 + k * 0.2);
         p.scale.setScalar(0.6 + k * 1.2);
       }
       mPolvo.opacity = 0.55;
     } else if (poseActual === 'meditar') {
-      cuerpo.position.y = -0.33 + Math.sin(s * 1.6) * 0.018;
+      cuerpo.position.y = (-0.33 + Math.sin(t2 * 1.6) * 0.018) * s;
     } else if (poseActual === 'play') {
-      cuerpo.rotation.z = Math.sin(s * 2.6) * 0.05;
-      mando.rotation.z = Math.sin(s * 11) * 0.12;
+      cuerpo.rotation.z = Math.sin(t2 * 2.6) * 0.05;
+      mando.rotation.z = Math.sin(t2 * 11) * 0.12;
     } else if (poseActual === 'cocinar') {
-      sarten.rotation.z = Math.sin(s * 3) * 0.04;
+      sarten.rotation.z = Math.sin(t2 * 3) * 0.04;
       for (const v of vapor) {
-        const k = (s * 0.45 + v.userData.fase) % 1;
+        const k = (t2 * 0.45 + v.userData.fase) % 1;
         v.position.set(0.05 + Math.sin(k * 6 + v.userData.fase * 5) * 0.06, 1.02 + k * 0.6, 0.62);
         v.scale.setScalar(0.7 + k * 1.3);
       }
       mVapor.opacity = 0.55;
     } else if (poseActual === 'esperar') {
-      cuerpo.position.y = Math.abs(Math.sin(s * 3)) * 0.025;
+      cuerpo.position.y = Math.abs(Math.sin(t2 * 3)) * 0.025 * s;
     } else if (poseActual === 'sofa') {
-      cuerpo.rotation.z = Math.sin(s * 2.2) * 0.04;
-      mando.rotation.z = Math.sin(s * 11) * 0.12;
-      const comer = Math.max(0, Math.sin(s * 1.3));
+      cuerpo.rotation.z = Math.sin(t2 * 2.2) * 0.04;
+      mando.rotation.z = Math.sin(t2 * 11) * 0.12;
+      const comer = Math.max(0, Math.sin(t2 * 1.3));
       brazos[1].rotation.x = -0.9 - comer * 1.3;
     } else if (poseActual === 'movil') {
-      mPantalla.color.setHSL(0.55, 0.8, 0.75 + Math.sin(s * 7) * 0.08);
+      mPantalla.color.setHSL(0.55, 0.8, 0.75 + Math.sin(t2 * 7) * 0.08);
     } else if (poseActual === 'triste') {
-      cuerpo.position.y = -0.36 + Math.sin(s * 1.2) * 0.01;
+      cuerpo.position.y = (-0.36 + Math.sin(t2 * 1.2) * 0.01) * s;
     } else if (poseActual === 'castigado') {
-      cuerpo.rotation.z = Math.sin(s * 1.5) * 0.03;
+      cuerpo.rotation.z = Math.sin(t2 * 1.5) * 0.03;
     }
-    const alto = cuerpo.position.y + 1.62;
+    const alto = cuerpo.position.y + 1.62 * s;
     if (peste.visible) {
       pesteSprites.forEach((sp, i) => {
-        const k = (s * 0.5 + sp.userData.fase) % 1;
+        const k = (t2 * 0.5 + sp.userData.fase) % 1;
         sp.position.set(Math.sin(i * 2.1) * 0.32, alto - 0.6 + k * 0.9, Math.cos(i * 2.1) * 0.22);
         sp.material.opacity = Math.sin(k * Math.PI) * 0.9;
       });
       moscas.forEach((m) => {
-        const a = s * 6 + m.userData.fase;
+        const a = t2 * 6 + m.userData.fase;
         m.position.set(Math.cos(a) * 0.38, alto + 0.05 + Math.sin(a * 2.3) * 0.12, Math.sin(a) * 0.38);
       });
     }
-    if (nube.visible) nube.position.set(0, alto + 0.55 + Math.sin(s * 1.4) * 0.04, 0);
+    if (nube.visible) nube.position.set(0, alto + 0.55 + Math.sin(t2 * 1.4) * 0.04, 0);
     if (racha.visible) {
       estrellas.forEach((e) => {
-        const a = s * 1.6 + e.userData.fase;
-        e.position.set(Math.cos(a) * 0.45, cuerpo.position.y + 0.5 + Math.sin(a * 1.5) * 0.35 + 0.4, Math.sin(a) * 0.45);
-        e.scale.setScalar(0.22 + 0.12 * (0.5 + 0.5 * Math.sin(s * 4 + e.userData.fase)));
+        const a = t2 * 1.6 + e.userData.fase;
+        e.position.set(Math.cos(a) * 0.45, cuerpo.position.y + (0.9 + Math.sin(a * 1.5) * 0.35) * s, Math.sin(a) * 0.45);
+        e.scale.setScalar(0.22 + 0.12 * (0.5 + 0.5 * Math.sin(t2 * 4 + e.userData.fase)));
       });
     }
   }
 
   function arribaDeLaCabeza() {
-    let h = cuerpo.position.y + (poseActual === 'meditar' ? 1.55 : 1.62);
-    if (corona.visible) h += 0.2;
+    let h = cuerpo.position.y + (poseActual === 'meditar' ? 1.55 : 1.62) * s;
+    if (corona.visible) h += 0.2 * s;
     if (nube.visible) h += 0.85;
-    if (poseActual === 'castigado') h = Math.max(h, 2.2);
+    if (poseActual === 'castigado') h = Math.max(h, 2.2 * s);
     return h;
   }
 

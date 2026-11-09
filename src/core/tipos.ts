@@ -9,6 +9,17 @@ export interface Miembro {
   nombre: string;
   color: string; // color fijo de la persona en toda la app: 'naranja' | 'verde' | 'azul'
   figura?: 'pino' | 'mortal' | 'escala'; // su silueta del icono
+  aspecto?: Aspecto; // cómo es su muñeco de la casa en 3D
+}
+
+/** Cómo es el muñeco de cada uno en la casa en 3D. Va en la config de la casa (`aspectos`), nunca en el código. */
+export interface Aspecto {
+  alto?: number; // en metros
+  pelo?: 'corto' | 'tupe' | 'calvo' | 'fino' | 'largo';
+  colorPelo?: string;
+  barba?: 'corta' | 'normal' | null;
+  colorBarba?: string;
+  ropa?: 'normal' | 'ancha';
 }
 
 export interface Zona {
@@ -61,6 +72,7 @@ export interface Config {
   facturas: Factura[];
   normas?: Partial<Normas>;
   notaLimpieza?: string; // lo que no entra en la rotación (habitaciones, etc.)
+  aspectos?: Partial<Record<MiembroId, Aspecto>>; // el muñeco de cada uno en la casa en 3D
 }
 
 export type TipoEvento =

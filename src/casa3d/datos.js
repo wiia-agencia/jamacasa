@@ -347,7 +347,7 @@ export const ESCENAS = {
 export function configurarPersonas(lista) {
   for (const k of Object.keys(PERSONAS)) delete PERSONAS[k];
   ORDEN_PERSONAS.length = 0;
-  for (const p of lista) { PERSONAS[p.id] = { id: p.id, nombre: p.nombre, color: p.color }; ORDEN_PERSONAS.push(p.id); }
+  for (const p of lista) { PERSONAS[p.id] = { id: p.id, nombre: p.nombre, color: p.color, aspecto: p.aspecto }; ORDEN_PERSONAS.push(p.id); }
 }
 
 // y en qué piso está cada uno esta semana

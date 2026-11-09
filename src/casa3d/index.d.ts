@@ -12,5 +12,5 @@ export interface Visor {
   destruir(): void;
 }
 export function crearVisor(contenedor: HTMLElement, opciones: Record<string, unknown>): Visor;
-export function configurarPersonas(lista: { id: string; nombre: string; color: string }[]): void;
+export function configurarPersonas(lista: { id: string; nombre: string; color: string; aspecto?: import('../core/tipos').Aspecto }[]): void;
 export const ESTILOS: Record<string, { nombre: string; letra: string }>;

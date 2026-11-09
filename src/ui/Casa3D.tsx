@@ -39,10 +39,10 @@ export function Casa3D({ miembros, escena, yo }: { miembros: Miembro[]; escena: 
     (modulo ??= import('../casa3d/index.js'))
       .then((m) => {
         if (!vivo || !host.current) return;
-        const clave = `${ESTILO_CASA}|${miembros.map((x) => `${x.id}:${x.nombre}:${x.color}`).join('|')}`;
+        const clave = `${ESTILO_CASA}|${miembros.map((x) => `${x.id}:${x.nombre}:${x.color}:${JSON.stringify(x.aspecto ?? {})}`).join('|')}`;
         if (!unico || unico.clave !== clave) {
           if (unico) { unico.visor.destruir(); unico.marco.remove(); unico = null; }
-          m.configurarPersonas(miembros.map((x) => ({ id: x.id, nombre: x.nombre, color: COLORES[x.color] ?? x.color })));
+          m.configurarPersonas(miembros.map((x) => ({ id: x.id, nombre: x.nombre, color: COLORES[x.color] ?? x.color, aspecto: x.aspecto })));
           const marco = document.createElement('div');
           marco.className = 'c3-visor casa3d-marco';
           host.current.appendChild(marco);

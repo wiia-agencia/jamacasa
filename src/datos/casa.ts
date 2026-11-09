@@ -67,7 +67,11 @@ export async function abrirCasa(): Promise<Almacen | null> {
     sb().from('jc_miembros').select('id,nombre,color,figura,orden').order('orden'),
   ]);
   if (e1 || e2 || !casa) throw new Error('No se pudo abrir la casa. Vuelve a probar en un momento.');
-  const config: Config = { ...(casa.config as Config), miembros: (miembros as any[]).map((m): Miembro => ({ id: m.id, nombre: m.nombre, color: m.color, figura: m.figura ?? undefined })) };
+  const base = casa.config as Config;
+  const config: Config = {
+    ...base,
+    miembros: (miembros as any[]).map((m): Miembro => ({ id: m.id, nombre: m.nombre, color: m.color, figura: m.figura ?? undefined, aspecto: base.aspectos?.[m.id] })),
+  };
 
   const aEvento = (r: any): Evento => ({ id: r.id, ts: new Date(r.ts).getTime(), autor: r.autor, tipo: r.tipo, datos: r.datos ?? {} });
   const urls = new Map<string, { url: string; caduca: number }>();
