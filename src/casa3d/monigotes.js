@@ -5,9 +5,10 @@ import { texturaCirculo, texturaEscalones, texturaPeste, texturaNube, texturaBri
 
 // Muñeco sencillo con el color de cada uno y unas cuantas poses.
 // El aspecto de cada uno lo pasa la app (persona.aspecto); sin él, sale el muñeco de siempre:
-//   alto (en metros), pelo ('corto' | 'tupe' | 'calvo' | 'fino' | 'largo' | 'arriba'), colorPelo,
+//   alto (en metros), pelo ('corto' | 'tupe' | 'calvo' | 'fino' | 'largo' | 'arriba' | 'plano' | 'levantado'), colorPelo,
 //   barba (nada | 'corta' | 'normal' | 'candado'), colorBarba y ropa ('normal' | 'ancha').
-//   «arriba»: pelo hacia arriba sin gomina, en mechones gordos con la punta redonda y plano por encima.
+//   Hacia arriba y sin gomina: «arriba» (cepillo de mechones con la punta redonda, plano por encima), «plano» (liso y
+//   plano por encima) y «levantado» (mechones más altos delante que bajan hacia la coronilla).
 const ALTO_BASE = 1.75;
 export function crearMonigote(persona, estilo) {
   const A = persona.aspecto || {};
@@ -215,12 +216,15 @@ export function crearMonigote(persona, estilo) {
       cabeza.add(capa({ phi0: -PI, phi1: PI, vuelta: true, coronilla: true, arriba: () => 0.001, abajo: linea,
         grosor: (f, v) => 0.014 + 0.014 * Math.exp(-(((f - 0.1 * PI) / (0.22 * PI)) ** 2)) * suave((v - 0.45) / 0.35) }, mPelo));
     }
-    if (tipoPelo === 'arriba') {
-      // Pelo hacia arriba, sin gomina: los lados y la nuca cortos y, arriba, mechones gordos que suben desde la frente
-      // y la coronilla, con la punta redondeada (no pinchos) y todos más o menos a la misma altura: la cabeza queda
-      // plana por arriba. Cada mechón, con la raíz más oscura y la punta más clara.
-      // (A.cepillo: solo para probar variantes en la página de propuestas)
-      const o = { alto: 0.055, delante: 0.01, ancho: 1, grueso: 1, punta: 0.45, varia: 0.006, nucleo: 0.03, textura: 1, finos: 1, ...(A.cepillo || {}) };
+    if (tipoPelo === 'arriba' || tipoPelo === 'plano' || tipoPelo === 'levantado') {
+      // Pelo hacia arriba, sin gomina, con los lados y la nuca cortos. Tres formas:
+      //   arriba: mechones gordos que suben desde la frente y la coronilla, con la punta redondeada (no pinchos) y
+      //     todos más o menos a la misma altura: la cabeza queda plana por arriba (un cepillo).
+      //   plano: liso y plano por arriba, con las esquinas redondas y rayitas que suben (un «flat top»).
+      //   levantado: mechones como «arriba», pero más altos delante y bajando hacia la coronilla (un tupé natural).
+      // Cada mechón, con la raíz más oscura y la punta más clara. (A.cepillo: para probar variantes en las propuestas)
+      const FORMA = { arriba: {}, plano: { alto: 0.05, nucleo: 0, mechones: false, surcos: 1, delante: 0.012 }, levantado: { alto: 0.05, delante: 0.028, levanta: 0.045, punta: 0.18, ancho: 1.15, grueso: 1.1 } };
+      const o = { alto: 0.055, delante: 0.01, ancho: 1, grueso: 1, punta: 0.45, varia: 0.006, nucleo: 0.03, textura: 1, finos: 1, levanta: 0, mechones: true, surcos: 0, ...FORMA[tipoPelo], ...(A.cepillo || {}) };
       // lo corto: lados y nuca (la línea baja detrás de las orejas y cubre la nuca)
       const linea = tabla([[0, 0.3 * PI], [0.3, 0.365 * PI], [0.46, 0.415 * PI], [0.58, 0.5 * PI], [0.72, 0.64 * PI], [1, 0.74 * PI]]);
       const cPelo = new THREE.Color(A.colorPelo || P.pelo);
@@ -252,7 +256,10 @@ export function crearMonigote(persona, estilo) {
             const encima = 1 - suave((t - 0.04 * PI) / (0.16 * PI));
             const fino = (Math.sin(41 * x0 + 9 * Math.sin(13 * z0)) * Math.sin(37 * z0 + 7 * Math.sin(11 * x0)) * 0.6
               + Math.sin(67 * (x0 + 0.6 * z0) + 1.3) * Math.sin(59 * (z0 - 0.5 * x0) + 0.4) * 0.4) * o.textura;
-            return Math.max(0.012, smax(R + 0.016, smin(rPlano, rPared, esquina(f)), 0.006) - R - 0.005 + 0.0035 * fino * encima);
+            // rayitas que suben por las paredes (el pelo de pie), más marcadas arriba
+            const fm = 36 * f + 0.9 * Math.sin(3 * f + 0.5) + 0.6 * Math.sin(5 * f + 2.2);
+            const surco = o.surcos * 0.0042 * ((0.5 + 0.5 * Math.cos(fm)) ** 1.4 - 0.45) * (1 - encima) * suave((ti - t) / (0.12 * PI));
+            return Math.max(0.012, smax(R + 0.016, smin(rPlano, rPared, esquina(f)), 0.006) - R - 0.005 + 0.0035 * fino * encima + surco);
           },
           color: (f, v) => {
             const encima = 1 - suave((v - 0.25) / 0.4);
@@ -303,21 +310,23 @@ export function crearMonigote(persona, estilo) {
         geos.push(g);
       };
       const H = R + o.alto;
-      // el borde: los mechones que suben desde la frente, por encima de las orejas y por detrás; dibujan la silueta
-      // (la parte de encima es plana, con su textura fina)
-      for (const ph of [-0.33, -0.2, -0.067, 0.067, 0.2, 0.33]) mechon(0.265, ph, { hasta: H + o.delante * Math.cos(ph * PI), ancho: 0.064, grueso: 0.056, lean: 0.12, fuera: 0.03 });
-      for (const ph of [-0.45, 0.45]) mechon(0.27, ph, { hasta: H + 0.4 * o.delante, ancho: 0.068, grueso: 0.058, lean: 0.05, fuera: 0.03 });
-      for (const ph of [-0.78, -0.67, -0.56, 0.56, 0.67, 0.78]) mechon(0.295, ph, { hasta: H - 0.006, ancho: 0.07, grueso: 0.058, fuera: 0.03, lean: 0 });
-      for (const ph of [-0.89, -0.97, 0.97, 0.89]) mechon(0.33, ph, { hasta: H - 0.024, ancho: 0.075, grueso: 0.06, fuera: 0.05, lean: 0 });
-      // encima, mechones más pequeños y apretados que suben rectos: desde arriba se ven las puntas, como un cepillo
-      const F = o.finos;
-      for (let k = 0; k < 9; k++) { const ph = -0.47 + (0.94 * k) / 8; mechon(0.19, ph, { hasta: H + 0.6 * o.delante * Math.cos(ph * PI), ancho: 0.068 - 0.014 * F, grueso: 0.06 - 0.012 * F, lean: 0.05, fuera: 0.02 }); }
-      for (let k = 0; k < 7; k++) { const ph = -1 + (2 * k + 1) / 7; mechon(0.13, ph, { hasta: H - 0.003, ancho: 0.075 - 0.02 * F, grueso: 0.065 - 0.016 * F, fuera: 0.02, lean: 0 }); }
-      for (let k = 0; k < 4; k++) { const ph = -1 + (2 * k) / 4 + 0.25; mechon(0.06, ph, { hasta: H - 0.004, ancho: 0.075 - 0.02 * F, grueso: 0.065 - 0.016 * F, fuera: 0.01, lean: 0 }); }
-      for (let k = 0; k < 6; k++) { const ph = -1 + (2 * k + 0.5) / 6; mechon(0.245, ph * 0.95 + (ph > 0 ? 0.02 : -0.02), { hasta: H - 0.01 - 0.012 * Math.max(0, -Math.cos(ph * PI)), ancho: 0.066 - 0.012 * F, grueso: 0.058 - 0.01 * F, fuera: 0.03, lean: 0 }); }
-      const todo = mergeGeometries(geos);
-      for (const g of geos) g.dispose();
-      cabeza.add(new THREE.Mesh(todo, mMechones));
+      const sube = (ph, k) => o.levanta * k * Math.max(0, Math.cos(ph * PI)) ** 1.2; // lo que se levanta delante
+      if (o.mechones) {
+        // el borde: los mechones que suben desde la frente, por encima de las orejas y por detrás; dibujan la silueta
+        for (const ph of [-0.33, -0.2, -0.067, 0.067, 0.2, 0.33]) mechon(0.265, ph, { hasta: H + o.delante * Math.cos(ph * PI) + sube(ph, 1), ancho: 0.064, grueso: 0.056, lean: 0.12 - 2 * o.levanta, fuera: 0.03 });
+        for (const ph of [-0.45, 0.45]) mechon(0.27, ph, { hasta: H + 0.4 * o.delante + sube(ph, 0.6), ancho: 0.068, grueso: 0.058, lean: 0.05, fuera: 0.03 });
+        for (const ph of [-0.78, -0.67, -0.56, 0.56, 0.67, 0.78]) mechon(0.295, ph, { hasta: H - 0.006 - 0.4 * o.levanta, ancho: 0.07, grueso: 0.058, fuera: 0.03, lean: 0 });
+        for (const ph of [-0.89, -0.97, 0.97, 0.89]) mechon(0.33, ph, { hasta: H - 0.024 - 0.6 * o.levanta, ancho: 0.075, grueso: 0.06, fuera: 0.05, lean: 0 });
+        // encima, mechones más pequeños y apretados que suben rectos: desde arriba se ven las puntas, como un cepillo
+        const F = o.finos;
+        for (let k = 0; k < 9; k++) { const ph = -0.47 + (0.94 * k) / 8; mechon(0.19, ph, { hasta: H + 0.6 * o.delante * Math.cos(ph * PI) + sube(ph, 0.75), ancho: 0.068 - 0.014 * F, grueso: 0.06 - 0.012 * F, lean: 0.05 - o.levanta, fuera: 0.02 }); }
+        for (let k = 0; k < 7; k++) { const ph = -1 + (2 * k + 1) / 7; mechon(0.13, ph, { hasta: H - 0.003 + sube(ph, 0.45) - 0.25 * o.levanta, ancho: 0.075 - 0.02 * F, grueso: 0.065 - 0.016 * F, fuera: 0.02, lean: 0 }); }
+        for (let k = 0; k < 4; k++) { const ph = -1 + (2 * k) / 4 + 0.25; mechon(0.06, ph, { hasta: H - 0.004 - 0.3 * o.levanta, ancho: 0.075 - 0.02 * F, grueso: 0.065 - 0.016 * F, fuera: 0.01, lean: 0 }); }
+        for (let k = 0; k < 6; k++) { const ph = -1 + (2 * k + 0.5) / 6; mechon(0.245, ph * 0.95 + (ph > 0 ? 0.02 : -0.02), { hasta: H - 0.01 - 0.012 * Math.max(0, -Math.cos(ph * PI)) + sube(ph, 0.3) - 0.3 * o.levanta, ancho: 0.066 - 0.012 * F, grueso: 0.058 - 0.01 * F, fuera: 0.03, lean: 0 }); }
+        const todo = mergeGeometries(geos);
+        for (const g of geos) g.dispose();
+        cabeza.add(new THREE.Mesh(todo, mMechones));
+      }
     }
     if (tipoPelo === 'largo') {
       const melena = caja(0.5, 0.44, 0.14, mPelo, 0.07);
@@ -350,9 +359,12 @@ export function crearMonigote(persona, estilo) {
       const arriba = normal
         ? tabla([[0, 0.655 * PI], [0.1, 0.635 * PI], [0.17, 0.59 * PI], [0.3, 0.53 * PI], [0.4, 0.46 * PI], [0.47, 0.43 * PI]])
         : tabla([[0, 0.66 * PI], [0.1, 0.64 * PI], [0.17, 0.605 * PI], [0.3, 0.56 * PI], [0.4, 0.49 * PI], [0.47, 0.45 * PI]]);
-      const abajo = tabla([[0, 0.88 * PI], [0.25, 0.83 * PI], [0.4, 0.74 * PI], [0.47, 0.68 * PI]]);
+      // por abajo, bajo la barbilla (la de Josu, «normal», algo más corta: tiene mucha barba pero menos que José)
+      const abajo = normal
+        ? tabla([[0, 0.855 * PI], [0.25, 0.812 * PI], [0.4, 0.732 * PI], [0.47, 0.68 * PI]])
+        : tabla([[0, 0.88 * PI], [0.25, 0.83 * PI], [0.4, 0.74 * PI], [0.47, 0.68 * PI]]);
       cabeza.add(capa({ phi0: -0.47 * PI, phi1: 0.47 * PI, arriba, abajo,
-        grosor: (f, v) => (normal ? 0.018 + 0.036 * Math.cos(f) ** 2 * v ** 1.2
+        grosor: (f, v) => (normal ? 0.007 + 0.01 * Math.cos(f) ** 2 * v ** 1.2
           : candado ? 0.005 + (0.008 + 0.012 * v) * (1 - lados(f))
           : 0.009 + 0.013 * Math.cos(f) ** 2 * v),
         color: candado ? (f, v) => cBarba.clone().lerp(cPiel, Math.min(0.75, 0.6 * lados(f) + 0.2 * lados(f) * (1 - v))) : undefined },
@@ -361,7 +373,7 @@ export function crearMonigote(persona, estilo) {
       cabeza.add(capa({ phi0: -0.15 * PI, phi1: 0.15 * PI, u: 18, v: 6,
         arriba: (f) => 0.565 * PI + 0.012 * PI * Math.abs(f) / (0.15 * PI),
         abajo: (f) => 0.6 * PI + 0.05 * PI * (Math.abs(f) / (0.15 * PI)) ** 1.5,
-        grosor: () => (normal ? 0.02 : candado ? 0.014 : 0.011) }, mBarba));
+        grosor: () => (normal ? 0.012 : candado ? 0.014 : 0.011) }, mBarba));
     }
     // la boca
     const boca = capsula(0.011, 0.045, mat('#6b3530', 0.8));

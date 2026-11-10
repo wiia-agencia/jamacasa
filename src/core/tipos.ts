@@ -15,7 +15,7 @@ export interface Miembro {
 /** Cómo es el muñeco de cada uno en la casa en 3D. Va en la config de la casa (`aspectos`), nunca en el código. */
 export interface Aspecto {
   alto?: number; // en metros
-  pelo?: 'corto' | 'tupe' | 'calvo' | 'fino' | 'largo' | 'arriba'; // arriba: hacia arriba, con la parte de encima casi plana
+  pelo?: 'corto' | 'tupe' | 'calvo' | 'fino' | 'largo' | 'arriba' | 'plano' | 'levantado'; // hacia arriba: arriba (cepillo de mechones), plano (liso y plano por encima) o levantado (más alto delante)
   colorPelo?: string;
   barba?: 'corta' | 'normal' | 'candado' | null; // candado: bigote y perilla cerrados, y poca por los lados
   colorBarba?: string;
