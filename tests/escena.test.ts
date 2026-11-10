@@ -61,13 +61,43 @@ describe('la casa en 3D', () => {
     const e = derivar(config, lista, dia(s, 1, 19));
     const piso = zonaDe(config, s, 'a')!.id as 'abajo' | 'medio' | 'arriba';
     expect(tareaDe(e, s, 'a')!.empezada).toBe(lista[0].ts);
-    expect(escenaCasa(e)!.pisos[piso]).toEqual(['limpiando', 0, 1]);
+    expect(escenaCasa(e)!.pisos[piso]).toEqual(['limpiando', 0, 1, 0]);
     expect(e.noticias.some((x) => x.texto.startsWith('Ana ha empezado a limpiar'))).toBe(true);
     const avisos = avisosDeEvento(config, lista, lista[0].id);
     expect(avisos.map((x) => x.para).sort()).toEqual(['b', 'c']);
     // La segunda vez ya no avisa
     const otra = ev('zona_empezada', 'a', dia(s, 1, 20), { semana: s });
     expect(avisosDeEvento(config, [...lista, otra], otra.id)).toEqual([]);
+  });
+
+  it('«Lo que se limpia»: lo marcado cuenta, lo último de cada cosa manda y el piso se va limpiando', () => {
+    const conLista: Config = { ...config, zonas: config.zonas.map((z) => ({ ...z, checklist: ['Suelo', 'Mesa', 'Baño', 'Escalera'] })) };
+    const piso = zonaDe(conLista, s, 'a')!.id as 'abajo' | 'medio' | 'arriba';
+    const marca = (cosa: string, h: number, hecha = true) => ev('zona_cosa', 'a', dia(s, 1, h), { semana: s, cosa, hecha });
+    const lista = [ev('zona_empezada', 'a', dia(s, 1, 9), { semana: s }), marca('Suelo', 10), marca('Mesa', 11), marca('Mesa', 12, false), marca('Baño', 13), marca('Inventada', 14)];
+    const e = derivar(conLista, lista, dia(s, 1, 15));
+    const t = tareaDe(e, s, 'a')!;
+    expect(t.lista).toEqual(['Suelo', 'Mesa', 'Baño', 'Escalera']);
+    expect(t.marcadas).toEqual(['Suelo', 'Baño']);
+    expect(escenaCasa(e)!.pisos[piso]).toEqual(['limpiando', 0, 1, 0.5]);
+    // marcar no avisa a nadie
+    expect(avisosDeEvento(conLista, lista, lista[1].id)).toEqual([]);
+  });
+
+  it('si se suspende, la lista vuelve a empezar; lo marcado después de «hecho» no cuenta', () => {
+    const conLista: Config = { ...config, zonas: config.zonas.map((z) => ({ ...z, checklist: ['Suelo', 'Mesa'] })) };
+    const marca = (cosa: string, d: number, h: number) => ev('zona_cosa', 'a', dia(s, d, h), { semana: s, cosa, hecha: true });
+    const antes = [marca('Suelo', 1, 10), marca('Mesa', 1, 11), ev('zona_hecha', 'a', dia(s, 1, 12), { semana: s })];
+    const tarde = marca('Suelo', 1, 13);
+    const esperando = derivar(conLista, [...antes, tarde], dia(s, 1, 14));
+    expect(tareaDe(esperando, s, 'a')!.estado).toBe('esperando');
+    expect(tareaDe(esperando, s, 'a')!.marcadas).toEqual(['Suelo', 'Mesa']);
+    const notas = ['b', 'c'].map((j) => ev('puntuacion', j, dia(s, 1, 15), { semana: s, de: 'a', intento: 1, nota: 3 }));
+    const suspendida = derivar(conLista, [...antes, tarde, ...notas], dia(s, 1, 16));
+    expect(tareaDe(suspendida, s, 'a')!.estado).toBe('suspendida');
+    expect(tareaDe(suspendida, s, 'a')!.marcadas).toEqual([]);
+    const otra = derivar(conLista, [...antes, tarde, ...notas, marca('Mesa', 1, 17)], dia(s, 1, 18));
+    expect(tareaDe(otra, s, 'a')!.marcadas).toEqual(['Mesa']);
   });
 
   it('aprobado brilla según la nota y el dueño descansa', () => {

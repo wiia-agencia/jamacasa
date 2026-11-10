@@ -1088,3 +1088,246 @@ textarea.entrada { min-height: 84px; resize: vertical; }
 .hist-medalla.mala .moneda, .moneda-mini.mala { background: radial-gradient(circle at 35% 30%, #ffe1dc, #f08a7e 70%); }
 .hist-semanas { grid-template-columns: auto repeat(3, minmax(0, 1fr)) auto; }
 .hist-semanas .sem { text-align: left; font: inherit; font-size: var(--t-s); font-weight: 650; color: var(--texto-2); white-space: nowrap; }
+
+/* ——— Limpieza: la pantalla de juego (la D, la que eligió Javi el 10 de noviembre) ———
+   La casa ocupa todo, del cielo al menú; arriba la semana y las caras (tocas una y vas a su piso); encima de cada
+   muñeco, su bocadillo; abajo, el cajón con lo que se limpia (y el resto de Limpieza al subirlo). El cielo y la luz
+   siguen la hora de verdad (la H): de noche, el texto de arriba en claro. */
+html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: none; }
+.juego {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  max-width: 480px;
+  margin: 0 auto;
+  overflow: hidden;
+  z-index: 5;
+  --cielo-arriba: #d6ecf8;
+  --tinta: #0e2a47;
+  --tinta-2: #3d5470;
+}
+.juego.de-noche { --tinta: #f2f6fb; --tinta-2: #c9d6e6; }
+.casa3d-juego, .casa3d-escenario { position: absolute; inset: 0; }
+.casa3d-juego .casa3d-cargando { color: var(--tinta-2); }
+.juego-arriba {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 26px 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--cielo-arriba) 97%, transparent) 0%, color-mix(in srgb, var(--cielo-arriba) 78%, transparent) 62%, transparent 100%);
+  pointer-events: none;
+}
+.juego-arriba > * { pointer-events: auto; }
+.juego-semana { flex: 1; min-width: 0; padding-top: 3px; }
+.juego-semana h1 { margin: 0; font-size: 1.2rem; font-weight: 800; font-stretch: 85%; color: var(--tinta); line-height: 1.15; }
+.juego-semana p { margin: 3px 0 0; font-size: 0.8rem; font-weight: 600; color: var(--tinta-2); line-height: 1.25; }
+.juego-caras { display: flex; gap: 8px; flex: none; }
+.juego-cara {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  position: relative;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--tinta);
+  font: inherit;
+  cursor: pointer;
+}
+.juego-foto {
+  --c: var(--texto-3);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--c) 16%, #ffffff);
+  box-shadow: 0 0 0 3px var(--c), 0 6px 14px -8px rgba(14, 42, 71, 0.8);
+  flex: none;
+}
+.c-naranja .juego-foto { --c: #d96a14; }
+.c-verde .juego-foto { --c: #1a9150; }
+.c-azul .juego-foto { --c: #2569db; }
+.juego-foto img { width: 100%; height: 100%; object-fit: cover; }
+.juego-foto .avatar { width: 100%; height: 100%; }
+.juego-cara.activa .juego-foto { box-shadow: 0 0 0 3px var(--c), 0 0 0 6px #ffffff, 0 0 0 8px var(--c); }
+.juego-marca {
+  position: absolute;
+  right: -2px;
+  top: 30px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 900;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: #8a94a3;
+}
+.juego-marca.naranja { background: #d96a14; }
+.juego-marca.oro { background: #e0a21b; }
+.juego-marca.verde { background: #1a9150; }
+.juego-marca.rojo { background: #c23a31; }
+.juego-nombre { font-size: 0.7rem; font-weight: 750; text-shadow: 0 1px 2px color-mix(in srgb, var(--cielo-arriba) 70%, transparent); }
+.juego-redondo {
+  appearance: none;
+  border: 0;
+  position: absolute;
+  bottom: 96px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #0e2a47;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 24px -12px rgba(14, 42, 71, 0.75);
+  z-index: 2;
+  cursor: pointer;
+}
+.juego-redondo.izq { left: 16px; }
+.juego-redondo.der { right: 16px; }
+.juego-redondo span { position: absolute; top: 62px; font-size: 0.72rem; font-weight: 750; color: var(--tinta); white-space: nowrap; }
+.juego-redondo b { position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; border-radius: 11px; background: #5f7189; color: #ffffff; font-size: 0.75rem; display: grid; place-items: center; padding: 0 5px; }
+.juego-redondo b.tuya { background: #c23a31; }
+.juego-menu {
+  position: absolute;
+  right: 12px;
+  bottom: 180px;
+  width: min(290px, calc(100% - 24px));
+  background: var(--papel);
+  color: var(--texto);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--sombra);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.juego-menu p { margin: 0; }
+.juego-ficha {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 14px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--papel) 96%, transparent);
+  color: var(--texto);
+  box-shadow: var(--sombra);
+}
+.juego-ficha-cuerpo {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.juego-ficha-cuerpo b { display: block; font-size: 1rem; }
+.juego-ficha-cuerpo .crece > span { display: block; font-size: 0.82rem; color: var(--texto-2); line-height: 1.25; }
+.juego-ficha-volver {
+  position: absolute;
+  top: -46px;
+  left: 50%;
+  transform: translateX(-50%);
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: #13233a;
+  color: #ffffff;
+  font: 700 0.82rem var(--f);
+  padding: 9px 16px;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+.boton.oro { background: var(--ouro); color: #0b1626; min-height: 46px; padding: 0 14px; font-size: 0.92rem; white-space: nowrap; flex: none; }
+.boton.naranja { background: #d96a14; color: #ffffff; }
+.boton.verde { background: #1a9150; color: #ffffff; }
+.cajon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  max-height: 62%;
+  display: flex;
+  flex-direction: column;
+  background: var(--papel);
+  color: var(--texto);
+  border-radius: 26px 26px 0 0;
+  box-shadow: 0 -14px 30px -18px rgba(14, 42, 71, 0.6);
+  transform: translateY(calc(100% - 66px + var(--arrastre, 0px)));
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cajon.abierto { transform: translateY(var(--arrastre, 0px)); }
+.cajon.arrastrando { transition: none; }
+.cajon-cabeza { padding: 8px 18px 4px; touch-action: none; cursor: grab; flex: none; }
+.cajon-asa { display: block; width: 42px; height: 5px; border-radius: 3px; background: var(--linea); margin: 0 auto 6px; }
+.cajon-titulo {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  width: 100%;
+  padding: 0 0 6px;
+  min-height: 38px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.cajon-titulo h2 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.cajon-titulo .cuenta { color: var(--texto-2); font-weight: 650; font-size: 0.85rem; }
+.cajon-dentro { overflow-y: auto; padding: 4px 16px 24px; overscroll-behavior: contain; }
+.cajon-accion { position: sticky; bottom: -24px; z-index: 1; padding: 14px 0 12px; margin-bottom: -12px; background: linear-gradient(180deg, color-mix(in srgb, var(--papel) 0%, transparent) 0, var(--papel) 14px); }
+.marcar { list-style: none; margin: 0; padding: 0; }
+.marcar li + li { border-top: 1px solid var(--linea); }
+.marcar-cosa {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 2px;
+  text-align: left;
+  cursor: pointer;
+}
+.marcar-caja { width: 24px; height: 24px; border-radius: 8px; border: 2px solid var(--texto-3); display: grid; place-items: center; color: #ffffff; flex: none; transition: background 0.15s, border-color 0.15s; }
+.marcar-cosa.hecha .marcar-caja { background: #1a9150; border-color: #1a9150; }
+.marcar-cosa.hecha span:last-child { color: var(--texto-2); text-decoration: line-through; }
+.marcar-cosa:disabled { cursor: default; opacity: 1; }

@@ -8,6 +8,7 @@
 //     duerme ahí): salen en `extras`, sacadas de `zona.extras` de la config.
 //   · Un piso aprobado brilla según la nota: de 5 a 7 limpio, de 7 a 9 muy limpio, 9 o más reluciente.
 //   · Cada muñeco hace lo suyo: el móvil si no ha empezado, barrer, esperar la nota o descansar.
+//   · Mientras alguien limpia, lo sucio de su piso se va quitando según lo que marca de «Lo que se limpia».
 //   · Insignias: corona del rey del mes, racha (3 pisos seguidos con 9 o más), mejorando o empeorando,
 //     debe un piso de antes y peste (2 semanas seguidas sin hacer su piso o 3 «Esto es tuyo» sin recoger en el mes).
 import type { Estado } from './estado';
@@ -26,8 +27,9 @@ export interface PersonaEscena {
   dice?: string;
 }
 
-/** [estado, nivel, días sin limpiar]: el nivel es el brillo si está limpio y la suciedad (0–3, por los días) si no. */
-export type ValorPiso = [EstadoPiso, number, number?];
+/** [estado, nivel, días sin limpiar, lo hecho de la lista (0–1, mientras se limpia)]: el nivel es el brillo si está
+ *  limpio y la suciedad (0–3, por los días) si no. Mientras se limpia, lo sucio se va quitando según lo marcado. */
+export type ValorPiso = [EstadoPiso, number, number?, number?];
 
 export interface EscenaCasa {
   turnos: Record<MiembroId, Piso3D>;
@@ -154,8 +156,9 @@ export function escenaCasa(e: Estado): EscenaCasa | null {
     let estado: ValorPiso;
     if (t.estado === 'aprobada') estado = ['limpio', brillo(t.nota)];
     else if (t.estado === 'esperando') estado = ['esperando', 0];
-    else if (t.empezada !== undefined && t.estado === 'pendiente') estado = ['limpiando', 0, dias];
-    else estado = ['sucio', sucio, dias];
+    else if ((t.empezada !== undefined && t.estado === 'pendiente') || ((t.estado === 'pendiente' || t.estado === 'suspendida') && t.marcadas.length > 0)) {
+      estado = ['limpiando', 0, dias, t.lista.length ? t.marcadas.length / t.lista.length : 0];
+    } else estado = ['sucio', sucio, dias];
     pisos[piso] = estado;
 
     const p: PersonaEscena = { insignias: insigniasDe(e, t.miembro) };

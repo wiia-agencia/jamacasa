@@ -1,18 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EscenaCasa } from '../core/escena';
+import type { Luz } from '../core/luz';
 import type { Miembro, MiembroId } from '../core/tipos';
 import '../casa3d/visor.css';
 
-// La casa en 3D de Limpieza. three.js va en un archivo aparte que solo se baja al abrir esta pantalla,
-// y la casa se construye una sola vez: al cambiar de pantalla se aparca y al volver se vuelve a enganchar.
+// La casa en 3D. three.js va en un archivo aparte que solo se baja al abrir Limpieza (o la casa de un día en el
+// historial), y la casa se construye una sola vez: al cambiar de pantalla se aparca y al volver se vuelve a enganchar.
+// Dos formas: la pantalla de juego de Limpieza (la D: los pisos separados, la cámara va al piso de quien toques y
+// encima de cada muñeco su bocadillo) y la casa de siempre (la del historial).
 
 type Modulo = typeof import('../casa3d/index.js');
 type Visor = ReturnType<Modulo['crearVisor']>;
 
-/** Estilo de la casa: la A2 (la A con menos gris) mientras Javi no elija otra. */
+/** Estilo de la casa */
 export const ESTILO_CASA = 'juguete_vivo'; // la A3, «Casita viva»: la que eligió Javi el 9 de noviembre
 
 const COLORES: Record<string, string> = { naranja: '#d96a14', verde: '#1a9150', azul: '#2569db' };
+
+export interface BurbujaCasa {
+  id: MiembroId;
+  titulo: string;
+  sub?: string;
+  tono: string;
+  alTocar?: () => void;
+}
+
+export interface JuegoCasa {
+  /** El piso que se mira: el de esa persona (null: el tuyo) */
+  foco: MiembroId | null;
+  burbujas: BurbujaCasa[];
+  luz: Luz;
+  /** Lo que tapan la cabecera y el cajón (para que los bocadillos no se metan debajo) */
+  margenes: { arriba: number; abajo: number };
+  /** Cuando la casa está lista: las caras de los muñecos y el color de arriba del cielo */
+  alListo?: (v: { caras: Record<string, string>; cielo: string }) => void;
+}
 
 let modulo: Promise<Modulo> | null = null;
 let unico: { marco: HTMLDivElement; visor: Visor; clave: string } | null = null;
@@ -26,27 +48,34 @@ function hayWebGL(): boolean {
   }
 }
 
-export function Casa3D({ miembros, escena, yo }: { miembros: Miembro[]; escena: EscenaCasa; yo: MiembroId }) {
+export function Casa3D({ miembros, escena, yo, juego, alFallar }: { miembros: Miembro[]; escena: EscenaCasa; yo: MiembroId; juego?: JuegoCasa; alFallar?: () => void }) {
   const host = useRef<HTMLDivElement>(null);
-  const [listo, setListo] = useState(Boolean(unico));
+  const [listo, setListo] = useState(false);
   const [fallo, setFallo] = useState(false);
   const ultima = useRef(escena);
   ultima.current = escena;
+  const ultimoJuego = useRef(juego);
+  ultimoJuego.current = juego;
+  const modo = juego ? 'juego' : 'casa';
 
   useEffect(() => {
-    if (!hayWebGL()) { setFallo(true); return; }
+    const fallar = () => { setFallo(true); alFallar?.(); };
+    if (!hayWebGL()) { fallar(); return; }
     let vivo = true;
     (modulo ??= import('../casa3d/index.js'))
       .then((m) => {
         if (!vivo || !host.current) return;
-        const clave = `${ESTILO_CASA}|${miembros.map((x) => `${x.id}:${x.nombre}:${x.color}:${JSON.stringify(x.aspecto ?? {})}`).join('|')}`;
+        const clave = `${modo}|${ESTILO_CASA}|${miembros.map((x) => `${x.id}:${x.nombre}:${x.color}:${JSON.stringify(x.aspecto ?? {})}`).join('|')}`;
+        const j = ultimoJuego.current;
         if (!unico || unico.clave !== clave) {
           if (unico) { unico.visor.destruir(); unico.marco.remove(); unico = null; }
           m.configurarPersonas(miembros.map((x) => ({ id: x.id, nombre: x.nombre, color: COLORES[x.color] ?? x.color, aspecto: x.aspecto })));
           const marco = document.createElement('div');
-          marco.className = 'c3-visor casa3d-marco';
+          marco.className = j ? 'c3-visor casa3d-escenario' : 'c3-visor casa3d-marco';
           host.current.appendChild(marco);
-          const visor = m.crearVisor(marco, { estilo: ESTILO_CASA, verComo: yo, escena: ultima.current, vista: 'foco' });
+          const visor = m.crearVisor(marco, j
+            ? { estilo: ESTILO_CASA, verComo: yo, escena: ultima.current, juego: true, luz: j.luz }
+            : { estilo: ESTILO_CASA, verComo: yo, escena: ultima.current, vista: 'foco' });
           unico = { marco, visor, clave };
         } else {
           host.current.appendChild(unico.marco);
@@ -54,24 +83,51 @@ export function Casa3D({ miembros, escena, yo }: { miembros: Miembro[]; escena: 
           unico.visor.setEscena(ultima.current);
           unico.visor.seguir();
         }
+        if (j) {
+          const v = unico.visor;
+          v.setMargenes(j.margenes);
+          v.setLuz(j.luz);
+          v.setFoco(j.foco ? v.nivelDe(j.foco) : null);
+          v.setBurbujas(j.burbujas);
+          j.alListo?.({ caras: v.retratos(), cielo: v.cielo() });
+        }
         setListo(true);
       })
       .catch(() => {
         if (unico) { unico.marco.remove(); unico = null; }
-        setFallo(true);
+        fallar();
       });
     return () => {
       vivo = false;
       if (unico) { unico.visor.pausar(); unico.marco.remove(); }
     };
-    // Se engancha una vez; la escena y la persona cambian abajo
+    // Se engancha una vez; la escena, la persona y lo del juego cambian abajo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { if (listo && unico) unico.visor.setEscena(escena); }, [escena, listo]);
   useEffect(() => { if (listo && unico) unico.visor.setVerComo(yo); }, [yo, listo]);
+  const foco = juego?.foco ?? null;
+  const burbujas = juego?.burbujas;
+  const luz = juego?.luz;
+  const margenes = juego?.margenes;
+  useEffect(() => { if (listo && unico && juego) unico.visor.setFoco(foco ? unico.visor.nivelDe(foco) : null); }, [foco, listo, escena]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (listo && unico && burbujas) unico.visor.setBurbujas(burbujas); }, [burbujas, listo]);
+  useEffect(() => {
+    if (!listo || !unico || !luz) return;
+    unico.visor.setLuz(luz);
+    ultimoJuego.current?.alListo?.({ caras: unico.visor.retratos(), cielo: unico.visor.cielo() });
+  }, [luz, listo]);
+  useEffect(() => { if (listo && unico && margenes) unico.visor.setMargenes(margenes); }, [margenes?.arriba, margenes?.abajo, listo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (fallo) return null;
+  if (juego) {
+    return (
+      <div className="casa3d-juego" ref={host} role="group" aria-label="La casa en 3D, con los tres pisos. Toca una cara de arriba para ir a su piso.">
+        {!listo && <div className="casa3d-cargando">Dibujando la casa…</div>}
+      </div>
+    );
+  }
   return (
     <div className="casa3d" ref={host} role="group" aria-label="La casa en 3D: tu piso delante y los de los otros dos detrás. Toca el rótulo de un piso para verlo de cerca.">
       {!listo && <div className="casa3d-cargando">Dibujando la casa…</div>}

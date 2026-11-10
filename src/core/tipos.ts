@@ -77,6 +77,7 @@ export interface Config {
 
 export type TipoEvento =
   | 'zona_empezada' // «Empezar a limpiar»: tu muñeco se pone a barrer y se avisa a los otros dos
+  | 'zona_cosa' // marcas (o desmarcas) una cosa de «Lo que se limpia» de tu piso: no avisa a nadie
   | 'zona_hecha'
   | 'puntuacion'
   | 'basura_llena'
@@ -105,6 +106,7 @@ export interface Evento {
 
 // Datos de cada tipo de evento (lo que se guarda en "datos")
 export interface DatosZonaEmpezada { semana: number }
+export interface DatosZonaCosa { semana: number; cosa: string; hecha: boolean }
 export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string }
 export interface DatosPuntuacion {
   semana: number;

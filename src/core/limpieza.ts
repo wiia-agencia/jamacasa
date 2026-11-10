@@ -36,6 +36,8 @@ export interface Tarea {
   estado: EstadoTarea;
   primerHecho?: number;
   empezada?: number; // cuándo le dio a «Empezar a limpiar» (la primera vez)
+  lista: string[]; // lo que se limpia en su piso (lo de siempre y, si le toca, lo que solo entra a veces)
+  marcadas: string[]; // lo que ya ha marcado de la lista en esta vuelta (si se suspende, se empieza de cero)
   retrasoDias: number; // días de retraso hasta que se marcó (o hasta ahora)
   enCurso: boolean; // la semana aún no ha terminado
   limiteSinHacer: number;
@@ -51,8 +53,12 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
   const hechos = new Map<string, Evento[]>();
   const votos = new Map<string, Evento[]>();
   const empezadas = new Map<string, number>();
+  const cosas = new Map<string, Evento[]>();
   for (const e of eventos) {
-    if (e.tipo === 'zona_empezada') {
+    if (e.tipo === 'zona_cosa') {
+      const k = `${e.datos?.semana}|${e.autor}`;
+      (cosas.get(k) ?? cosas.set(k, []).get(k)!).push(e);
+    } else if (e.tipo === 'zona_empezada') {
       const k = `${e.datos?.semana}|${e.autor}`;
       if (!empezadas.has(k) || e.ts < empezadas.get(k)!) empezadas.set(k, e.ts);
     } else if (e.tipo === 'zona_hecha') {
@@ -97,6 +103,7 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
       const ult = intentos[intentos.length - 1];
       let estado: EstadoTarea = 'pendiente';
       if (ult) estado = !ult.resuelto ? 'esperando' : ult.aprobado ? 'aprobada' : 'suspendida';
+      const deLaLista = listaDe(zona, m.id);
 
       tareas.push({
         semana: w,
@@ -106,6 +113,8 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         estado,
         primerHecho,
         empezada: empezadas.get(`${w}|${m.id}`),
+        lista: deLaLista,
+        marcadas: marcadasDe(cosas.get(`${w}|${m.id}`) ?? [], deLaLista, intentos, estado),
         retrasoDias,
         enCurso: ahora <= fin,
         limiteSinHacer,
@@ -115,6 +124,35 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
     }
   }
   return tareas;
+}
+
+/** Lo que se limpia en un piso para quien le toca: la lista de siempre y lo que solo entra si le toca a él
+ *  (el pasillo de las habitaciones de arriba). */
+export function listaDe(zona: Zona, m: MiembroId): string[] {
+  return [...zona.checklist, ...(zona.extras ?? []).filter((x) => x.para.includes(m)).map((x) => x.nombre)];
+}
+
+/** Lo marcado de la lista («zona_cosa»: { semana, cosa, hecha }; vale lo último de cada cosa). Cuenta lo de esta
+ *  vuelta: si el piso se suspendió, lo de antes ya no vale y se empieza de cero; si ya está marcado como hecho, lo
+ *  que se marcó hasta entonces. */
+function marcadasDe(evs: Evento[], lista: string[], intentos: Intento[], estado: EstadoTarea): string[] {
+  if (!evs.length) return [];
+  const ult = intentos[intentos.length - 1];
+  const penult = intentos[intentos.length - 2];
+  let desde = -Infinity, hasta = Infinity;
+  if (estado === 'suspendida') desde = ult.resueltoEn ?? ult.hecho.ts;
+  else if (ult) { hasta = ult.hecho.ts; if (penult) desde = penult.resueltoEn ?? penult.hecho.ts; }
+  const ultimo = new Map<string, boolean>();
+  for (const e of evs.slice().sort((a, b) => a.ts - b.ts)) {
+    if (e.ts <= desde || e.ts > hasta) continue;
+    ultimo.set(String(e.datos?.cosa ?? ''), e.datos?.hecha !== false);
+  }
+  return lista.filter((c) => ultimo.get(c));
+}
+
+/** Cuánto lleva de la lista: { hechas, total }. */
+export function progreso(t: Tarea): { hechas: number; total: number } {
+  return { hechas: t.marcadas.length, total: t.lista.length };
 }
 
 function resolverIntento(h: Evento, n: number, jueces: MiembroId[], votosEv: Evento[], normas: Normas, ahora: number): Intento {

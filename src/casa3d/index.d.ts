@@ -10,6 +10,14 @@ export interface Visor {
   pausar(): void;
   seguir(): void;
   destruir(): void;
+  // pantalla de juego (Limpieza)
+  setFoco(nivel: number | null): void;
+  setBurbujas(lista: { id: string; titulo: string; sub?: string; tono: string; alTocar?: () => void }[]): void;
+  setLuz(luz: import('../core/luz').Luz | null): void;
+  setMargenes(m: { arriba?: number; abajo?: number }): void;
+  cielo(): string;
+  nivelDe(id: string): number | null;
+  retratos(tam?: number): Record<string, string>;
 }
 export function crearVisor(contenedor: HTMLElement, opciones: Record<string, unknown>): Visor;
 export function configurarPersonas(lista: { id: string; nombre: string; color: string; aspecto?: import('../core/tipos').Aspecto }[]): void;

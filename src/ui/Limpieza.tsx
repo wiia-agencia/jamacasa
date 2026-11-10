@@ -1,13 +1,15 @@
-import { Bath, BedDouble, ChevronRight, Dices, House, Info, Lock, Plus, Sparkles } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Bath, BedDouble, Check, ChevronRight, Clock3, Dices, House, Info, Lock, Plus, Sparkles, TriangleAlert, Trash2 } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as PEvento, type ReactNode } from 'react';
+import { bocadillos, fichaDe, marcaDe, resumenDe, type Bocadillo } from '../core/bocadillos';
 import { escenaCasa } from '../core/escena';
 import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, textoEspacio } from '../core/espacio';
-import { rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
+import { avisosBasuraAbiertos, rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
 import type { Tarea } from '../core/limpieza';
-import { rangoSemana } from '../core/tiempo';
-import type { Zona } from '../core/tipos';
-import { Casa3D } from './Casa3D';
-import { useCasa } from './contexto';
+import { luzDe } from '../core/luz';
+import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, rangoSemana } from '../core/tiempo';
+import type { MiembroId, Zona } from '../core/tipos';
+import { Casa3D, type BurbujaCasa } from './Casa3D';
+import { claseColor, miembro, useCasa } from './contexto';
 import { EstadoTarea } from './Hoy';
 import { Avatar, Nombre, Placa, Seccion } from './piezas';
 
@@ -23,19 +25,346 @@ export function ChapaEstado({ t }: { t: Tarea }) {
   if (t.estado === 'suspendida') return <Placa valor={i.media!} peq suspensa />;
   if (t.estado === 'esperando') return <span className="chapa">Esperando nota</span>;
   if (!t.enCurso) return <span className="chapa mal">{t.sinHacer ? 'Sin hacer' : 'Tarde'}</span>;
-  if (t.empezada !== undefined) return <span className="chapa oro">Limpiando</span>;
+  if (t.empezada !== undefined || t.marcadas.length > 0) return <span className="chapa oro">Limpiando</span>;
   return <span className="chapa">Pendiente</span>;
 }
 
+/** Limpieza: la pantalla de juego (la D, la que eligió Javi el 10 de noviembre) con la casa viva (la H). Si la casa
+ *  no se puede dibujar (aún no ha empezado la rotación o el móvil no tiene 3D), la lista de siempre. */
 export function Limpieza() {
-  const { estado, config, abrir, yo, abrirHistorial } = useCasa();
-  const w = estado.semana;
+  const { estado } = useCasa();
   const escena = useMemo(() => escenaCasa(estado), [estado]);
-  const basura = semanaBasura(estado, w);
-  const futuras = rotacionFutura(config, Math.max(w, estado.semanaInicio), 6);
-  const historial = [];
-  for (let k = w - 1; k >= Math.max(estado.semanaInicio, w - 8); k--) historial.push(k);
+  const [sin3D, setSin3D] = useState(false);
+  if (!escena || sin3D) return <ListaLimpieza />;
+  return <PantallaJuego alFallar={() => setSin3D(true)} />;
+}
 
+// ——— La pantalla de juego ———
+
+/** Para las capturas y las pruebas: ?hora=20:30 enseña la luz de esa hora (solo la luz). */
+function horaForzada(ahora: number): number | null {
+  try {
+    const h = new URLSearchParams(location.search).get('hora');
+    const m = h && /^(\d{1,2}):(\d{2})$/.exec(h);
+    if (!m) return null;
+    return inicioDia(diaLocal(ahora)) + (Number(m[1]) * 60 + Number(m[2])) * 60_000;
+  } catch {
+    return null;
+  }
+}
+
+function tituloSemana(w: number): string {
+  const a = fechaDeDia(lunesDe(w)), b = fechaDeDia(lunesDe(w) + 6);
+  return a.m === b.m ? `Semana del ${a.d} al ${b.d}` : `Semana ${rangoSemana(w)}`;
+}
+
+const ALTO_CABECERA = 92;
+const ASOMA_CAJON = 66;
+
+function PantallaJuego({ alFallar }: { alFallar: () => void }) {
+  const { estado, config, yo, abrir, acciones, avisar } = useCasa();
+  const escena = useMemo(() => escenaCasa(estado)!, [estado]);
+  const w = estado.semana;
+  const mia = tareaDe(estado, w, yo);
+  const [foco, setFoco] = useState<MiembroId | null>(null);
+  const [abierto, setAbierto] = useState(false);
+  const [menuBasura, setMenuBasura] = useState(false);
+  const [caras, setCaras] = useState<Record<string, string>>({});
+  const [cielo, setCielo] = useState('');
+  const [altoCajon, setAltoCajon] = useState(0);
+
+  // la luz de la hora de verdad (se recalcula cada minuto)
+  const minuto = Math.floor(estado.ahora / 60_000);
+  const luz = useMemo(() => luzDe(horaForzada(estado.ahora) ?? estado.ahora), [minuto]); // eslint-disable-line react-hooks/exhaustive-deps
+  const deNoche = luz.dia < 0.45;
+
+  useEffect(() => {
+    if (!cielo) return;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', cielo);
+  }, [cielo]);
+
+  // la pantalla de juego ocupa todo lo que hay entre lo de arriba (la banda del modo prueba) y el menú; la página no se mueve
+  const [banda, setBanda] = useState(0);
+  useLayoutEffect(() => {
+    let h = 0;
+    document.querySelectorAll('.banda-prueba').forEach((b) => { h += b.getBoundingClientRect().height; });
+    setBanda(h);
+    document.documentElement.classList.add('sin-scroll');
+    window.scrollTo({ top: 0 });
+    return () => document.documentElement.classList.remove('sin-scroll');
+  }, []);
+
+  const empezar = async (t: Tarea) => {
+    await acciones.empezar(t.semana);
+    avisar('¡A por ello! Ya saben que has empezado.');
+    setAbierto(true);
+  };
+
+  const viendoOtro = foco !== null && foco !== yo;
+  const burbujas: BurbujaCasa[] = useMemo(
+    () =>
+      bocadillos(config, estado, yo).map((b: Bocadillo) => {
+        const t = tareaDe(estado, w, b.miembro);
+        let alTocar: (() => void) | undefined;
+        if (t && b.accion === 'empezar') alTocar = () => { empezar(t); };
+        else if (b.accion === 'lista') alTocar = () => { setFoco(null); setAbierto(true); };
+        else if (t && b.accion === 'puntuar') {
+          const i = t.intentos[t.intentos.length - 1];
+          alTocar = () => abrir({ tipo: 'puntuar', tarea: t, intento: i });
+        } else if (t && b.accion === 'tarea') alTocar = () => (b.miembro === yo ? setAbierto(true) : abrir({ tipo: 'tarea', tarea: t }));
+        return { id: b.miembro, titulo: b.titulo, sub: b.sub, tono: b.tono, alTocar };
+      }),
+    [estado, config, yo], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // lo que tapan la cabecera y el cajón (o la ficha), para que los bocadillos no se metan debajo
+  const abajo = viendoOtro ? 175 : abierto ? Math.max(altoCajon, 300) : ASOMA_CAJON + 92;
+  const margenes = useMemo(() => ({ arriba: ALTO_CABECERA, abajo }), [abajo]);
+
+  const ordenCaras = [yo, ...config.miembros.map((m) => m.id).filter((id) => id !== yo)];
+  const basura = escena.basura;
+  const basuraMia = estado.basura === yo && avisosBasuraAbiertos(estado).length > 0;
+
+  return (
+    <div className={`juego ${deNoche ? 'de-noche' : ''}`} style={{ top: banda || undefined, ['--cielo-arriba' as string]: cielo || undefined }}>
+      <Casa3D
+        miembros={config.miembros}
+        escena={escena}
+        yo={yo}
+        alFallar={alFallar}
+        juego={{ foco, burbujas, luz, margenes, alListo: (v) => { setCaras(v.caras); setCielo(v.cielo); } }}
+      />
+
+      <header className="juego-arriba">
+        <div className="juego-semana">
+          <h1>{tituloSemana(w)}</h1>
+          <p>{resumenDe(estado, yo)}</p>
+        </div>
+        <div className="juego-caras" role="group" aria-label="Ver el piso de cada uno">
+          {ordenCaras.map((id) => {
+            const m = miembro(config, id);
+            const mc = marcaDe(estado, id, yo);
+            const activa = (foco ?? yo) === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`juego-cara ${claseColor(m.color)} ${activa ? 'activa' : ''}`}
+                aria-pressed={activa}
+                aria-label={id === yo ? 'Tu piso' : `El piso de ${m.nombre}`}
+                onClick={() => { setFoco(id === yo ? null : id); setMenuBasura(false); if (id !== yo) setAbierto(false); }}
+              >
+                <span className="juego-foto">{caras[id] ? <img src={caras[id]} alt="" /> : <Avatar id={id} />}</span>
+                {mc.marca && <i className={`juego-marca ${mc.tono}`} aria-hidden="true">{mc.marca}</i>}
+                <span className="juego-nombre">{id === yo ? 'Tú' : m.nombre}</span>
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      {!abierto && !viendoOtro && (
+        <>
+          <button type="button" className="juego-redondo izq" onClick={() => abrir({ tipo: 'sorteo' })} aria-label="Ver el sorteo de la semana">
+            <Dices size={26} aria-hidden="true" />
+            <span>Sorteo</span>
+          </button>
+          <button type="button" className="juego-redondo der" onClick={() => setMenuBasura(!menuBasura)} aria-expanded={menuBasura} aria-label="La basura">
+            <Trash2 size={25} aria-hidden="true" />
+            {basura && <b className={basuraMia ? 'tuya' : ''}>{basura.bolsas}</b>}
+            <span>Basura</span>
+          </button>
+          {menuBasura && <MenuBasura cerrar={() => setMenuBasura(false)} />}
+        </>
+      )}
+
+      {viendoOtro && <FichaPiso id={foco!} caras={caras} volver={() => setFoco(null)} />}
+
+      {!viendoOtro && (
+        <Cajon abierto={abierto} setAbierto={setAbierto} alMedir={setAltoCajon} resumen={<ResumenCajon t={mia} />}>
+          {mia ? <LoQueSeLimpia t={mia} empezar={empezar} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
+          <TuEspacio />
+          <Secciones />
+        </Cajon>
+      )}
+    </div>
+  );
+}
+
+/** Lo que se ve del cajón cerrado: «Lo que se limpia · 2 de 6» o cómo está tu piso. */
+function ResumenCajon({ t }: { t: Tarea | undefined }) {
+  if (!t) return <h2>Esta semana</h2>;
+  const i = t.intentos[t.intentos.length - 1];
+  let derecha: ReactNode = <span className="cuenta">{t.lista.length ? `${t.marcadas.length} de ${t.lista.length}` : ''}</span>;
+  if (t.estado === 'aprobada') derecha = <Placa valor={i.media!} peq auto={i.auto} />;
+  else if (t.estado === 'esperando') derecha = <span className="cuenta">Esperando nota</span>;
+  return (
+    <>
+      <h2>Lo que se limpia</h2>
+      {derecha}
+    </>
+  );
+}
+
+/** El cajón de abajo: cerrado asoma lo que se limpia; se abre tocándolo o subiéndolo con el dedo. */
+function Cajon({ abierto, setAbierto, alMedir, resumen, children }: { abierto: boolean; setAbierto: (a: boolean) => void; alMedir: (h: number) => void; resumen: ReactNode; children: ReactNode }) {
+  const caja = useRef<HTMLDivElement>(null);
+  const arrastre = useRef<{ y: number; dy: number; t: number } | null>(null);
+  const [dy, setDy] = useState(0);
+  useEffect(() => {
+    const el = caja.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => alMedir(el.getBoundingClientRect().height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [alMedir]);
+  const bajar = (e: PEvento) => { arrastre.current = { y: e.clientY, dy: 0, t: Date.now() }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
+  const mover = (e: PEvento) => {
+    const a = arrastre.current;
+    if (!a) return;
+    a.dy = e.clientY - a.y;
+    setDy(abierto ? Math.max(0, a.dy) : Math.min(0, a.dy));
+  };
+  const soltar = () => {
+    const a = arrastre.current;
+    arrastre.current = null;
+    setDy(0);
+    if (!a) return;
+    if (Math.abs(a.dy) < 8) setAbierto(!abierto);
+    else if (a.dy < -40) setAbierto(true);
+    else if (a.dy > 40) setAbierto(false);
+  };
+  return (
+    <section
+      ref={caja}
+      className={`cajon ${abierto ? 'abierto' : ''} ${dy ? 'arrastrando' : ''}`}
+      style={dy ? { ['--arrastre' as string]: `${dy}px` } : undefined}
+      aria-label="Lo que se limpia y el resto de Limpieza"
+    >
+      <div className="cajon-cabeza" onPointerDown={bajar} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
+        <span className="cajon-asa" aria-hidden="true" />
+        <button type="button" className="cajon-titulo" aria-expanded={abierto} onClick={(e) => { if (e.detail === 0) setAbierto(!abierto); }}>
+          {resumen}
+        </button>
+      </div>
+      <div className="cajon-dentro pila">{children}</div>
+    </section>
+  );
+}
+
+/** Tu lista de esta semana: se marca cosa a cosa (y al marcar la primera, empiezas a limpiar). */
+function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promise<void> }) {
+  const { abrir, acciones, estado } = useCasa();
+  const [ocupada, setOcupada] = useState<string | null>(null);
+  const marcable = t.estado === 'pendiente' || t.estado === 'suspendida';
+  const empezada = t.empezada !== undefined || t.marcadas.length > 0;
+  const todo = t.lista.length > 0 && t.marcadas.length === t.lista.length;
+  const fin = finSemana(t.semana);
+  const marcar = async (cosa: string) => {
+    if (!marcable || ocupada) return;
+    setOcupada(cosa);
+    try {
+      if (!empezada && t.estado === 'pendiente') await acciones.empezar(t.semana);
+      await acciones.marcarCosa(t.semana, cosa, !t.marcadas.includes(cosa));
+    } finally {
+      setOcupada(null);
+    }
+  };
+  return (
+    <section className="pila-s" aria-label="Lo que se limpia en tu piso">
+      <div className="fila entre">
+        <p className="suave peq" style={{ margin: 0 }}>{t.zona.nombre}</p>
+        <button type="button" className="icono-boton" aria-label={`Qué entra en el ${t.zona.nombre.toLowerCase()}`} onClick={() => abrir({ tipo: 'zona', zona: t.zona })}>
+          <Info size={19} />
+        </button>
+      </div>
+      {t.lista.length > 0 && (
+        <ul className="marcar" aria-label="Lo que tiene que quedar limpio">
+          {t.lista.map((c) => {
+            const hecha = t.marcadas.includes(c);
+            return (
+              <li key={c}>
+                <button type="button" className={`marcar-cosa ${hecha ? 'hecha' : ''}`} aria-pressed={hecha} disabled={!marcable || ocupada === c} onClick={() => marcar(c)}>
+                  <span className="marcar-caja" aria-hidden="true">{hecha && <Check size={15} strokeWidth={3} />}</span>
+                  <span>{c}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {t.estado === 'pendiente' ? (
+        <div className="cajon-accion pila-s">
+          {estado.ahora > fin ? (
+            <p className="estado-linea mal"><TriangleAlert size={17} /> Vas tarde: {t.retrasoDias} {t.retrasoDias === 1 ? 'día' : 'días'}</p>
+          ) : (
+            <p className="estado-linea"><Clock3 size={17} /> Hasta el domingo a las 23:59. Quedan {duracion(fin - estado.ahora)}.</p>
+          )}
+          {!empezada ? (
+            <button type="button" className="boton ancho naranja" onClick={() => empezar(t)}>Empezar a limpiar</button>
+          ) : (
+            <button type="button" className={`boton ancho ${todo ? 'verde' : ''}`} onClick={() => abrir({ tipo: 'hecho', tarea: t })}>Ya está limpio</button>
+          )}
+        </div>
+      ) : (
+        <EstadoTarea t={t} />
+      )}
+    </section>
+  );
+}
+
+/** La ficha de otro, al tocar su cara: su piso, cómo va y, si te toca, ponerle nota. */
+function FichaPiso({ id, caras, volver }: { id: MiembroId; caras: Record<string, string>; volver: () => void }) {
+  const { config, estado, yo, abrir } = useCasa();
+  const f = fichaDe(config, estado, id, yo);
+  const t = tareaDe(estado, estado.semana, id);
+  if (!f || !t) return null;
+  const m = miembro(config, id);
+  const i = t.intentos[t.intentos.length - 1];
+  return (
+    <div className={`juego-ficha ${claseColor(m.color)}`} role="region" aria-label={`El piso de ${m.nombre}`}>
+      <button type="button" className="juego-ficha-cuerpo" onClick={() => abrir({ tipo: 'tarea', tarea: t })}>
+        <span className="juego-foto">{caras[id] ? <img src={caras[id]} alt="" /> : <Avatar id={id} />}</span>
+        <span className="crece">
+          <b>{f.titulo}</b>
+          <span>{f.texto}</span>
+        </span>
+      </button>
+      {f.boton ? (
+        <button type="button" className="boton oro" onClick={() => abrir({ tipo: 'puntuar', tarea: t, intento: i })}>{f.boton.texto}</button>
+      ) : f.nota !== undefined ? (
+        <Placa valor={f.nota} suspensa={f.suspensa} />
+      ) : null}
+      <button type="button" className="juego-ficha-volver" onClick={volver}>Tu piso</button>
+    </div>
+  );
+}
+
+/** El menú del botón de la basura: de quién es esta semana y lo que se puede hacer. */
+function MenuBasura({ cerrar }: { cerrar: () => void }) {
+  const { estado, yo, acciones, avisar, abrir } = useCasa();
+  const resp = estado.basura;
+  const abiertos = avisosBasuraAbiertos(estado);
+  const mia = resp === yo;
+  return (
+    <div className="juego-menu" role="dialog" aria-label="La basura">
+      <p className="negrita">{resp ? (mia ? 'Esta semana la basura es tuya' : <>La basura: le toca a <Nombre id={resp} /></>) : 'La basura'}</p>
+      <p className="peq suave">{abiertos.length ? `Está llena: ${abiertos.length === 1 ? '1 aviso' : `${abiertos.length} avisos`} sin sacar.` : 'Nadie ha avisado de que esté llena.'}</p>
+      {mia && abiertos.length > 0 && (
+        <button type="button" className="boton ancho verde" onClick={async () => { await acciones.basuraSacada(); cerrar(); avisar('Basura sacada. ¡Gracias!'); }}>Ya la saqué</button>
+      )}
+      {!mia && resp && (
+        <button type="button" className="boton ancho claro" onClick={() => { cerrar(); abrir({ tipo: 'basura' }); }}>Avisar: está llena</button>
+      )}
+    </div>
+  );
+}
+
+// ——— La lista de siempre (sin la casa en 3D) y lo que va dentro del cajón ———
+
+function ListaLimpieza() {
+  const { estado, abrir } = useCasa();
+  const w = estado.semana;
   return (
     <div className="margen pila">
       <header className="cabecera">
@@ -49,11 +378,23 @@ export function Limpieza() {
           </button>
         )}
       </header>
-
-      {escena && <Casa3D miembros={config.miembros} escena={escena} yo={yo} />}
       {estado.empezado && <TuPisoAhora />}
       <TuEspacio />
+      <Secciones />
+    </div>
+  );
+}
 
+/** Esta semana, las próximas, los pisos y las semanas anteriores (con «Ver todo», que abre el historial). */
+function Secciones() {
+  const { estado, config, abrir, abrirHistorial } = useCasa();
+  const w = estado.semana;
+  const basura = semanaBasura(estado, w);
+  const futuras = rotacionFutura(config, Math.max(w, estado.semanaInicio), 6);
+  const historial: number[] = [];
+  for (let k = w - 1; k >= Math.max(estado.semanaInicio, w - 8); k--) historial.push(k);
+  return (
+    <>
       {estado.empezado && (
         <Seccion titulo="Esta semana">
           <div className="caja">
@@ -140,19 +481,17 @@ export function Limpieza() {
           </div>
         </Seccion>
       )}
-    </div>
+    </>
   );
 }
 
-/** Tu piso de esta semana: lo que tiene que quedar limpio y los botones (empezar y marcar como hecho). */
+/** Tu piso de esta semana (en la lista de siempre): lo que tiene que quedar limpio y los botones. */
 function TuPisoAhora() {
   const { estado, yo, abrir, acciones, avisar } = useCasa();
   const [empezando, setEmpezando] = useState(false);
   const t = tareaDe(estado, estado.semana, yo);
   if (!t) return null;
   const puedeEmpezar = t.estado === 'pendiente' && t.empezada === undefined;
-  // lo que solo entra cuando el piso te toca a ti (el pasillo de las habitaciones de arriba)
-  const extras = (t.zona.extras ?? []).filter((x) => x.para.includes(yo));
   return (
     <section className="tarjeta pila-s tu-piso-limpieza" aria-label="Tu piso esta semana">
       <div className="fila entre" style={{ alignItems: 'flex-start' }}>
@@ -165,10 +504,9 @@ function TuPisoAhora() {
           <Info size={19} />
         </button>
       </div>
-      {(t.zona.checklist.length > 0 || extras.length > 0) && (
+      {t.lista.length > 0 && (
         <ul className="lista-limpiar" aria-label="Lo que tiene que quedar limpio">
-          {t.zona.checklist.map((c) => <li key={c}>{c}</li>)}
-          {extras.map((x) => <li key={x.id}>{x.nombre}</li>)}
+          {t.lista.map((c) => <li key={c}>{c}</li>)}
         </ul>
       )}
       {puedeEmpezar && (

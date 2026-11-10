@@ -173,13 +173,15 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
   }, []);
 
   // Color de la barra de arriba del móvil (la de la hora): el cielo en la portada, el fondo en el resto.
+  // En Limpieza la pone la propia pantalla: el color del cielo de la casa a esa hora.
   // La barra de gestos de abajo no la cambia esto: sale del theme_color del manifiesto (ver .nav en styles.css).
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) return;
+    if (pantalla === 'limpieza' && !historial) return;
     const fondo = getComputedStyle(document.documentElement).getPropertyValue('--seran').trim();
-    meta.setAttribute('content', pantalla === 'hoy' ? '#e86569' : fondo || '#edf1f6');
-  }, [pantalla, tema]);
+    meta.setAttribute('content', pantalla === 'hoy' && !historial ? '#e86569' : fondo || '#edf1f6');
+  }, [pantalla, tema, historial]);
 
   // Chat: hasta dónde se ha leído en este móvil (la primera vez, desde ahora)
   const claveLeido = `jamacasa-chat-leido-${almacen.modo}-${yo}`;
@@ -230,6 +232,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
   const acciones: Acciones = useMemo(
     () => ({
       empezar: (semana) => apuntar('zona_empezada', { semana }),
+      marcarCosa: (semana, cosa, hecha) => apuntar('zona_cosa', { semana, cosa, hecha }),
       async marcarHecho(semana, fotos, nota) {
         await apuntar('zona_hecha', { semana, fotos, nota });
         try { confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: ['#f6c14f', '#ec6b67', '#fa8f59'] }); } catch { /* nada */ }

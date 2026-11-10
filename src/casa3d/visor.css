@@ -84,3 +84,20 @@
 .casa3d { position: relative; width: 100%; aspect-ratio: 4 / 5; max-height: 64vh; min-height: 300px; border-radius: var(--radio-gran); overflow: hidden; border: 1px solid var(--linea); background: var(--papel-2); }
 .casa3d-marco { position: absolute; inset: 0; }
 .casa3d-cargando { position: absolute; inset: 0; display: grid; place-items: center; color: var(--texto-3); font-size: var(--t-s); }
+
+/* ——— La pantalla de juego (Limpieza): los bocadillos encima de cada muñeco ——— */
+.c3-bur {
+  position: absolute; left: 0; top: 0; pointer-events: auto; appearance: none; border: 0; margin: 0;
+  font: 700 13px/1.2 var(--f, system-ui); color: #0e2a47; background: #ffffff; padding: 8px 12px; border-radius: 16px;
+  box-shadow: 0 10px 22px -12px rgba(14, 42, 71, 0.8); white-space: nowrap; text-align: center; cursor: pointer;
+  will-change: transform; --pico: 50%; --fondo-bur: #ffffff;
+}
+.c3-bur::after { content: ''; position: absolute; left: var(--pico); bottom: -7px; margin-left: -7px; border: 7px solid transparent; border-top-color: var(--fondo-bur); border-bottom: 0; }
+.c3-bur b { font-weight: 750; }
+.c3-bur small { display: block; font-weight: 600; font-size: 11.5px; opacity: 0.88; margin-top: 1px; }
+.c3-bur-yo { --fondo-bur: #d96a14; background: #d96a14; color: #ffffff; font-size: 15px; padding: 10px 15px; }
+.c3-bur-verde { --fondo-bur: #1a9150; background: #1a9150; color: #ffffff; }
+.c3-bur-rojo { --fondo-bur: #c23a31; background: #c23a31; color: #ffffff; }
+.c3-bur-oro { --fondo-bur: #f2b233; background: #f2b233; color: #0b1626; }
+.c3-bur[hidden] { display: none; }
+.c3-bur-quieta, .c3-bur:disabled { cursor: default; opacity: 1; }

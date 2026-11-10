@@ -27,6 +27,8 @@ export type Hoja =
 
 export interface Acciones {
   empezar(semana: number): Promise<void>;
+  /** «Lo que se limpia»: marcar (o desmarcar) una cosa de la lista de tu piso */
+  marcarCosa(semana: number, cosa: string, hecha: boolean): Promise<void>;
   marcarHecho(semana: number, fotos: string[], nota?: string): Promise<void>;
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string): Promise<void>;
   basuraLlena(fotos: string[]): Promise<void>;

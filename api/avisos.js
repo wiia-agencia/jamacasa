@@ -7020,7 +7020,11 @@ function calcularTareas(config, normas, eventos, ahora) {
 	const hechos = /* @__PURE__ */ new Map();
 	const votos = /* @__PURE__ */ new Map();
 	const empezadas = /* @__PURE__ */ new Map();
-	for (const e of eventos) if (e.tipo === "zona_empezada") {
+	const cosas = /* @__PURE__ */ new Map();
+	for (const e of eventos) if (e.tipo === "zona_cosa") {
+		const k = `${e.datos?.semana}|${e.autor}`;
+		(cosas.get(k) ?? cosas.set(k, []).get(k)).push(e);
+	} else if (e.tipo === "zona_empezada") {
 		const k = `${e.datos?.semana}|${e.autor}`;
 		if (!empezadas.has(k) || e.ts < empezadas.get(k)) empezadas.set(k, e.ts);
 	} else if (e.tipo === "zona_hecha") {
@@ -7058,6 +7062,7 @@ function calcularTareas(config, normas, eventos, ahora) {
 		const ult = intentos[intentos.length - 1];
 		let estado = "pendiente";
 		if (ult) estado = !ult.resuelto ? "esperando" : ult.aprobado ? "aprobada" : "suspendida";
+		const deLaLista = listaDe(zona, m.id);
 		tareas.push({
 			semana: w,
 			miembro: m.id,
@@ -7066,6 +7071,8 @@ function calcularTareas(config, normas, eventos, ahora) {
 			estado,
 			primerHecho,
 			empezada: empezadas.get(`${w}|${m.id}`),
+			lista: deLaLista,
+			marcadas: marcadasDe(cosas.get(`${w}|${m.id}`) ?? [], deLaLista, intentos, estado),
 			retrasoDias,
 			enCurso: ahora <= fin,
 			limiteSinHacer,
@@ -7074,6 +7081,31 @@ function calcularTareas(config, normas, eventos, ahora) {
 		});
 	}
 	return tareas;
+}
+/** Lo que se limpia en un piso para quien le toca: la lista de siempre y lo que solo entra si le toca a él
+*  (el pasillo de las habitaciones de arriba). */
+function listaDe(zona, m) {
+	return [...zona.checklist, ...(zona.extras ?? []).filter((x) => x.para.includes(m)).map((x) => x.nombre)];
+}
+/** Lo marcado de la lista («zona_cosa»: { semana, cosa, hecha }; vale lo último de cada cosa). Cuenta lo de esta
+*  vuelta: si el piso se suspendió, lo de antes ya no vale y se empieza de cero; si ya está marcado como hecho, lo
+*  que se marcó hasta entonces. */
+function marcadasDe(evs, lista, intentos, estado) {
+	if (!evs.length) return [];
+	const ult = intentos[intentos.length - 1];
+	const penult = intentos[intentos.length - 2];
+	let desde = -Infinity, hasta = Infinity;
+	if (estado === "suspendida") desde = ult.resueltoEn ?? ult.hecho.ts;
+	else if (ult) {
+		hasta = ult.hecho.ts;
+		if (penult) desde = penult.resueltoEn ?? penult.hecho.ts;
+	}
+	const ultimo = /* @__PURE__ */ new Map();
+	for (const e of evs.slice().sort((a, b) => a.ts - b.ts)) {
+		if (e.ts <= desde || e.ts > hasta) continue;
+		ultimo.set(String(e.datos?.cosa ?? ""), e.datos?.hecha !== false);
+	}
+	return lista.filter((c) => ultimo.get(c));
 }
 function resolverIntento(h, n, jueces, votosEv, normas, ahora) {
 	const fin = h.ts + normas.horasRevision * HORA;

@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { texturaCirculo, texturaEscalones, texturaPeste, texturaNube, texturaBrillo, texturaCartel } from './texturas.js';
 
 // Muñeco sencillo con el color de cada uno y unas cuantas poses.
 // El aspecto de cada uno lo pasa la app (persona.aspecto); sin él, sale el muñeco de siempre:
-//   alto (en metros), pelo ('corto' | 'tupe' | 'calvo' | 'fino' | 'largo'), colorPelo,
-//   barba (nada | 'corta' | 'normal'), colorBarba y ropa ('normal' | 'ancha').
+//   alto (en metros), pelo ('corto' | 'tupe' | 'calvo' | 'fino' | 'largo' | 'arriba'), colorPelo,
+//   barba (nada | 'corta' | 'normal' | 'candado'), colorBarba y ropa ('normal' | 'ancha').
+//   «arriba»: pelo hacia arriba sin gomina, en mechones gordos con la punta redonda y plano por encima.
 const ALTO_BASE = 1.75;
 export function crearMonigote(persona, estilo) {
   const A = persona.aspecto || {};
@@ -214,19 +216,108 @@ export function crearMonigote(persona, estilo) {
         grosor: (f, v) => 0.014 + 0.014 * Math.exp(-(((f - 0.1 * PI) / (0.22 * PI)) ** 2)) * suave((v - 0.45) / 0.35) }, mPelo));
     }
     if (tipoPelo === 'arriba') {
-      // pelo hacia arriba, sin gomina: los lados cortos y arriba un cepillo con la parte de encima casi plana
-      const linea = tabla([[0, 0.3 * PI], [0.3, 0.37 * PI], [0.46, 0.42 * PI], [0.6, 0.5 * PI], [1, 0.6 * PI]]);
-      const H = R + 0.05; // altura de la parte plana sobre el centro de la cabeza
+      // Pelo hacia arriba, sin gomina: los lados y la nuca cortos y, arriba, mechones gordos que suben desde la frente
+      // y la coronilla, con la punta redondeada (no pinchos) y todos más o menos a la misma altura: la cabeza queda
+      // plana por arriba. Cada mechón, con la raíz más oscura y la punta más clara.
+      // (A.cepillo: solo para probar variantes en la página de propuestas)
+      const o = { alto: 0.055, delante: 0.01, ancho: 1, grueso: 1, punta: 0.45, varia: 0.006, nucleo: 0.03, textura: 1, finos: 1, ...(A.cepillo || {}) };
+      // lo corto: lados y nuca (la línea baja detrás de las orejas y cubre la nuca)
+      const linea = tabla([[0, 0.3 * PI], [0.3, 0.365 * PI], [0.46, 0.415 * PI], [0.58, 0.5 * PI], [0.72, 0.64 * PI], [1, 0.74 * PI]]);
+      const cPelo = new THREE.Color(A.colorPelo || P.pelo);
+      const cRaiz = cPelo.clone().multiplyScalar(0.74), cPunta = cPelo.clone().lerp(new THREE.Color('#f0d2a8'), 0.16);
+      const mMechones = mat('#ffffff', 0.86);
+      mMechones.vertexColors = true;
+      materiales.push(mMechones);
       cabeza.add(capa({ phi0: -PI, phi1: PI, vuelta: true, coronilla: true, arriba: () => 0.001, abajo: linea,
-        grosor: (f, v) => {
-          const t = 0.001 + v * (linea(f) - 0.001);
-          const delante = Math.exp(-((f / (0.35 * PI)) ** 2));
-          const e0 = (0.1 + 0.035 * delante) * PI, ancho = (0.12 - 0.02 * delante) * PI;
-          const borde = 1 - suave((t - e0) / ancho);
-          const plano = Math.max(0.014, H / Math.cos(Math.min(t, 0.32 * PI)) - (R + 0.005));
-          const pelillos = 0.003 * Math.sin(23 * f) * Math.sin(37 * v) * borde; // que no quede liso del todo
-          return 0.014 + (plano - 0.014) * borde + pelillos;
-        } }, mPelo));
+        grosor: () => 0.016, color: (f, v) => cRaiz.clone().lerp(cPelo, 0.25 + 0.3 * (1 - v)) }, mMechones));
+      // el núcleo: la forma de la cabeza con el pelo (plana por arriba), lisa, debajo de los mechones; así entre
+      // mechón y mechón se ve pelo y no la cabeza
+      {
+        const inicio = tabla([[0, 0.3 * PI], [0.22, 0.31 * PI], [0.5, 0.335 * PI], [0.78, 0.38 * PI], [1, 0.42 * PI]]);
+        const abre = tabla([[0, 0.1], [0.3, 0.06], [0.5, 0.03], [0.75, -0.12], [1, -0.32]]);
+        const esquina = tabla([[0, 0.03], [0.5, 0.035], [0.8, 0.05], [1, 0.06]]);
+        const grueso = tabla([[0, 0.006], [0.15, 0.012], [0.4, 0.016], [1, 0.016]]);
+        const smin = (a, b, k) => -k * Math.log(Math.exp(-a / k) + Math.exp(-b / k));
+        const smax = (a, b, k) => -smin(-a, -b, k);
+        const Hn = R + o.alto - o.nucleo;
+        cabeza.add(capa({ phi0: -PI, phi1: PI, vuelta: true, coronilla: true, u: plano ? 16 : 96, v: plano ? 5 : 30, arriba: () => 0.001, abajo: inicio,
+          grosor: (f, v) => {
+            const ti = inicio(f), t = Math.max(1e-4, v * ti), st = Math.sin(t), ct = Math.cos(t), k = abre(f);
+            const rb = R + grueso(f), yb = rb * Math.cos(ti), pb = rb * Math.sin(ti);
+            const cf = Math.cos(f);
+            const H2 = Hn + o.delante * Math.max(0, cf) - 0.02 * Math.max(0, -cf);
+            const rPlano = ct > 0.05 ? H2 / ct : 9, den = st - k * ct;
+            const rPared = den > 0.01 ? (pb - k * yb) / den : 9;
+            const x0 = st * Math.sin(f), z0 = st * Math.cos(f);
+            const encima = 1 - suave((t - 0.04 * PI) / (0.16 * PI));
+            const fino = (Math.sin(41 * x0 + 9 * Math.sin(13 * z0)) * Math.sin(37 * z0 + 7 * Math.sin(11 * x0)) * 0.6
+              + Math.sin(67 * (x0 + 0.6 * z0) + 1.3) * Math.sin(59 * (z0 - 0.5 * x0) + 0.4) * 0.4) * o.textura;
+            return Math.max(0.012, smax(R + 0.016, smin(rPlano, rPared, esquina(f)), 0.006) - R - 0.005 + 0.0035 * fino * encima);
+          },
+          color: (f, v) => {
+            const encima = 1 - suave((v - 0.25) / 0.4);
+            return cRaiz.clone().lerp(cPelo, 0.35 + 0.4 * (1 - v) + 0.25 * encima).lerp(cPunta, 0.35 * encima);
+          } }, mMechones));
+      }
+      // un mechón: un huevo alargado que nace en la cabeza (θ, φ en fracciones de π), sube en la dirección «dir»
+      // y acaba con la punta redondeada a la altura «hasta»
+      const geos = [];
+      const arriba3 = new THREE.Vector3(0, 1, 0);
+      let semilla = 7;
+      const azar = () => { semilla = (semilla * 16807) % 2147483647; return semilla / 2147483647; };
+      const mechon = (th, ph, { ancho = 0.075, grueso = 0.055, hasta = R + o.alto, lean = 0.25, fuera = 0.12 } = {}) => {
+        const t = th * PI, f = ph * PI;
+        const base = enCabeza(f, t, R - 0.02);
+        const radial = base.clone().normalize();
+        const frente = new THREE.Vector3(Math.sin(f), 0, Math.cos(f)); // hacia fuera, en horizontal
+        const dir = arriba3.clone().addScaledVector(frente, fuera).addScaledVector(new THREE.Vector3(0, 0, 1), lean * Math.max(0, Math.cos(f))).normalize();
+        // largo para que la punta llegue a «hasta» (con un poco de variación)
+        const alt = hasta + (azar() - 0.5) * 2 * o.varia;
+        const largo = Math.max(0.06, (alt - base.y) / dir.y);
+        const g = new THREE.SphereGeometry(1, plano ? 6 : 14, plano ? 5 : 11);
+        const p = g.attributes.position;
+        const cols = [];
+        // ejes del mechón: y = dir; x = de lado; z = el grueso
+        const lado = new THREE.Vector3().crossVectors(dir, radial);
+        if (lado.lengthSq() < 1e-6) lado.set(1, 0, 0);
+        lado.normalize();
+        const fondo = new THREE.Vector3().crossVectors(lado, dir).normalize();
+        const tono = 0.92 + 0.16 * azar();
+        for (let k = 0; k < p.count; k++) {
+          const x = p.getX(k), y = p.getY(k), z = p.getZ(k);
+          const u = (y + 1) / 2; // 0 en la raíz, 1 en la punta
+          const estrecha = 1 - o.punta * u * u; // la punta algo más estrecha que la raíz (pero redonda)
+          const doblar = 0.05 * u * u; // la punta apenas echada hacia delante del mechón
+          const v = new THREE.Vector3()
+            .addScaledVector(lado, x * ancho * o.ancho * estrecha)
+            .addScaledVector(fondo, z * grueso * o.grueso * estrecha + doblar * grueso)
+            .addScaledVector(dir, (u - 0.08) * largo)
+            .add(base);
+          p.setXYZ(k, v.x, v.y, v.z);
+          const c = cRaiz.clone().lerp(cPelo, Math.min(1, u * 1.5)).lerp(cPunta, Math.max(0, u - 0.6) * 1.5).multiplyScalar(tono);
+          cols.push(c.r, c.g, c.b);
+        }
+        g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+        g.deleteAttribute('uv');
+        g.computeVertexNormals();
+        geos.push(g);
+      };
+      const H = R + o.alto;
+      // el borde: los mechones que suben desde la frente, por encima de las orejas y por detrás; dibujan la silueta
+      // (la parte de encima es plana, con su textura fina)
+      for (const ph of [-0.33, -0.2, -0.067, 0.067, 0.2, 0.33]) mechon(0.265, ph, { hasta: H + o.delante * Math.cos(ph * PI), ancho: 0.064, grueso: 0.056, lean: 0.12, fuera: 0.03 });
+      for (const ph of [-0.45, 0.45]) mechon(0.27, ph, { hasta: H + 0.4 * o.delante, ancho: 0.068, grueso: 0.058, lean: 0.05, fuera: 0.03 });
+      for (const ph of [-0.78, -0.67, -0.56, 0.56, 0.67, 0.78]) mechon(0.295, ph, { hasta: H - 0.006, ancho: 0.07, grueso: 0.058, fuera: 0.03, lean: 0 });
+      for (const ph of [-0.89, -0.97, 0.97, 0.89]) mechon(0.33, ph, { hasta: H - 0.024, ancho: 0.075, grueso: 0.06, fuera: 0.05, lean: 0 });
+      // encima, mechones más pequeños y apretados que suben rectos: desde arriba se ven las puntas, como un cepillo
+      const F = o.finos;
+      for (let k = 0; k < 9; k++) { const ph = -0.47 + (0.94 * k) / 8; mechon(0.19, ph, { hasta: H + 0.6 * o.delante * Math.cos(ph * PI), ancho: 0.068 - 0.014 * F, grueso: 0.06 - 0.012 * F, lean: 0.05, fuera: 0.02 }); }
+      for (let k = 0; k < 7; k++) { const ph = -1 + (2 * k + 1) / 7; mechon(0.13, ph, { hasta: H - 0.003, ancho: 0.075 - 0.02 * F, grueso: 0.065 - 0.016 * F, fuera: 0.02, lean: 0 }); }
+      for (let k = 0; k < 4; k++) { const ph = -1 + (2 * k) / 4 + 0.25; mechon(0.06, ph, { hasta: H - 0.004, ancho: 0.075 - 0.02 * F, grueso: 0.065 - 0.016 * F, fuera: 0.01, lean: 0 }); }
+      for (let k = 0; k < 6; k++) { const ph = -1 + (2 * k + 0.5) / 6; mechon(0.245, ph * 0.95 + (ph > 0 ? 0.02 : -0.02), { hasta: H - 0.01 - 0.012 * Math.max(0, -Math.cos(ph * PI)), ancho: 0.066 - 0.012 * F, grueso: 0.058 - 0.01 * F, fuera: 0.03, lean: 0 }); }
+      const todo = mergeGeometries(geos);
+      for (const g of geos) g.dispose();
+      cabeza.add(new THREE.Mesh(todo, mMechones));
     }
     if (tipoPelo === 'largo') {
       const melena = caja(0.5, 0.44, 0.14, mPelo, 0.07);

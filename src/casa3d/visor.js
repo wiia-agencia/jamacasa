@@ -3,7 +3,7 @@ import { DIA_NIVEL, DIAS_DE_NIVEL, nivelDeDias } from './suciedad.js';
 import { construirCasa, construirRuina, liberar } from './casa.js';
 import { crearMonigote } from './monigotes.js';
 import { ESTILOS } from './estilos.js';
-import { PERSONAS, PISOS, TURNOS, ESCENAS, ESTADOS, ALTURA, ORDEN_PERSONAS, PIEDRA_SUBE, GARAJE, ponerTurnos } from './datos.js';
+import { PERSONAS, PISOS, TURNOS, ESCENAS, ESTADOS, ALTURA, ORDEN_PERSONAS, PIEDRA_SUBE, GARAJE, VISTAS_JUEGO, LAMPARAS, ponerTurnos } from './datos.js';
 import { CX, CZ } from './geometria.js';
 
 const GRIS = new THREE.Color('#8b8f98');
@@ -25,11 +25,21 @@ const INSIGNIAS = {
 
 // [estado, nivel, días sin limpiar] de un piso en la escena. Las escenas pueden dar los días (la app) o solo el nivel.
 function estadoPiso(esc, piso) {
-  const [estado, nivel = 0, dias] = esc.pisos[piso];
+  const [estado, nivel = 0, dias, hecho] = esc.pisos[piso];
   if (estado !== 'sucio' && estado !== 'limpiando') return [estado, nivel, 0];
   const d = dias ?? DIAS_DE_NIVEL[Math.min(3, Math.max(0, nivel))] ?? 6;
-  return [estado, estado === 'sucio' ? nivelDeDias(d) : 0, d];
+  return [estado, estado === 'sucio' ? nivelDeDias(d) : 0, d, hecho];
 }
+
+// La casa viva: colores del cielo (arriba, abajo) de día, de noche, al amanecer y al atardecer
+const CIELO = {
+  dia: ['#d6ecf8', '#fbecd8'],
+  noche: ['#0f1b31', '#26395e'],
+  amanecer: ['#c7dcf3', '#ffd9b0'],
+  atardecer: ['#7a7fbf', '#f6a77e'],
+};
+const mezclaColor = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), Math.min(1, Math.max(0, k)));
+const suave = (t) => { const k = Math.min(1, Math.max(0, t)); return k * k * (3 - 2 * k); };
 
 function etiquetaEstado(estado, nivel, corto) {
   if (estado === 'sucio') {
@@ -50,11 +60,19 @@ function etiquetaEstado(estado, nivel, corto) {
 const modoDe = (vista) => (vista === 'foco' ? 'foco' : 'entera');
 
 export function crearVisor(contenedor, opciones = {}) {
+  // juego: la pantalla de Limpieza (la D): los pisos separados, la cámara va al piso de quien toques y los bocadillos
+  // los pone la app (setBurbujas); la luz sigue la hora de verdad (setLuz)
+  const juego = !!opciones.juego;
   const st = {
     estilo: opciones.estilo || 'juguete',
     verComo: opciones.verComo || 'javi',
     escena: typeof opciones.escena === 'object' && opciones.escena ? '__vivo' : opciones.escena || opciones.momento || 'miercoles',
-    vista: opciones.vista || 'foco',
+    vista: juego ? 'despiece' : opciones.vista || 'foco',
+    foco: null,
+    burbujas: [],
+    luz: opciones.luz || null,
+    margenes: { arriba: 80, abajo: 150 },
+    subir: 0, // cuánto se sube la casa ahora (va hacia lo que tapa el cajón)
     extra: opciones.extra || null,
     visita: null,
     az: opciones.az ?? 0.38,
@@ -66,7 +84,7 @@ export function crearVisor(contenedor, opciones = {}) {
     ESCENAS.__vivo = { aviso: () => ['', ''], personas: {}, rey: null, ...opciones.escena };
     if (opciones.escena.turnos) ponerTurnos(opciones.escena.turnos);
   }
-  const HUECO = opciones.hueco ?? 3.6;
+  const HUECO = opciones.hueco ?? (juego ? 4.4 : 3.6);
   const reserva = opciones.reservaAbajo ?? 0;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: !!opciones.captura });
@@ -164,7 +182,19 @@ export function crearVisor(contenedor, opciones = {}) {
     posY[3] = objetivoY(3);
     casa.tejado.grupo.position.y = posY[3];
     escena.add(casa.tejado.grupo);
-    if (casa.jardin) escena.add(casa.jardin.grupo);
+    casa.tejado.grupo.visible = !juego;
+    if (casa.jardin && !juego) escena.add(casa.jardin.grupo);
+    lamparas = [];
+    if (juego) {
+      for (const p of casa.plantas) {
+        for (const [x, y, h] of LAMPARAS[p.def.nivel] || []) {
+          const l = new THREE.PointLight('#ffc47a', 0, 12, 1.4);
+          l.position.set(x - CX, h, y - CZ);
+          p.grupo.add(l);
+          lamparas.push(l);
+        }
+      }
+    }
     monigotes = {};
     ORDEN_PERSONAS.forEach((id, i) => {
       const m = crearMonigote(PERSONAS[id], E);
@@ -174,7 +204,43 @@ export function crearVisor(contenedor, opciones = {}) {
     ultimoAz = null;
     crearEtiquetas();
     aplicar();
+    aplicarLuz();
     for (const p of plantasConGaraje()) { p.escala = p.escalaObj; colocar(p); }
+  }
+
+  // ---------- la luz de la hora de verdad (la casa viva) ----------
+  let lamparas = [];
+  let cieloArriba = '';
+  function aplicarLuz() {
+    const E = ESTILOS[st.estilo];
+    const L = st.luz;
+    if (!L || !juego) {
+      hemi.color.set(E.luz.cielo); hemi.groundColor.set(E.luz.suelo); hemi.intensity = E.luz.hemi;
+      sol.color.set(E.luz.dirColor); sol.intensity = E.luz.dir; sol.position.set(9, 18, -13);
+      amb.intensity = E.luz.amb;
+      for (const l of lamparas) l.intensity = 0;
+      cieloArriba = '';
+      if (juego) contenedor.style.background = E.fondo || '';
+      return;
+    }
+    const dia = L.dia, cal = L.calidez, noche = 1 - dia;
+    const calido = L.manana ? '#ffd6a8' : '#ffb27e';
+    hemi.color.copy(mezclaColor('#7f95cc', E.luz.cielo, dia).lerp(new THREE.Color(calido), cal * 0.55));
+    hemi.groundColor.copy(mezclaColor('#2b3550', E.luz.suelo, dia));
+    hemi.intensity = E.luz.hemi * (0.34 + 0.66 * dia) * (1 - 0.12 * cal);
+    sol.color.copy(mezclaColor('#a9bbff', E.luz.dirColor, dia).lerp(new THREE.Color(L.manana ? '#ffc58f' : '#ff9a5a'), cal * 0.8));
+    sol.intensity = E.luz.dir * (0.16 + 0.84 * dia) * (1 - 0.3 * cal);
+    // el sol por el este por la mañana y por el oeste por la tarde, más bajo cuanto más cerca del horizonte
+    const alto = Math.max(3, 4 + Math.max(0, L.sol) * 0.45);
+    sol.position.set((L.manana ? 1 : -1) * (dia > 0.5 ? 9 + 9 * cal : 6), dia > 0.05 ? alto : 18, -13);
+    amb.intensity = E.luz.amb * (0.6 + 0.4 * dia) + 0.12 * noche;
+    for (const l of lamparas) l.intensity = 26 * L.lamparas;
+    // el cielo: de día o de noche y, cerca del horizonte, amanecer o atardecer
+    const tibio = L.manana ? CIELO.amanecer : CIELO.atardecer;
+    const arriba = mezclaColor(CIELO.noche[0], CIELO.dia[0], dia).lerp(new THREE.Color(tibio[0]), cal * 0.85);
+    const abajo = mezclaColor(CIELO.noche[1], CIELO.dia[1], dia).lerp(new THREE.Color(tibio[1]), cal * 0.9);
+    cieloArriba = '#' + arriba.getHexString();
+    contenedor.style.background = `linear-gradient(180deg, ${cieloArriba} 0%, #${abajo.getHexString()} 100%)`;
   }
 
   // posición y escala de una planta (se agranda o encoge desde su centro)
@@ -198,6 +264,21 @@ export function crearVisor(contenedor, opciones = {}) {
   function crearEtiquetas() {
     capa.innerHTML = '';
     etiquetas = [];
+    if (juego) {
+      // en la pantalla de juego no hay rótulos de piso: las caras de arriba llevan a cada piso y encima de cada muñeco
+      // va su bocadillo (los pone la app)
+      etiquetasPersona = {};
+      for (const id of ORDEN_PERSONAS) {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'c3-bur';
+        el.hidden = true;
+        el.addEventListener('click', () => { const b = st.burbujas.find((x) => x.id === id); if (b && b.alTocar) b.alTocar(); });
+        capa.appendChild(el);
+        etiquetasPersona[id] = el;
+      }
+      return;
+    }
     for (const p of plantasConGaraje()) {
       const { xs, ys } = p.huella;
       const el = document.createElement('button');
@@ -260,12 +341,15 @@ export function crearVisor(contenedor, opciones = {}) {
   }
 
   // dias: días desde la última vez que se limpió (la suciedad sale poco a poco, día a día)
-  function pintarPlanta(p, estado, nivel, modo, color, destacada, dias = 0) {
+  function pintarPlanta(p, estado, nivel, modo, color, destacada, dias = 0, hecho) {
     let k = 0;
+    // mientras se limpia y se va marcando la lista, lo sucio se quita al revés de como salió (lo último, lo primero)
+    const quedan = estado === 'limpiando' && hecho !== undefined ? dias * (1 - hecho) : null;
     for (const s of p.suciedad) {
       const u = s.userData, d = u.dia ?? DIA_NIVEL[u.nivel ?? 0], h = u.hasta ?? Infinity;
       const toca = dias >= d && dias <= h;
       if (estado === 'sucio') s.visible = toca;
+      else if (quedan !== null) s.visible = hecho < 1 && quedan >= d && quedan <= h;
       else if (estado === 'limpiando') s.visible = toca && d < DIA_NIVEL[2] && (k++ % 5) < 2;
       else s.visible = false;
     }
@@ -321,11 +405,11 @@ export function crearVisor(contenedor, opciones = {}) {
 
     for (const p of casa.plantas) {
       const piso = p.def.piso;
-      const [estado, nivel, dias] = estadoPiso(esc, piso);
+      const [estado, nivel, dias, hecho] = estadoPiso(esc, piso);
       const quien = ORDEN_PERSONAS.find((id) => TURNOS[id] === piso);
-      const esDest = p.def.nivel === dest;
-      const modo = esDest ? 'normal' : st.vista === 'transparente' ? 'fantasma' : casa.modo === 'foco' ? 'fondo' : 'apagado';
-      pintarPlanta(p, estado, nivel, modo, PERSONAS[quien].color, esDest, dias);
+      const esDest = juego ? p.def.nivel === miNivel() : p.def.nivel === dest;
+      const modo = juego || esDest ? 'normal' : st.vista === 'transparente' ? 'fantasma' : casa.modo === 'foco' ? 'fondo' : 'apagado';
+      pintarPlanta(p, estado, nivel, modo, PERSONAS[quien].color, esDest, dias, hecho);
       // la basura llena, esperando a que alguien la saque: bolsas que se acumulan y, al segundo día, moscas
       if (p.basura) {
         const b = esc.basura || null;
@@ -374,6 +458,7 @@ export function crearVisor(contenedor, opciones = {}) {
       m.raiz.position.set(x - CX, base, y - CZ);
       m.raiz.rotation.y = ROT[mira] ?? 0;
       if (m.raiz.parent !== planta.grupo) { m.raiz.parent?.remove(m.raiz); planta.grupo.add(m.raiz); }
+      if (juego) continue;
       const burbuja = el.querySelector('.c3-burbuja');
       burbuja.hidden = !texto;
       burbuja.textContent = texto;
@@ -409,8 +494,27 @@ export function crearVisor(contenedor, opciones = {}) {
       e.el.setAttribute('aria-label', tuyo ? `Tu piso: ${piso.nombre}` : `Ver el ${piso.nombre.toLowerCase()} de ${PERSONAS[quien].nombre}`);
       e.el.innerHTML = textoChip(piso.nombre, piso.corto, PERSONAS[quien].nombre, est, tuyo);
     }
-    volver.hidden = st.visita == null;
+    volver.hidden = st.visita == null || juego;
     volver.textContent = 'Volver a tu piso';
+    if (juego) pintarBurbujas();
+  }
+
+  // los bocadillos de la pantalla de juego: { id, titulo, sub, tono, alTocar }
+  function pintarBurbujas() {
+    for (const id of ORDEN_PERSONAS) {
+      const el = etiquetasPersona[id];
+      if (!el) continue;
+      const b = st.burbujas.find((x) => x.id === id);
+      el.hidden = !b;
+      if (!b) continue;
+      el.className = `c3-bur c3-bur-${b.tono || 'blanco'}${b.alTocar ? '' : ' c3-bur-quieta'}`;
+      el.disabled = !b.alTocar;
+      el.textContent = '';
+      const t = document.createElement('b');
+      t.textContent = b.titulo;
+      el.appendChild(t);
+      if (b.sub) { const sm = document.createElement('small'); sm.textContent = b.sub; el.appendChild(sm); }
+    }
   }
 
   // ---------- cámara ----------
@@ -436,8 +540,54 @@ export function crearVisor(contenedor, opciones = {}) {
     return puntos;
   }
 
+  // pantalla de juego: la caja de cada piso y el paso suave de una a otra
+  const anim = { de: null, a: null, nivel: null, t0: 0 };
+  function vistaDe(nivel) {
+    const v = VISTAS_JUEGO[nivel] || VISTAS_JUEGO[0];
+    const b = posY[nivel] ?? 0;
+    return [v.caja[0], v.caja[1], v.caja[2], v.caja[3], b + v.h[0], b + v.h[1], v.margen, v.bajar];
+  }
+  const focoNivel = () => (st.foco ?? miNivel());
+  function encuadrarJuego() {
+    const nivel = focoNivel();
+    const ahora = performance.now();
+    if (anim.a === null) { anim.a = vistaDe(nivel); anim.de = anim.a; anim.nivel = nivel; anim.t0 = ahora - 1e4; }
+    let k = suave((ahora - anim.t0) / 700);
+    const actual = anim.de.map((v, i) => v + (anim.a[i] - v) * k);
+    if (anim.nivel !== nivel) { anim.de = actual; anim.a = vistaDe(nivel); anim.nivel = nivel; anim.t0 = ahora; k = 0; }
+    else anim.a = vistaDe(nivel);
+    const [x0, y0, x1, y1, h0, h1, margen, bajar] = k >= 1 ? anim.a : anim.de.map((v, i) => v + (anim.a[i] - v) * k);
+    const pts = [];
+    for (const x of [x0, x1]) for (const y of [y0, y1]) for (const h of [h0, h1]) pts.push(new THREE.Vector3(x - CX, h, y - CZ));
+    const c = new THREE.Vector3();
+    for (const v of pts) c.add(v);
+    c.multiplyScalar(1 / pts.length);
+    const dir = v3.set(Math.sin(st.az) * Math.cos(st.el), Math.sin(st.el), -Math.cos(st.az) * Math.cos(st.el));
+    camara.position.copy(c).addScaledVector(dir, 120);
+    camara.up.set(0, 1, 0);
+    camara.lookAt(c);
+    camara.updateMatrixWorld();
+    const inv = camara.matrixWorldInverse;
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (const v of pts) { const q = v.clone().applyMatrix4(inv); a0 = Math.min(a0, q.x); a1 = Math.max(a1, q.x); b0 = Math.min(b0, q.y); b1 = Math.max(b1, q.y); }
+    let w = (a1 - a0) * margen, h = (b1 - b0) * margen;
+    const asp = ancho / alto;
+    if (w / h > asp) h = w / asp; else w = h * asp;
+    w /= st.zoom; h /= st.zoom;
+    // si el cajón de abajo tapa más de lo normal, la casa sube lo que haga falta (poco a poco)
+    const objetivo = Math.max(0, st.margenes.abajo - 150) * 0.5;
+    st.subir += (objetivo - st.subir) * 0.2;
+    if (Math.abs(objetivo - st.subir) < 0.5) st.subir = objetivo;
+    const cx = (a0 + a1) / 2 + st.pan.x, cy = (b0 + b1) / 2 + bajar + st.pan.y - st.subir * (h / alto);
+    camara.left = cx - w / 2; camara.right = cx + w / 2; camara.top = cy + h / 2; camara.bottom = cy - h / 2;
+    camara.updateProjectionMatrix();
+    if (ultimoAz !== st.az) { cortarMuros(); ultimoAz = st.az; }
+    return k < 1 || st.subir !== objetivo;
+  }
+
   function encuadrar() {
     if (!casa) return;
+    if (juego) return encuadrarJuego();
     const pts = puntosCaja();
     let ymin = Infinity, ymax = -Infinity;
     for (const p of pts) { ymin = Math.min(ymin, p.y); ymax = Math.max(ymax, p.y); }
@@ -492,7 +642,23 @@ export function crearVisor(contenedor, opciones = {}) {
     return [(tmp.x + 1) / 2 * ancho, (1 - tmp.y) / 2 * alto];
   }
 
+  function moverBurbujas() {
+    for (const id of ORDEN_PERSONAS) {
+      const el = etiquetasPersona[id], m = monigotes[id];
+      if (!el || el.hidden || !m) continue;
+      m.raiz.updateWorldMatrix(true, false);
+      const [sx, sy] = aPantalla(new THREE.Vector3(0, m.arribaDeLaCabeza() + 0.25, 0).applyMatrix4(m.raiz.matrixWorld));
+      const w = el.offsetWidth || 120;
+      const fuera = sy < st.margenes.arriba + 30 || sy > alto - st.margenes.abajo || !(m.raiz.parent && m.raiz.parent.visible);
+      el.style.visibility = fuera ? 'hidden' : 'visible';
+      const x = Math.min(ancho - w / 2 - 10, Math.max(w / 2 + 10, sx));
+      el.style.transform = `translate(${(x - w / 2).toFixed(1)}px, ${sy.toFixed(1)}px) translateY(-100%)`;
+      el.style.setProperty('--pico', `${Math.max(14, Math.min(w - 14, w / 2 + (sx - x))).toFixed(1)}px`);
+    }
+  }
+
   function moverEtiquetas() {
+    if (juego) { moverBurbujas(); return; }
     // primero los muñecos; luego los rótulos de cada piso, apartándolos si tapan a alguien
     const ocupados = [];
     for (const id of ORDEN_PERSONAS) {
@@ -648,7 +814,7 @@ export function crearVisor(contenedor, opciones = {}) {
     casa.tejado.grupo.position.y = posY[3];
     for (const id of ORDEN_PERSONAS) monigotes[id].animar(t, monigotes[id].fase);
     for (const p of plantasConGaraje()) animarPlanta(p, t);
-    encuadrar();
+    moviendo = encuadrar() || moviendo;
     if (!sinDibujo) dibujar();
     moverEtiquetas();
     return moviendo;
@@ -674,6 +840,39 @@ export function crearVisor(contenedor, opciones = {}) {
     st.el = opciones.el ?? 0.5;
     st.zoom = 1;
     st.pan.set(0, 0);
+  }
+
+  // la cara de cada uno (un dibujo pequeño de su muñeco), para las caras de arriba de la pantalla de juego
+  let caras = null;
+  function retratos(tam = 160) {
+    if (caras) return caras;
+    caras = {};
+    let r2 = null;
+    try {
+      r2 = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      r2.setPixelRatio(1); r2.setSize(tam, tam, false); r2.outputColorSpace = THREE.SRGBColorSpace;
+      r2.setClearColor(0x000000, 0);
+      const E = ESTILOS[st.estilo];
+      const esc = new THREE.Scene();
+      esc.add(new THREE.HemisphereLight('#ffffff', '#e4c7a0', 1.25));
+      const s2 = new THREE.DirectionalLight('#fff0dc', 2.1); s2.position.set(2, 6, 5); esc.add(s2);
+      esc.add(new THREE.AmbientLight('#ffffff', 0.25));
+      const cam = new THREE.PerspectiveCamera(22, 1, 0.05, 20);
+      for (const id of ORDEN_PERSONAS) {
+        const m = crearMonigote(PERSONAS[id], E);
+        m.pose('pie'); m.animar(0.3, 0);
+        esc.add(m.raiz);
+        const y = 1.27 * (m.raiz.children[0]?.scale.x || 1);
+        cam.position.set(0.28, y + 0.12, 1.85);
+        cam.lookAt(0, y + 0.02, 0);
+        r2.render(esc, cam);
+        caras[id] = r2.domElement.toDataURL('image/png');
+        esc.remove(m.raiz);
+        m.liberar();
+      }
+    } catch { /* sin caras: la app pone las de siempre */ }
+    if (r2) { r2.dispose(); r2.forceContextLoss?.(); }
+    return caras;
   }
 
   medir();
@@ -711,6 +910,14 @@ export function crearVisor(contenedor, opciones = {}) {
       aplicar();
     },
     visitar,
+    // pantalla de juego
+    setFoco(nivel) { const n = nivel ?? null; if (n !== st.foco) { st.foco = n; centrar(); } },
+    setBurbujas(lista) { st.burbujas = lista || []; if (juego) { pintarBurbujas(); moverEtiquetas(); } },
+    setLuz(luz) { st.luz = luz || null; aplicarLuz(); },
+    setMargenes(m) { st.margenes = { ...st.margenes, ...m }; },
+    cielo() { return cieloArriba; },
+    nivelDe(id) { const piso = TURNOS[id]; return piso && PISOS[piso] ? PISOS[piso].nivel : null; },
+    retratos,
     girar(delta) { st.az += delta; },
     acercar(f) { st.zoom = Math.min(4, Math.max(0.8, st.zoom * f)); if (st.zoom <= 1.001) st.pan.set(0, 0); },
     centrar,
