@@ -3,7 +3,7 @@ import { DIA_NIVEL, DIAS_DE_NIVEL, nivelDeDias } from './suciedad.js';
 import { construirCasa, construirRuina, liberar } from './casa.js';
 import { crearMonigote } from './monigotes.js';
 import { ESTILOS } from './estilos.js';
-import { PERSONAS, PISOS, TURNOS, ESCENAS, ESTADOS, ALTURA, ORDEN_PERSONAS, PIEDRA_SUBE, GARAJE, VISTAS_JUEGO, LAMPARAS, ponerTurnos } from './datos.js';
+import { PERSONAS, PISOS, TURNOS, ESCENAS, ESTADOS, ALTURA, ORDEN_PERSONAS, PIEDRA_SUBE, GARAJE, VISTAS_JUEGO, ponerTurnos } from './datos.js';
 import { CX, CZ } from './geometria.js';
 
 const GRIS = new THREE.Color('#8b8f98');
@@ -60,14 +60,15 @@ function etiquetaEstado(estado, nivel, corto) {
 const modoDe = (vista) => (vista === 'foco' ? 'foco' : 'entera');
 
 export function crearVisor(contenedor, opciones = {}) {
-  // juego: la pantalla de Limpieza (la D): los pisos separados, la cámara va al piso de quien toques y los bocadillos
-  // los pone la app (setBurbujas); la luz sigue la hora de verdad (setLuz)
+  // juego: la pantalla de Limpieza (la D): solo lo que se limpia de cada piso (como siempre: ni garaje ni
+  // habitaciones), los pisos separados, la cámara va al piso de quien toques y los bocadillos los pone la app
+  // (setBurbujas); la luz sigue la hora de verdad (setLuz)
   const juego = !!opciones.juego;
   const st = {
     estilo: opciones.estilo || 'juguete',
     verComo: opciones.verComo || 'javi',
     escena: typeof opciones.escena === 'object' && opciones.escena ? '__vivo' : opciones.escena || opciones.momento || 'miercoles',
-    vista: juego ? 'despiece' : opciones.vista || 'foco',
+    vista: juego ? 'foco' : opciones.vista || 'foco',
     foco: null,
     burbujas: [],
     luz: opciones.luz || null,
@@ -184,17 +185,7 @@ export function crearVisor(contenedor, opciones = {}) {
     escena.add(casa.tejado.grupo);
     casa.tejado.grupo.visible = !juego;
     if (casa.jardin && !juego) escena.add(casa.jardin.grupo);
-    lamparas = [];
-    if (juego) {
-      for (const p of casa.plantas) {
-        for (const [x, y, h] of LAMPARAS[p.def.nivel] || []) {
-          const l = new THREE.PointLight('#ffc47a', 0, 12, 1.4);
-          l.position.set(x - CX, h, y - CZ);
-          p.grupo.add(l);
-          lamparas.push(l);
-        }
-      }
-    }
+
     monigotes = {};
     ORDEN_PERSONAS.forEach((id, i) => {
       const m = crearMonigote(PERSONAS[id], E);
@@ -209,7 +200,6 @@ export function crearVisor(contenedor, opciones = {}) {
   }
 
   // ---------- la luz de la hora de verdad (la casa viva) ----------
-  let lamparas = [];
   let cieloArriba = '';
   function aplicarLuz() {
     const E = ESTILOS[st.estilo];
@@ -218,23 +208,24 @@ export function crearVisor(contenedor, opciones = {}) {
       hemi.color.set(E.luz.cielo); hemi.groundColor.set(E.luz.suelo); hemi.intensity = E.luz.hemi;
       sol.color.set(E.luz.dirColor); sol.intensity = E.luz.dir; sol.position.set(9, 18, -13);
       amb.intensity = E.luz.amb;
-      for (const l of lamparas) l.intensity = 0;
       cieloArriba = '';
       if (juego) contenedor.style.background = E.fondo || '';
       return;
     }
-    const dia = L.dia, cal = L.calidez, noche = 1 - dia;
+    // Por dentro, la casa siempre bien iluminada y pareja (como con las luces del techo encendidas, sin focos ni
+    // bombillas): al atardecer y de noche, esa luz pasa a ser cálida. Lo de fuera lo cuentan el cielo y el sol (o la
+    // luna), que tiñe un poco las paredes y da las sombras.
+    const dia = L.dia, cal = L.calidez, casaEncendida = L.lamparas;
     const calido = L.manana ? '#ffd6a8' : '#ffb27e';
-    hemi.color.copy(mezclaColor('#7f95cc', E.luz.cielo, dia).lerp(new THREE.Color(calido), cal * 0.55));
-    hemi.groundColor.copy(mezclaColor('#2b3550', E.luz.suelo, dia));
-    hemi.intensity = E.luz.hemi * (0.34 + 0.66 * dia) * (1 - 0.12 * cal);
-    sol.color.copy(mezclaColor('#a9bbff', E.luz.dirColor, dia).lerp(new THREE.Color(L.manana ? '#ffc58f' : '#ff9a5a'), cal * 0.8));
-    sol.intensity = E.luz.dir * (0.16 + 0.84 * dia) * (1 - 0.3 * cal);
+    hemi.color.copy(new THREE.Color(E.luz.cielo).lerp(new THREE.Color('#ffdcb4'), 0.6 * casaEncendida).lerp(new THREE.Color(calido), cal * 0.35));
+    hemi.groundColor.copy(new THREE.Color(E.luz.suelo).lerp(new THREE.Color('#a07c5c'), 0.45 * casaEncendida));
+    hemi.intensity = E.luz.hemi * (0.86 + 0.14 * dia);
+    sol.color.copy(mezclaColor('#b4c2ff', E.luz.dirColor, dia).lerp(new THREE.Color(L.manana ? '#ffc58f' : '#ff9a5a'), cal * 0.75));
+    sol.intensity = E.luz.dir * (0.34 + 0.66 * dia) * (1 - 0.2 * cal);
     // el sol por el este por la mañana y por el oeste por la tarde, más bajo cuanto más cerca del horizonte
     const alto = Math.max(3, 4 + Math.max(0, L.sol) * 0.45);
     sol.position.set((L.manana ? 1 : -1) * (dia > 0.5 ? 9 + 9 * cal : 6), dia > 0.05 ? alto : 18, -13);
-    amb.intensity = E.luz.amb * (0.6 + 0.4 * dia) + 0.12 * noche;
-    for (const l of lamparas) l.intensity = 26 * L.lamparas;
+    amb.intensity = E.luz.amb * (0.85 + 0.15 * dia) + 0.08 * casaEncendida;
     // el cielo: de día o de noche y, cerca del horizonte, amanecer o atardecer
     const tibio = L.manana ? CIELO.amanecer : CIELO.atardecer;
     const arriba = mezclaColor(CIELO.noche[0], CIELO.dia[0], dia).lerp(new THREE.Color(tibio[0]), cal * 0.85);
@@ -386,7 +377,7 @@ export function crearVisor(contenedor, opciones = {}) {
     }
     p.halo.visible = destacada;
     p.halo.material.color.set(color);
-    p.escalaObj = casa.modo === 'foco' ? (destacada ? 1.08 : 0.92) : 1;
+    p.escalaObj = casa.modo === 'foco' && !juego ? (destacada ? 1.08 : 0.92) : 1;
   }
 
   function textoChip(nombre, corto, quien, est, tuyo, extra = '', pastilla = 'Tu piso') {
@@ -544,8 +535,10 @@ export function crearVisor(contenedor, opciones = {}) {
   const anim = { de: null, a: null, nivel: null, t0: 0 };
   function vistaDe(nivel) {
     const v = VISTAS_JUEGO[nivel] || VISTAS_JUEGO[0];
+    const p = casa.plantas.find((q) => q.def.nivel === nivel);
+    const { xs, ys } = p ? p.huella : { xs: [11, 17.5], ys: [0, 9] };
     const b = posY[nivel] ?? 0;
-    return [v.caja[0], v.caja[1], v.caja[2], v.caja[3], b + v.h[0], b + v.h[1], v.margen, v.bajar];
+    return [xs[0], ys[0], xs[1], ys[1], b + v.h[0], b + v.h[1], v.margen, v.bajar];
   }
   const focoNivel = () => (st.foco ?? miNivel());
   function encuadrarJuego() {

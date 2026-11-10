@@ -323,20 +323,14 @@ export const FOCO = {
   },
 };
 
-// La pantalla de Limpieza (la D, «pantalla de juego»): qué se ve al ir a cada piso, con los pisos separados.
-// caja: [x0, y0, x1, y1] del plano; h: [desde, hasta] sobre el suelo de ese piso (el de abajo deja asomar el del medio);
-// margen (menos de 1 = más cerca) y bajar (cuánto se baja el encuadre, para que quepan la cabecera y el cajón).
+// La pantalla de Limpieza (la D, «pantalla de juego»): qué se ve al ir a cada piso, con los pisos separados y solo lo
+// que se limpia (la caja es la huella de cada piso). h: [desde, hasta] sobre el suelo de ese piso (el de abajo deja
+// asomar el del medio); margen (menos de 1 = más cerca) y bajar (cuánto se baja el encuadre, para que quepan la
+// cabecera y el cajón).
 export const VISTAS_JUEGO = {
-  0: { caja: [11.4, -0.3, 19.3, 9.3], h: [0, 7.6], margen: 1.0, bajar: -1.6 },
-  1: { caja: [10.6, -2.2, 19.7, 9.5], h: [0, 2.6], margen: 0.84, bajar: 0.6 },
-  2: { caja: [6.0, -0.5, 18.0, 9.5], h: [0, 2.6], margen: 0.8, bajar: -0.4 },
-};
-// Lámparas que se encienden al atardecer y de noche (la casa viva): [x, y, altura] en cada piso
-// (una por piso: cada luz cuesta en el móvil)
-export const LAMPARAS = {
-  0: [[15.2, 4.4, 2.1]],
-  1: [[14.6, 3.6, 2.1]],
-  2: [[13.0, 4.2, 2.1]],
+  0: { h: [0, 7.6], margen: 1.0, bajar: -1.4 },
+  1: { h: [0, 2.6], margen: 0.9, bajar: 0.4 },
+  2: { h: [0, 2.6], margen: 0.88, bajar: -0.2 },
 };
 
 // El garaje no entra en la rotación: es una tarea extra que sale cuando alguien se apunta
