@@ -83,6 +83,15 @@ export function crearMonigote(persona, estilo) {
   tronco.position.y = ancha ? 0.705 : 0.73;
   cuerpo.add(tronco);
 
+  // hombros: el brazo sale del cuerpo (sin hueco entre la manga y la camiseta)
+  if (!voxel) {
+    for (const lado of [-1, 1]) {
+      const h = bola(ancha ? 0.084 : 0.072, mCamiseta);
+      h.position.set((ancha ? 0.262 : 0.238) * lado, ancha ? 0.905 : 0.912, 0);
+      cuerpo.add(h);
+    }
+  }
+
   // brazos, con el pivote en el hombro
   const brazos = [];
   for (const lado of [-1, 1]) {
@@ -101,7 +110,7 @@ export function crearMonigote(persona, estilo) {
   const cabeza = new THREE.Group();
   cabeza.position.y = 1.27;
   cuerpo.add(cabeza);
-  cabeza.add(voxel ? caja(0.5, 0.5, 0.5, mPiel, 0) : bola(0.27, mPiel));
+  cabeza.add(voxel ? caja(0.5, 0.5, 0.5, mPiel, 0) : plano ? bola(0.27, mPiel) : new THREE.Mesh(new THREE.SphereGeometry(0.27, 36, 26), mPiel));
   if (voxel) {
     if (tipoPelo !== 'calvo') {
       const pelo = caja(0.54, tipoPelo === 'fino' ? 0.12 : 0.16, 0.54, mPelo, 0);
@@ -126,60 +135,170 @@ export function crearMonigote(persona, estilo) {
       cabeza.add(barba);
     }
   } else {
-    const [sa, sb] = plano ? [8, 4] : [22, 10];
-    const casquete = (r, hasta, inclina) => {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(r, sa, sb, 0, Math.PI * 2, 0, Math.PI * hasta), mPelo);
-      m.rotation.x = inclina;
-      return m;
+    // Pelo, barba y bigote: capas pegadas a la cabeza que siguen su línea (la del pelo, la de la barba por la
+    // mandíbula…), con algo de volumen y los bordes a ras de la piel, sin cantos. φ: 0 delante, ±π la nuca;
+    // θ: 0 en la coronilla, π debajo de la barbilla.
+    const PI = Math.PI;
+    const R = 0.27;
+    const suave = (x) => { const k = Math.max(0, Math.min(1, x)); return k * k * (3 - 2 * k); };
+    // una curva suave que pasa por los puntos de una tabla [[|φ|/π, valor], …] (Hermite con pendientes de Catmull-Rom)
+    const tabla = (pt) => {
+      const n = pt.length;
+      const m = pt.map((_, i) => {
+        const a = pt[Math.max(0, i - 1)], b = pt[Math.min(n - 1, i + 1)];
+        return i === 0 ? 0 : (b[1] - a[1]) / (b[0] - a[0]); // plana en el centro (simétrica)
+      });
+      return (f) => {
+        const a = Math.min(pt[n - 1][0], Math.abs(f) / PI);
+        let i = 1;
+        while (i < n - 1 && a > pt[i][0]) i++;
+        const [x0, y0] = pt[i - 1], [x1, y1] = pt[i];
+        const h = x1 - x0, t = h > 0 ? (a - x0) / h : 0, t2 = t * t, t3 = t2 * t;
+        return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * m[i - 1] + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * h * m[i];
+      };
     };
+    const capa = (o, m) => {
+      const U = plano ? 16 : o.u || 48, V = plano ? 5 : o.v || 16;
+      const pos = [], idx = [], col = [];
+      for (let i = 0; i <= U; i++) {
+        const f = o.phi0 + (o.phi1 - o.phi0) * (i / U);
+        const t0 = o.arriba(f), t1 = o.abajo(f);
+        const bordeU = o.vuelta ? 1 : Math.min(suave((i / U) / 0.14), suave((1 - i / U) / 0.14));
+        for (let j = 0; j <= V; j++) {
+          const v = j / V;
+          const t = t0 + (t1 - t0) * v;
+          const bordeV = Math.min(o.coronilla ? 1 : suave(v / 0.22), suave((1 - v) / 0.22));
+          const r = R + 0.005 + o.grosor(f, v) * Math.min(bordeU, bordeV);
+          pos.push(r * Math.sin(t) * Math.sin(f), r * Math.cos(t), r * Math.sin(t) * Math.cos(f));
+          if (o.color) { const c = o.color(f, v); col.push(c.r, c.g, c.b); }
+        }
+      }
+      for (let i = 0; i < U; i++) for (let j = 0; j < V; j++) {
+        const a = i * (V + 1) + j, b = a + V + 1;
+        idx.push(a, a + 1, b, b, a + 1, b + 1);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      if (col.length) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      g.setIndex(idx);
+      g.computeVertexNormals();
+      return new THREE.Mesh(g, m);
+    };
+    // un punto de la cabeza (a una distancia r del centro)
+    const enCabeza = (f, t, r = R) => new THREE.Vector3(r * Math.sin(t) * Math.sin(f), r * Math.cos(t), r * Math.sin(t) * Math.cos(f));
+
+    // la línea del pelo: alta en la frente, baja por encima de las orejas y en la nuca
+    const lineaPelo = tabla([[0, 0.3 * PI], [0.3, 0.37 * PI], [0.46, 0.42 * PI], [0.6, 0.5 * PI], [1, 0.6 * PI]]);
     if (tipoPelo === 'corto' || tipoPelo === 'largo') {
-      const pelo = casquete(0.288, 0.52, -0.25);
-      pelo.position.set(0, 0.025, -0.025);
-      cabeza.add(pelo);
+      cabeza.add(capa({ phi0: -PI, phi1: PI, vuelta: true, coronilla: true, arriba: () => 0.001, abajo: lineaPelo,
+        grosor: (f, v) => 0.024 + 0.01 * Math.cos(f / 2) ** 2 * suave(v / 0.4) * (1 - v) }, mPelo));
     }
     if (tipoPelo === 'tupe') {
-      // tupé corto: los lados cortos y el pelo de delante, levantado hacia arriba y un poco hacia delante
-      const pelo = casquete(0.282, 0.5, -0.3);
-      pelo.position.set(0, 0.018, -0.02);
-      const tupe = bola(0.105, mPelo);
-      tupe.scale.set(1.3, 0.7, 0.95);
-      tupe.rotation.x = 0.85;
-      tupe.position.set(0, 0.205, 0.165);
-      cabeza.add(pelo, tupe);
+      // tupé corto: los lados cortos y, delante, el pelo levantado hacia arriba
+      const linea = tabla([[0, 0.29 * PI], [0.3, 0.36 * PI], [0.46, 0.41 * PI], [0.6, 0.5 * PI], [1, 0.6 * PI]]);
+      cabeza.add(capa({ phi0: -PI, phi1: PI, vuelta: true, coronilla: true, arriba: () => 0.001, abajo: linea,
+        grosor: (f, v) => {
+          const delante = Math.exp(-((f / (0.3 * PI)) ** 2));
+          const tupe = delante * suave((v - 0.3) / 0.35) * (0.6 + 0.4 * suave((0.97 - v) / 0.15));
+          return 0.016 + 0.012 * delante * suave(v / 0.4) * (1 - v) + 0.07 * tupe;
+        } }, mPelo));
     }
     if (tipoPelo === 'fino') {
-      // pelo fino y pegado a la cabeza, con un flequillo corto hacia un lado
-      const pelo = casquete(0.281, 0.5, -0.28);
-      pelo.position.set(0, 0.016, -0.012);
-      const flequillo = bola(0.1, mPelo);
-      flequillo.scale.set(1.5, 0.38, 0.75);
-      flequillo.rotation.set(0.5, 0, 0.22);
-      flequillo.position.set(0.04, 0.165, 0.19);
-      cabeza.add(pelo, flequillo);
+      // pelo fino y pegado, con el flequillo hacia un lado: la línea de delante baja en diagonal
+      const lado = tabla([[0, 0.3 * PI], [0.3, 0.37 * PI], [0.46, 0.42 * PI], [0.6, 0.5 * PI], [1, 0.6 * PI]]);
+      const linea = (f) => {
+        const k = Math.abs(f) < 0.36 * PI ? Math.cos((f / (0.36 * PI)) * PI / 2) : 0; // 1 en medio de la frente, 0 en las sienes
+        return lado(f) + k * (0.03 * PI + 0.035 * PI * Math.sin(f / (0.36 * PI) * PI / 2));
+      };
+      cabeza.add(capa({ phi0: -PI, phi1: PI, vuelta: true, coronilla: true, arriba: () => 0.001, abajo: linea,
+        grosor: (f, v) => 0.014 + 0.014 * Math.exp(-(((f - 0.1 * PI) / (0.22 * PI)) ** 2)) * suave((v - 0.45) / 0.35) }, mPelo));
+    }
+    if (tipoPelo === 'arriba') {
+      // pelo hacia arriba, sin gomina: los lados cortos y arriba un cepillo con la parte de encima casi plana
+      const linea = tabla([[0, 0.3 * PI], [0.3, 0.37 * PI], [0.46, 0.42 * PI], [0.6, 0.5 * PI], [1, 0.6 * PI]]);
+      const H = R + 0.05; // altura de la parte plana sobre el centro de la cabeza
+      cabeza.add(capa({ phi0: -PI, phi1: PI, vuelta: true, coronilla: true, arriba: () => 0.001, abajo: linea,
+        grosor: (f, v) => {
+          const t = 0.001 + v * (linea(f) - 0.001);
+          const delante = Math.exp(-((f / (0.35 * PI)) ** 2));
+          const e0 = (0.1 + 0.035 * delante) * PI, ancho = (0.12 - 0.02 * delante) * PI;
+          const borde = 1 - suave((t - e0) / ancho);
+          const plano = Math.max(0.014, H / Math.cos(Math.min(t, 0.32 * PI)) - (R + 0.005));
+          const pelillos = 0.003 * Math.sin(23 * f) * Math.sin(37 * v) * borde; // que no quede liso del todo
+          return 0.014 + (plano - 0.014) * borde + pelillos;
+        } }, mPelo));
     }
     if (tipoPelo === 'largo') {
       const melena = caja(0.5, 0.44, 0.14, mPelo, 0.07);
       melena.position.set(0, -0.1, -0.17);
       cabeza.add(melena);
     }
+    // las orejas
+    for (const lado of [-1, 1]) {
+      const oreja = bola(0.058, mPiel);
+      oreja.scale.set(0.5, 0.95, 0.72);
+      oreja.position.set(0.266 * lado, -0.03, -0.012);
+      oreja.rotation.y = 0.25 * lado;
+      cabeza.add(oreja);
+    }
+    // la nariz
+    const nariz = bola(0.03, mPiel);
+    nariz.scale.set(1, 0.85, 0.85);
+    nariz.position.copy(enCabeza(0, 0.555 * PI, 0.262));
+    cabeza.add(nariz);
     if (A.barba) {
-      // la barba: una capa por la mandíbula y la barbilla, de oreja a oreja, con su bigote
+      // la barba: de patilla a patilla por la mandíbula, más llena en la barbilla; deja ver la boca.
+      // «candado»: el bigote y la perilla cerrados y bien pobladas; hacia los lados, cada vez menos.
       const normal = A.barba === 'normal';
-      const r = normal ? 0.288 : 0.276;
-      const barba = new THREE.Mesh(new THREE.SphereGeometry(r, sa, plano ? 4 : 12, -Math.PI * 0.08, Math.PI * 1.16,
-        Math.PI * (normal ? 0.57 : 0.63), Math.PI * (normal ? 0.39 : 0.29)), mBarba);
-      if (normal) barba.scale.y = 1.06;
-      const bigote = capsula(normal ? 0.022 : 0.015, normal ? 0.11 : 0.09, mBarba);
-      bigote.rotation.z = Math.PI / 2;
-      bigote.position.set(0, -0.085, 0.262);
-      cabeza.add(barba, bigote);
+      const candado = A.barba === 'candado';
+      const cBarba = new THREE.Color(A.colorBarba || A.colorPelo || P.pelo), cPiel = new THREE.Color(P.piel);
+      const mDegradado = candado ? mat('#ffffff', 0.9) : null;
+      if (mDegradado) { mDegradado.vertexColors = true; materiales.push(mDegradado); }
+      const lados = (f) => suave((Math.abs(f) - 0.1 * PI) / (0.3 * PI)); // 0 en la perilla, 1 junto a las orejas
+      // por delante de las orejas: la patilla baja por la mejilla hasta las comisuras y rodea la boca por debajo
+      const arriba = normal
+        ? tabla([[0, 0.655 * PI], [0.1, 0.635 * PI], [0.17, 0.59 * PI], [0.3, 0.53 * PI], [0.4, 0.46 * PI], [0.47, 0.43 * PI]])
+        : tabla([[0, 0.66 * PI], [0.1, 0.64 * PI], [0.17, 0.605 * PI], [0.3, 0.56 * PI], [0.4, 0.49 * PI], [0.47, 0.45 * PI]]);
+      const abajo = tabla([[0, 0.88 * PI], [0.25, 0.83 * PI], [0.4, 0.74 * PI], [0.47, 0.68 * PI]]);
+      cabeza.add(capa({ phi0: -0.47 * PI, phi1: 0.47 * PI, arriba, abajo,
+        grosor: (f, v) => (normal ? 0.018 + 0.036 * Math.cos(f) ** 2 * v ** 1.2
+          : candado ? 0.005 + (0.008 + 0.012 * v) * (1 - lados(f))
+          : 0.009 + 0.013 * Math.cos(f) ** 2 * v),
+        color: candado ? (f, v) => cBarba.clone().lerp(cPiel, Math.min(0.75, 0.6 * lados(f) + 0.2 * lados(f) * (1 - v))) : undefined },
+        candado ? mDegradado : mBarba));
+      // el bigote, que baja por los lados hasta la barba
+      cabeza.add(capa({ phi0: -0.15 * PI, phi1: 0.15 * PI, u: 18, v: 6,
+        arriba: (f) => 0.565 * PI + 0.012 * PI * Math.abs(f) / (0.15 * PI),
+        abajo: (f) => 0.6 * PI + 0.05 * PI * (Math.abs(f) / (0.15 * PI)) ** 1.5,
+        grosor: () => (normal ? 0.02 : candado ? 0.014 : 0.011) }, mBarba));
+    }
+    // la boca
+    const boca = capsula(0.011, 0.045, mat('#6b3530', 0.8));
+    boca.rotation.z = PI / 2;
+    boca.position.copy(enCabeza(0, 0.615 * PI, 0.264));
+    cabeza.add(boca);
+    // las cejas (del color del pelo, o de la barba si no hay pelo)
+    const mCejas = tipoPelo === 'calvo' ? (A.barba ? mBarba : mat('#5a4636', 0.9)) : mPelo;
+    for (const lado of [-1, 1]) {
+      const ceja = capsula(0.013, 0.05, mCejas);
+      ceja.position.copy(enCabeza(0.125 * PI * lado, 0.432 * PI, 0.27));
+      ceja.lookAt(ceja.position.clone().multiplyScalar(2));
+      ceja.rotateZ(PI / 2 - 0.08 * lado);
+      cabeza.add(ceja);
     }
   }
   const ojos = new THREE.Group();
+  const mBrilloOjo = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+  materiales.push(mBrilloOjo);
   for (const lado of [-1, 1]) {
     const o = voxel ? caja(0.07, 0.09, 0.02, mNegro, 0) : bola(0.034, mNegro);
     o.position.set(0.095 * lado, -0.01, voxel ? 0.255 : 0.245);
     ojos.add(o);
+    if (!voxel && !plano) {
+      const brillo = new THREE.Mesh(new THREE.SphereGeometry(0.0095, 10, 8), mBrilloOjo);
+      brillo.position.set(0.095 * lado + 0.011, 0.002, 0.272);
+      ojos.add(brillo);
+    }
   }
   cabeza.add(ojos);
 
