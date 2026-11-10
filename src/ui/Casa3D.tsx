@@ -25,9 +25,21 @@ export interface BurbujaCasa {
   alTocar?: () => void;
 }
 
+/** «Mi parte»: tus cuartos (los nombres del plano), los días que lleva cada uno sin limpiarse (null: sin apuntar) y
+ *  cuánto brilla (recién limpio: 3, 2, 1; si no, 0) */
+export interface ParteCasa {
+  cuartos: string[];
+  dias: Record<string, number | null>;
+  brillo: Record<string, number>;
+}
+
 export interface JuegoCasa {
-  /** El piso que se mira: el de esa persona (null: el tuyo) */
+  /** El piso que se mira: el de esa persona (null: el tuyo). Se ven los tres; ese, entero y los otros, medio transparentes */
   foco: MiembroId | null;
+  /** Con el cajón abierto: el piso que se mira, de cerca */
+  cerca: boolean;
+  /** «Mi parte»: solo tus cuartos (null: la casa de los tres) */
+  parte: ParteCasa | null;
   burbujas: BurbujaCasa[];
   luz: Luz;
   /** Lo que tapan la cabecera y el cajón (para que los bocadillos no se metan debajo) */
@@ -88,6 +100,8 @@ export function Casa3D({ miembros, escena, yo, juego, alFallar }: { miembros: Mi
           v.setMargenes(j.margenes);
           v.setLuz(j.luz);
           v.setFoco(j.foco ? v.nivelDe(j.foco) : null);
+          v.setCerca(j.cerca);
+          v.setParte(j.parte);
           v.setBurbujas(j.burbujas);
           j.alListo?.({ caras: v.retratos(), cielo: v.cielo() });
         }
@@ -112,6 +126,11 @@ export function Casa3D({ miembros, escena, yo, juego, alFallar }: { miembros: Mi
   const luz = juego?.luz;
   const margenes = juego?.margenes;
   useEffect(() => { if (listo && unico && juego) unico.visor.setFoco(foco ? unico.visor.nivelDe(foco) : null); }, [foco, listo, escena]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cerca = !!juego?.cerca;
+  useEffect(() => { if (listo && unico && juego) unico.visor.setCerca(cerca); }, [cerca, listo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const parte = juego?.parte ?? null;
+  const claveParte = parte ? JSON.stringify(parte) : '';
+  useEffect(() => { if (listo && unico && juego) unico.visor.setParte(parte); }, [claveParte, listo]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (listo && unico && burbujas) unico.visor.setBurbujas(burbujas); }, [burbujas, listo]);
   useEffect(() => {
     if (!listo || !unico || !luz) return;
@@ -123,7 +142,7 @@ export function Casa3D({ miembros, escena, yo, juego, alFallar }: { miembros: Mi
   if (fallo) return null;
   if (juego) {
     return (
-      <div className="casa3d-juego" ref={host} role="group" aria-label="La casa en 3D, con los tres pisos. Toca una cara de arriba para ir a su piso.">
+      <div className="casa3d-juego" ref={host} role="group" aria-label="La casa en 3D con los tres pisos: el que miras, entero, y los otros, medio transparentes. Toca una cara de arriba para ver su piso.">
         {!listo && <div className="casa3d-cargando">Dibujando la casa…</div>}
       </div>
     );

@@ -1221,6 +1221,30 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
   gap: 8px;
 }
 .juego-menu p { margin: 0; }
+/* el desplegable de tu cara: zonas comunes o «Mi parte» */
+.juego-caras { position: relative; }
+.juego-nombre { display: inline-flex; align-items: center; gap: 1px; }
+.juego-marca.candado { background: #0e2a47; }
+.juego-menu.juego-menu-cara { top: calc(100% + 10px); right: 0; bottom: auto; width: 248px; padding: 6px; gap: 2px; }
+.juego-opcion {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--texto);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 10px;
+  border-radius: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.juego-opcion b { display: block; font-size: 0.95rem; }
+.juego-opcion small { display: block; font-size: 0.75rem; color: var(--texto-3); font-weight: 600; margin-top: 1px; }
+.juego-opcion.elegida { background: var(--papel-2); }
+.juego-opcion svg { flex: none; color: var(--texto-2); }
+.cajon-titulo .cuenta.mal { color: #c23a31; }
 .juego-ficha {
   position: absolute;
   left: 12px;
@@ -1331,3 +1355,24 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .marcar-cosa.hecha .marcar-caja { background: #1a9150; border-color: #1a9150; }
 .marcar-cosa.hecha span:last-child { color: var(--texto-2); text-decoration: line-through; }
 .marcar-cosa:disabled { cursor: default; opacity: 1; }
+/* «Mi parte» sin cuartos dibujados (José, de momento): la casa, apagada, y un aviso */
+.juego.sin-parte .casa3d-juego { opacity: 0.22; }
+.juego-sin-parte {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  top: 128px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 18px 16px;
+  border-radius: 20px;
+  background: var(--papel);
+  color: var(--texto);
+  box-shadow: var(--sombra);
+}
+.juego-sin-parte svg { color: var(--texto-2); margin-bottom: 2px; }
+.juego-sin-parte span { font-size: 0.85rem; color: var(--texto-2); }

@@ -35,6 +35,8 @@ export function configEjemplo(inicio: string, desde: string): Config {
       { id: 'carla', nombre: 'Carla', color: 'azul', figura: 'pino', aspecto: { alto: 1.62, pelo: 'largo', colorPelo: '#b5653a' } },
     ],
     zonas: ZONAS,
+    // «Mi parte» (inventado): Ana y Carla duermen arriba; lo de Bruno aún no está dibujado
+    partes: { ana: ['habitacion1', 'bano1', 'pasillo'], carla: ['habitacion3', 'bano2', 'pasillo'] },
     alquiler: { total: 120000, paga: 'bruno', partes: { ana: 40000, bruno: 40000, carla: 40000 }, dia: 10, desde },
     facturas: [
       { id: 'luz', nombre: 'Luz', paga: 'carla' },

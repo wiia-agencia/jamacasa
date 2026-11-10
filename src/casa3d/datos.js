@@ -323,14 +323,31 @@ export const FOCO = {
   },
 };
 
-// La pantalla de Limpieza (la D, «pantalla de juego»): qué se ve al ir a cada piso, con los pisos separados y solo lo
-// que se limpia (la caja es la huella de cada piso). h: [desde, hasta] sobre el suelo de ese piso (el de abajo deja
-// asomar el del medio); margen (menos de 1 = más cerca) y bajar (cuánto se baja el encuadre, para que quepan la
-// cabecera y el cajón).
+// La pantalla de Limpieza (la D, «pantalla de juego»): qué se encuadra, siempre en el hueco que dejan la cabecera y el
+// cajón. Con el cajón cerrado, los tres pisos enteros, igual para todos («el ángulo y justo el plano que mejor enseña
+// la casa», Javi, 10 de noviembre, 19:46); con el cajón abierto, el piso que miras, de cerca; en «Mi parte», tus
+// cuartos. h: [desde, hasta] sobre el suelo (en «todos», del suelo del piso de abajo al techo del de arriba);
+// margen: más de 1 = más aire alrededor.
 export const VISTAS_JUEGO = {
-  0: { h: [0, 7.6], margen: 1.0, bajar: -1.4 },
-  1: { h: [0, 2.6], margen: 0.9, bajar: 0.4 },
-  2: { h: [0, 2.6], margen: 0.88, bajar: -0.2 },
+  todos: { h: [0, 2.6], margen: 1.04 },
+  piso: { h: [0, 2.6], margen: 1.06 },
+  parte: { h: [0, 2.6], margen: 1.12 },
+};
+
+// ---------- «Mi parte» ----------
+// Los cuartos de cada uno (no salen en «Lo que se limpia»: son su apartado privado). Aquí solo va el plano: dónde está
+// cada cuarto, dónde sale su suciedad y dónde se pone el muñeco. De quién es cada uno lo dice la config de la casa
+// (`partes`), nunca el código. El nombre dice qué es (habitacion…, bano…, pasillo) y la app lo junta con lo que cada
+// uno apunta en «Tu espacio» (tu habitación, tu baño, el pasillo) para saber cuántos días lleva sin limpiarse.
+export const CUARTOS = {
+  // las tres habitaciones del bloque de piedra, su baño y el pasillo que las une
+  habitacion1: { zona: [0, 0, 4.6, 4.2], suciedad: [[0.9, 2.4, 4.4, 3.5, P], [3.1, 0.3, 4.4, 2.4, P]], sitio: [3.75, 1.4, 'w'] },
+  habitacion2: { zona: [3.8, 5.4, 7.4, 9], suciedad: [[4.0, 6.15, 7.1, 7.05, P], [6.1, 7.05, 7.1, 8.8, P]], sitio: [6.55, 6.6, 'w'] },
+  habitacion3: { zona: [0, 4.2, 3.8, 9], suciedad: [[0.3, 5.6, 3.0, 8.7, P]], sitio: [1.9, 6.9, 'n'] },
+  bano1: { zona: [4.6, 0, 6.6, 4.2], suciedad: [[4.8, 2.3, 6.4, 4.0, P]], sitio: [5.75, 2.75, 'n'] },
+  pasillo: { zona: [3.8, 4.2, 9.4, 5.4], suciedad: [[4.0, 4.4, 9.2, 5.25, P]], sitio: [6.9, 4.8, 'e'] },
+  // el baño del salón de arriba (en «Lo que se limpia» sale cerrado: cada uno limpia el suyo)
+  bano2: { zona: [14.3, 3.9, 17.5, 6], suciedad: [[14.5, 4.1, 16.5, 5.4, 0]], sitio: [15.45, 4.7, 'e'] },
 };
 
 // El garaje no entra en la rotación: es una tarea extra que sale cuando alguien se apunta

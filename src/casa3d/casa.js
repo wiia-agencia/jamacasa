@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ALTURA, MURO_ALTO, MURO_BAJO, PLANTAS, TEJADOS, JARDIN, FOCO, GARAJE } from './datos.js';
+import { ALTURA, MURO_ALTO, MURO_BAJO, PLANTAS, TEJADOS, JARDIN, FOCO, GARAJE, CUARTOS } from './datos.js';
 import { enfocar } from './foco.js';
 import { construirSuciedad, construirBrillos, construirMohoParedes, construirBasura } from './suciedad.js';
 import { Lote, Materiales, CX, CZ, azar } from './geometria.js';
@@ -1646,13 +1646,28 @@ function construirPlanta(def, estilo, conRuina = false) {
   const s = mallaSombras(sombras, texturaSombra(), estilo.sombra, mats);
   if (s) grupo.add(s);
 
-  const { piezas: suciedad, animados } = construirSuciedad(def, estilo, mats, ocupado);
-  for (const p of suciedad) grupo.add(p);
+  // la suciedad y los brillos; en «Mi parte», cuarto a cuarto (cada uno va por sus días: userData.cuarto)
+  const trozos = def.cuartos
+    ? def.cuartos.map((c, i) => ({ id: c.id, def: { ...def, suciedad: c.suciedad, zonas: [c.zona], primeros: {}, muros: i === 0 ? def.muros : [] } }))
+    : [{ id: undefined, def }];
+  const suciedad = [], brillos = [];
+  const animados = { moscas: [], peste: [], niebla: [], ratas: [] };
+  const cuartoEn = (x, y) => (def.cuartos || []).find((c) => x > c.zona[0] - 0.4 && x < c.zona[2] + 0.4 && y > c.zona[1] - 0.4 && y < c.zona[3] + 0.4)?.id;
+  for (const t of trozos) {
+    const s = construirSuciedad(t.def, estilo, mats, ocupado);
+    for (const p of s.piezas) { if (t.id) p.userData.cuarto = t.id; suciedad.push(p); grupo.add(p); }
+    for (const k of Object.keys(animados)) animados[k].push(...s.animados[k]);
+    const b = construirBrillos(t.def, estilo, mats, muros);
+    for (const sp of b.sprites) {
+      // los destellos de las ventanas van en su pared: su cuarto, por dónde caen
+      if (t.id) sp.userData.cuarto = sp.parent === b.grupo ? t.id : cuartoEn(sp.position.x + CX, sp.position.z + CZ);
+      brillos.push(sp);
+    }
+    grupo.add(b.grupo);
+  }
   const basura = construirBasura(def, estilo, mats);
   for (const g of [...basura.bolsas, ...basura.moscas]) { g.visible = false; grupo.add(g); }
   animados.moscas.push(...basura.moscas);
-  const { grupo: grupoBrillos, sprites: brillos } = construirBrillos(def, estilo, mats, muros);
-  grupo.add(grupoBrillos);
   const grietas = [];   // con las paredes en ruinas ya no hacen falta
   const moho = def.piso === 'garaje' ? [] : construirMohoParedes(def, estilo, mats, muros);
 
@@ -1762,6 +1777,20 @@ function focoDe(def, extras) {
   const mas = (extras && extras[def.piso]) || [];
   if (!f || !f.extras || !mas.length) return f;
   return { ...f, zonas: [...f.zonas, ...mas.flatMap((k) => f.extras[k] || [])] };
+}
+
+// «Mi parte»: tus cuartos (los dice la config de la casa con los nombres de CUARTOS), recortados del piso de arriba
+// como «Lo que se limpia»: sin basura ni lo de los otros; la suciedad va cuarto a cuarto
+export function construirParte(estilo, ids) {
+  const cuartos = (ids || []).filter((id) => CUARTOS[id]).map((id) => ({ id, ...CUARTOS[id] }));
+  if (!cuartos.length) return null;
+  const [x, y, mira] = cuartos[0].sitio;
+  const sitio = [x, y, mira];
+  const def = enfocar(
+    { ...PLANTAS[2], piso: 'parte', basura: null, primeros: {}, cuartos, suciedad: cuartos.flatMap((c) => c.suciedad), sitios: { pie: sitio, barrer: sitio, esperar: sitio, relax: { pose: 'pie', x, y, mira } } },
+    { zonas: cuartos.map((c) => c.zona) },
+  );
+  return construirPlanta(def, estilo, false);
 }
 
 export function construirCasa(estilo, modo = 'entera', extras = {}) {

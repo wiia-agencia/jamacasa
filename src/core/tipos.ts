@@ -73,6 +73,9 @@ export interface Config {
   normas?: Partial<Normas>;
   notaLimpieza?: string; // lo que no entra en la rotación (habitaciones, etc.)
   aspectos?: Partial<Record<MiembroId, Aspecto>>; // el muñeco de cada uno en la casa en 3D
+  /** «Mi parte»: los cuartos de cada uno en la casa en 3D (habitacion1, bano1, pasillo…: los nombres del plano, en
+   *  `src/casa3d/datos.js`). Solo los ve su dueño. Va en la config de la casa, nunca en el código. */
+  partes?: Partial<Record<MiembroId, string[]>>;
 }
 
 export type TipoEvento =

@@ -1,4 +1,4 @@
-import { Bath, BedDouble, Check, ChevronRight, Clock3, Dices, House, Info, Lock, Plus, Sparkles, TriangleAlert, Trash2 } from 'lucide-react';
+import { Bath, BedDouble, Check, ChevronDown, ChevronRight, Clock3, Dices, DoorOpen, House, Info, Lock, Plus, Sparkles, TriangleAlert, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as PEvento, type ReactNode } from 'react';
 import { bocadillos, fichaDe, marcaDe, resumenDe, type Bocadillo } from '../core/bocadillos';
 import { escenaCasa } from '../core/escena';
@@ -6,9 +6,10 @@ import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, textoEspacio } from '../core/espacio
 import { avisosBasuraAbiertos, rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
 import type { Tarea } from '../core/limpieza';
 import { luzDe } from '../core/luz';
+import { parteDe, type CuartoParte } from '../core/parte';
 import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, rangoSemana } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
-import { Casa3D, type BurbujaCasa } from './Casa3D';
+import { Casa3D, type BurbujaCasa, type ParteCasa } from './Casa3D';
 import { claseColor, miembro, useCasa } from './contexto';
 import { EstadoTarea } from './Hoy';
 import { Avatar, Nombre, Placa, Seccion } from './piezas';
@@ -69,9 +70,28 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   const [foco, setFoco] = useState<MiembroId | null>(null);
   const [abierto, setAbierto] = useState(false);
   const [menuBasura, setMenuBasura] = useState(false);
+  // tu cara abre un desplegable escondido: las zonas comunes o «Mi parte», que solo ves tú (Javi, 10 de noviembre)
+  const [menuCara, setMenuCara] = useState(false);
+  const [enParte, setEnParte] = useState(false);
   const [caras, setCaras] = useState<Record<string, string>>({});
   const [cielo, setCielo] = useState('');
   const [altoCajon, setAltoCajon] = useState(0);
+
+  // «Mi parte»: tus cuartos (config de la casa) y cómo está cada uno (lo tuyo de «Tu espacio»)
+  const cuartos = useMemo(() => parteDe(config, estado.espacio[yo] ?? [], yo), [config, estado.espacio, yo]);
+  const parte: ParteCasa | null = useMemo(
+    () =>
+      enParte && cuartos.length
+        ? { cuartos: cuartos.map((c) => c.id), dias: Object.fromEntries(cuartos.map((c) => [c.id, c.dias])), brillo: Object.fromEntries(cuartos.map((c) => [c.id, c.brillo])) }
+        : null,
+    [enParte, cuartos],
+  );
+  const verComunes = () => { setEnParte(false); setFoco(null); setMenuCara(false); };
+  const verParte = () => {
+    setEnParte(true); setFoco(null); setMenuCara(false); setMenuBasura(false);
+    // tus cuartos arriba y, en el cajón, lo tuyo (cuánto lleva cada uno y «Hecho»)
+    setAbierto(true);
+  };
 
   // la luz de la hora de verdad (se recalcula cada minuto)
   const minuto = Math.floor(estado.ahora / 60_000);
@@ -103,7 +123,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   const viendoOtro = foco !== null && foco !== yo;
   const burbujas: BurbujaCasa[] = useMemo(
     () =>
-      bocadillos(config, estado, yo).map((b: Bocadillo) => {
+      enParte ? [] : bocadillos(config, estado, yo).map((b: Bocadillo) => {
         const t = tareaDe(estado, w, b.miembro);
         let alTocar: (() => void) | undefined;
         if (t && b.accion === 'empezar') alTocar = () => { empezar(t); };
@@ -114,11 +134,11 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         } else if (t && b.accion === 'tarea') alTocar = () => (b.miembro === yo ? setAbierto(true) : abrir({ tipo: 'tarea', tarea: t }));
         return { id: b.miembro, titulo: b.titulo, sub: b.sub, tono: b.tono, alTocar };
       }),
-    [estado, config, yo], // eslint-disable-line react-hooks/exhaustive-deps
+    [estado, config, yo, enParte], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  // lo que tapan la cabecera y el cajón (o la ficha), para que los bocadillos no se metan debajo
-  const abajo = viendoOtro ? 175 : abierto ? Math.max(altoCajon, 300) : ASOMA_CAJON + 92;
+  // lo que tapan la cabecera y el cajón (o la ficha): la casa se encuadra en lo que queda y los bocadillos no se meten debajo
+  const abajo = viendoOtro ? 175 : abierto ? Math.max(altoCajon, 300) : ASOMA_CAJON + (enParte ? 28 : 44);
   const margenes = useMemo(() => ({ arriba: ALTO_CABECERA, abajo }), [abajo]);
 
   const ordenCaras = [yo, ...config.miembros.map((m) => m.id).filter((id) => id !== yo)];
@@ -126,50 +146,76 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   const basuraMia = estado.basura === yo && avisosBasuraAbiertos(estado).length > 0;
 
   return (
-    <div className={`juego ${deNoche ? 'de-noche' : ''}`} style={{ top: banda || undefined, ['--cielo-arriba' as string]: cielo || undefined }}>
+    <div className={`juego ${deNoche ? 'de-noche' : ''} ${enParte ? 'en-parte' : ''} ${enParte && !cuartos.length ? 'sin-parte' : ''}`} style={{ top: banda || undefined, ['--cielo-arriba' as string]: cielo || undefined }}>
       <Casa3D
         miembros={config.miembros}
         escena={escena}
         yo={yo}
         alFallar={alFallar}
-        juego={{ foco, burbujas, luz, margenes, alListo: (v) => { setCaras(v.caras); setCielo(v.cielo); } }}
+        juego={{ foco, cerca: abierto, parte, burbujas, luz, margenes, alListo: (v) => { setCaras(v.caras); setCielo(v.cielo); } }}
       />
 
       <header className="juego-arriba">
         <div className="juego-semana">
-          <h1>{tituloSemana(w)}</h1>
-          <p>{resumenDe(estado, yo)}</p>
+          {enParte ? (
+            <>
+              <h1>Mi parte</h1>
+              <p className="fila" style={{ gap: 5 }}><Lock size={14} aria-hidden="true" /> Solo la ves tú</p>
+            </>
+          ) : (
+            <>
+              <h1>{tituloSemana(w)}</h1>
+              <p>{resumenDe(estado, yo)}</p>
+            </>
+          )}
         </div>
         <div className="juego-caras" role="group" aria-label="Ver el piso de cada uno">
           {ordenCaras.map((id) => {
             const m = miembro(config, id);
             const mc = marcaDe(estado, id, yo);
+            const tu = id === yo;
             const activa = (foco ?? yo) === id;
             return (
               <button
                 key={id}
                 type="button"
                 className={`juego-cara ${claseColor(m.color)} ${activa ? 'activa' : ''}`}
-                aria-pressed={activa}
-                aria-label={id === yo ? 'Tu piso' : `El piso de ${m.nombre}`}
-                onClick={() => { setFoco(id === yo ? null : id); setMenuBasura(false); if (id !== yo) setAbierto(false); }}
+                aria-pressed={tu ? undefined : activa}
+                aria-expanded={tu ? menuCara : undefined}
+                aria-haspopup={tu ? 'menu' : undefined}
+                aria-label={tu ? 'Tú: zonas comunes o tu parte' : `El piso de ${m.nombre}`}
+                onClick={() => {
+                  setMenuBasura(false);
+                  if (tu) { setMenuCara(!menuCara); return; }
+                  setMenuCara(false); setEnParte(false); setFoco(id); setAbierto(false);
+                }}
               >
                 <span className="juego-foto">{caras[id] ? <img src={caras[id]} alt="" /> : <Avatar id={id} />}</span>
-                {mc.marca && <i className={`juego-marca ${mc.tono}`} aria-hidden="true">{mc.marca}</i>}
-                <span className="juego-nombre">{id === yo ? 'Tú' : m.nombre}</span>
+                {tu && enParte ? (
+                  <i className="juego-marca candado" aria-hidden="true"><Lock size={11} strokeWidth={3} /></i>
+                ) : (
+                  mc.marca && <i className={`juego-marca ${mc.tono}`} aria-hidden="true">{mc.marca}</i>
+                )}
+                <span className="juego-nombre">{tu ? <>Tú<ChevronDown size={12} strokeWidth={3} aria-hidden="true" /></> : m.nombre}</span>
               </button>
             );
           })}
+          {menuCara && <MenuCara enParte={enParte} cuartos={cuartos} comunes={verComunes} parte={verParte} cerrar={() => setMenuCara(false)} />}
         </div>
       </header>
 
-      {!abierto && !viendoOtro && (
+      {enParte && !cuartos.length && (
+        // José, de momento: su parte aún no está dibujada en la casa
+        <div className="juego-sin-parte" role="note">
+          <Lock size={20} aria-hidden="true" />
+          <b>Tu parte aún no está dibujada</b>
+          <span>Cuando lo esté, saldrá aquí. Lo tuyo lo tienes abajo.</span>
+        </div>
+      )}
+
+      {!abierto && !viendoOtro && !enParte && (
         <>
-          <button type="button" className="juego-redondo izq" onClick={() => abrir({ tipo: 'sorteo' })} aria-label="Ver el sorteo de la semana">
-            <Dices size={26} aria-hidden="true" />
-            <span>Sorteo</span>
-          </button>
-          <button type="button" className="juego-redondo der" onClick={() => setMenuBasura(!menuBasura)} aria-expanded={menuBasura} aria-label="La basura">
+          <button type="button" className="juego-redondo der" onClick={() => { setMenuBasura(!menuBasura); setMenuCara(false); }} aria-expanded={menuBasura} aria-label="La basura">
             <Trash2 size={25} aria-hidden="true" />
             {basura && <b className={basuraMia ? 'tuya' : ''}>{basura.bolsas}</b>}
             <span>Basura</span>
@@ -180,7 +226,12 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
 
       {viendoOtro && <FichaPiso id={foco!} caras={caras} volver={() => setFoco(null)} />}
 
-      {!viendoOtro && (
+      {!viendoOtro && enParte && (
+        <Cajon abierto={abierto} setAbierto={setAbierto} alMedir={setAltoCajon} resumen={<ResumenParte />}>
+          <TuEspacio cuartos={cuartos} />
+        </Cajon>
+      )}
+      {!viendoOtro && !enParte && (
         <Cajon abierto={abierto} setAbierto={setAbierto} alMedir={setAltoCajon} resumen={<ResumenCajon t={mia} />}>
           {mia ? <LoQueSeLimpia t={mia} empezar={empezar} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
           <TuEspacio />
@@ -188,6 +239,47 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         </Cajon>
       )}
     </div>
+  );
+}
+
+/** El desplegable de tu cara: las zonas comunes (la casa de los tres) o «Mi parte», que solo ves tú. */
+function MenuCara({ enParte, cuartos, comunes, parte, cerrar }: { enParte: boolean; cuartos: CuartoParte[]; comunes: () => void; parte: () => void; cerrar: () => void }) {
+  // se cierra al tocar fuera (las caras ya hacen lo suyo)
+  const alCerrar = useRef(cerrar);
+  alCerrar.current = cerrar;
+  useEffect(() => {
+    const fuera = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.('.juego-menu-cara, .juego-cara')) alCerrar.current(); };
+    document.addEventListener('pointerdown', fuera, true);
+    return () => document.removeEventListener('pointerdown', fuera, true);
+  }, []);
+  return (
+    <>
+      <div className="juego-menu juego-menu-cara" role="menu" aria-label="Qué ver">
+        <button type="button" role="menuitemradio" aria-checked={!enParte} className={`juego-opcion ${!enParte ? 'elegida' : ''}`} onClick={comunes}>
+          <House size={19} aria-hidden="true" />
+          <span className="crece"><b>Zonas comunes</b><small>La casa de los tres</small></span>
+          {!enParte && <Check size={17} strokeWidth={3} aria-hidden="true" />}
+        </button>
+        <button type="button" role="menuitemradio" aria-checked={enParte} className={`juego-opcion ${enParte ? 'elegida' : ''}`} onClick={parte}>
+          <Lock size={19} aria-hidden="true" />
+          <span className="crece"><b>Mi parte</b><small>{cuartos.length ? 'Solo la ves tú' : 'Solo la ves tú · aún sin dibujar'}</small></span>
+          {enParte && <Check size={17} strokeWidth={3} aria-hidden="true" />}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** Lo que se ve del cajón cerrado en «Mi parte»: «Tu espacio» y lo que ya toca. */
+function ResumenParte() {
+  const { estado, yo } = useCasa();
+  const cosas = estado.espacio[yo] ?? [];
+  const tocan = cosas.filter((c) => c.toca).length;
+  return (
+    <>
+      <h2>Tu espacio</h2>
+      <span className={`cuenta ${tocan ? 'mal' : ''}`}>{cosas.length === 0 ? 'Sin apuntar' : tocan ? (tocan === 1 ? '1 toca' : `${tocan} tocan`) : 'Al día'}</span>
+    </>
   );
 }
 
@@ -396,7 +488,8 @@ function Secciones() {
   return (
     <>
       {estado.empezado && (
-        <Seccion titulo="Esta semana">
+        // el sorteo ya sale solo a cada uno al empezar la semana; aquí queda para volver a verlo (sin botón en la casa)
+        <Seccion titulo="Esta semana" extra={<button type="button" className="enlace" onClick={() => abrir({ tipo: 'sorteo' })}>Ver el sorteo</button>}>
           <div className="caja">
             <div className="lista">
               {config.miembros.map((m) => {
@@ -536,19 +629,25 @@ function iconoEspacio(nombre: string) {
   const n = nombre.toLowerCase();
   if (n.includes('baño') || n.includes('bano') || n.includes('ducha')) return <Bath size={18} />;
   if (n.includes('habitaci') || n.includes('cuarto') || n.includes('cama')) return <BedDouble size={18} />;
+  if (n.includes('pasillo')) return <DoorOpen size={18} />;
   if (n.includes('piso') || n.includes('casa')) return <House size={18} />;
   return <Sparkles size={18} />;
 }
 
 /** «Tu espacio»: lo tuyo, que no sale en la casa de los tres. Solo lo ves tú y no da puntos: te dice cuánto llevas
- *  sin limpiarlo y te avisa cuando toca. */
-function TuEspacio() {
+ *  sin limpiarlo y te avisa cuando toca. En «Mi parte» (con tus cuartos), ofrece apuntar los que faltan: lo que
+ *  apuntas ahí es lo que enseña la casa en cada cuarto. */
+function TuEspacio({ cuartos }: { cuartos?: CuartoParte[] }) {
   const { estado, yo, acciones, avisar } = useCasa();
   const cosas = estado.espacio[yo] ?? [];
   const [cambiando, setCambiando] = useState(false);
   const [otra, setOtra] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const sugeridas = SUGERENCIAS_ESPACIO.filter((s) => !cosas.some((c) => c.nombre.toLowerCase() === s.toLowerCase()));
+  // en «Mi parte», los cuartos sin apuntar se apuntan con su propio nombre de cuarto (así se juntan seguro)
+  const faltan = (cuartos ?? []).filter((c, i, a) => !c.cosa && a.findIndex((d) => d.nombre === c.nombre && !d.cosa) === i);
+  const sugeridas = SUGERENCIAS_ESPACIO.filter(
+    (s) => !cosas.some((c) => c.nombre.toLowerCase() === s.toLowerCase()) && !faltan.some((c) => c.nombre.toLowerCase() === s.toLowerCase()),
+  );
   const hacer = async (f: () => Promise<void>, texto?: string) => {
     if (ocupado) return;
     setOcupado(true);
@@ -561,8 +660,8 @@ function TuEspacio() {
   };
   const anadir = (nombre: string) => hacer(() => acciones.espacioCosa(`c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, nombre, CADA_ESPACIO));
 
-  return (
-    <Seccion titulo="Tu espacio" extra={<span className="mini tenue fila" style={{ gap: 5 }}><Lock size={13} aria-hidden="true" />Solo lo ves tú</span>}>
+  const cuerpo = (
+    <>
       {cosas.length > 0 ? (
         <div className="caja">
           <div className="lista">
@@ -591,10 +690,24 @@ function TuEspacio() {
             ))}
           </div>
         </div>
-      ) : (
+      ) : faltan.length === 0 ? (
         <p className="peq suave">Apunta lo tuyo (tu habitación, tu baño…): te dice cuánto llevas sin limpiarlo y te avisa cuando toca. Los otros dos no lo ven.</p>
+      ) : null}
+      {faltan.length > 0 && (
+        <div className="pila-s">
+          <p className="peq suave" style={{ margin: 0 }}>
+            {cosas.length === 0 ? 'Apunta tus cuartos: la casa enseña cuánto lleva cada uno sin limpiarse y te avisa cuando toca. Los otros dos no lo ven.' : 'Apunta lo que falta y se verá en tu parte de la casa:'}
+          </p>
+          <div className="opciones">
+            {faltan.map((c) => (
+              <button key={c.id} type="button" className="opcion" disabled={ocupado} onClick={() => hacer(() => acciones.espacioCosa(c.id, c.nombre, CADA_ESPACIO))}>
+                <Plus size={15} aria-hidden="true" /> {c.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
-      {(cosas.length === 0 || cambiando) && (
+      {((cosas.length === 0 && faltan.length === 0) || cambiando) && (
         <div className="opciones">
           {sugeridas.map((s) => (
             <button key={s} type="button" className="opcion" disabled={ocupado} onClick={() => anadir(s)}>
@@ -628,6 +741,13 @@ function TuEspacio() {
           {cambiando ? 'Listo' : 'Añadir o quitar cosas'}
         </button>
       )}
+    </>
+  );
+  // en «Mi parte» ya dice arriba que solo lo ves tú y el cajón se llama «Tu espacio»
+  if (cuartos) return <section className="pila-s" aria-label="Tu espacio">{cuerpo}</section>;
+  return (
+    <Seccion titulo="Tu espacio" extra={<span className="mini tenue fila" style={{ gap: 5 }}><Lock size={13} aria-hidden="true" />Solo lo ves tú</span>}>
+      {cuerpo}
     </Seccion>
   );
 }

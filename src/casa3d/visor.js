@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DIA_NIVEL, DIAS_DE_NIVEL, nivelDeDias } from './suciedad.js';
-import { construirCasa, construirRuina, liberar } from './casa.js';
+import { construirCasa, construirParte, construirRuina, liberar } from './casa.js';
 import { crearMonigote } from './monigotes.js';
 import { ESTILOS } from './estilos.js';
 import { PERSONAS, PISOS, TURNOS, ESCENAS, ESTADOS, ALTURA, ORDEN_PERSONAS, PIEDRA_SUBE, GARAJE, VISTAS_JUEGO, ponerTurnos } from './datos.js';
@@ -61,8 +61,10 @@ const modoDe = (vista) => (vista === 'foco' ? 'foco' : 'entera');
 
 export function crearVisor(contenedor, opciones = {}) {
   // juego: la pantalla de Limpieza (la D): solo lo que se limpia de cada piso (como siempre: ni garaje ni
-  // habitaciones), los pisos separados, la cámara va al piso de quien toques y los bocadillos los pone la app
-  // (setBurbujas); la luz sigue la hora de verdad (setLuz)
+  // habitaciones), los pisos separados y los tres a la vista, igual para todos; el piso que miras (el tuyo o el de
+  // la cara que toques) se ve entero y los otros, medio transparentes. Con el cajón abierto (setCerca), ese piso de
+  // cerca; en «Mi parte» (setParte), solo tus cuartos. Los bocadillos los pone la app (setBurbujas) y la luz sigue
+  // la hora de verdad (setLuz)
   const juego = !!opciones.juego;
   const st = {
     estilo: opciones.estilo || 'juguete',
@@ -70,10 +72,12 @@ export function crearVisor(contenedor, opciones = {}) {
     escena: typeof opciones.escena === 'object' && opciones.escena ? '__vivo' : opciones.escena || opciones.momento || 'miercoles',
     vista: juego ? 'foco' : opciones.vista || 'foco',
     foco: null,
+    cerca: false, // el cajón está abierto: el piso que miras, de cerca
+    parte: null, // «Mi parte»: { cuartos: ['habitacion1', …], dias: { habitacion1: 3, … } }
     burbujas: [],
     luz: opciones.luz || null,
     margenes: { arriba: 80, abajo: 150 },
-    subir: 0, // cuánto se sube la casa ahora (va hacia lo que tapa el cajón)
+    abajo: null, // lo que tapa ahora el cajón (va poco a poco hacia margenes.abajo)
     extra: opciones.extra || null,
     visita: null,
     az: opciones.az ?? 0.38,
@@ -158,11 +162,28 @@ export function crearVisor(contenedor, opciones = {}) {
     return casa.garaje ? [...casa.plantas, casa.garaje] : casa.plantas;
   }
 
+  // «Mi parte»: tus cuartos, que se construyen solo cuando hacen falta (y otra vez si cambian)
+  function ponerParte() {
+    if (!casa) return;
+    if (casa.parte) {
+      for (const m of Object.values(monigotes)) if (m.raiz.parent === casa.parte.grupo) casa.parte.grupo.remove(m.raiz);
+      escena.remove(casa.parte.grupo); liberar(casa.parte.grupo); casa.parte = null;
+    }
+    if (!juego || !st.parte) return;
+    casa.parte = construirParte(ESTILOS[st.estilo], st.parte.cuartos);
+    if (!casa.parte) return;
+    casa.parte.escala = casa.parte.escalaObj = 1;
+    escena.add(casa.parte.grupo);
+    colocar(casa.parte);
+    ultimoAz = null; // para que sus paredes de delante salgan cortadas
+  }
+
   function montar() {
     if (casa) {
       for (const p of plantasConGaraje()) { escena.remove(p.grupo); liberar(p.grupo); }
       escena.remove(casa.tejado.grupo); liberar(casa.tejado.grupo);
       if (casa.jardin) { escena.remove(casa.jardin.grupo); liberar(casa.jardin.grupo); }
+      if (casa.parte) { escena.remove(casa.parte.grupo); liberar(casa.parte.grupo); }
       for (const m of Object.values(monigotes)) { m.raiz.parent?.remove(m.raiz); m.liberar(); }
     }
     const E = ESTILOS[st.estilo];
@@ -192,6 +213,7 @@ export function crearVisor(contenedor, opciones = {}) {
       m.fase = i * 1.7;
       monigotes[id] = m;
     });
+    if (st.parte) ponerParte();
     ultimoAz = null;
     crearEtiquetas();
     aplicar();
@@ -318,11 +340,14 @@ export function crearVisor(contenedor, opciones = {}) {
         if (modo === 'apagado') m.color.lerp(GRIS, 0.3).multiplyScalar(0.72);
         if (modo === 'fantasma') m.color.lerp(GRIS, 0.3).multiplyScalar(0.9);
         if (modo === 'fondo') m.color.lerp(GRIS, 0.22).multiplyScalar(0.93);
+        if (modo === 'medio') m.color.lerp(GRIS, 0.18).multiplyScalar(0.94);
       }
-      const fantasma = modo === 'fantasma', fondo = modo === 'fondo';
-      const transp = fantasma || fondo || b.transparent;
+      // medio: los pisos que no miras en la pantalla de juego, a menos de la mitad (Javi: «por lo menos al 50 % de
+      // transparencia»)
+      const fantasma = modo === 'fantasma', fondo = modo === 'fondo', medio = modo === 'medio';
+      const transp = fantasma || fondo || medio || b.transparent;
       if (m.transparent !== transp) { m.transparent = transp; m.needsUpdate = true; }
-      m.opacity = fantasma ? (b.opacity ?? 1) * 0.14 : fondo ? (b.opacity ?? 1) * 0.42 : b.opacity;
+      m.opacity = fantasma ? (b.opacity ?? 1) * 0.14 : fondo ? (b.opacity ?? 1) * 0.42 : medio ? (b.opacity ?? 1) * 0.4 : b.opacity;
       m.depthWrite = fantasma ? false : b.depthWrite;
       if (b.emissive && m.emissive) {
         m.emissive.copy(b.emissive);
@@ -380,6 +405,28 @@ export function crearVisor(contenedor, opciones = {}) {
     p.escalaObj = casa.modo === 'foco' && !juego ? (destacada ? 1.08 : 0.92) : 1;
   }
 
+  // «Mi parte»: cada cuarto va por sus días (los de «Tu espacio»; sin apuntar, ni sucio ni brillos) y, recién
+  // limpio, brilla (lo dice la app: 3 el mismo día, 2 al siguiente, 1 al otro)
+  function pintarParte(p) {
+    const dias = (st.parte && st.parte.dias) || {};
+    const brillos = (st.parte && st.parte.brillo) || {};
+    const de = (o) => { const n = dias[o.userData.cuarto]; return typeof n === 'number' ? n : null; };
+    for (const s of p.suciedad) {
+      const u = s.userData, d = u.dia ?? DIA_NIVEL[u.nivel ?? 0], h = u.hasta ?? Infinity, n = de(s);
+      s.visible = n !== null && n >= d && n <= h;
+    }
+    const peor = Math.max(-1, ...Object.values(dias).filter((n) => typeof n === 'number'));
+    for (const g of p.moho) g.visible = peor >= DIA_NIVEL[2];
+    for (const s of p.brillos) s.visible = (s.userData.nivel ?? 1) <= (brillos[s.userData.cuarto] || 0);
+    p.ruina = false;
+    p.muebles.visible = true; p.mueblesRuina.visible = false;
+    p.int.normal.visible = true; p.int.ruina.visible = false;
+    actualizarMuros(p);
+    atenuar(p.materiales, 'normal');
+    p.halo.visible = true;
+    p.halo.material.color.set((PERSONAS[st.verComo] || {}).color || '#ffffff');
+  }
+
   function textoChip(nombre, corto, quien, est, tuyo, extra = '', pastilla = 'Tu piso') {
     if (ancho < 520) return `${tuyo ? '<span class="c3-tu">Tú</span>' : ''}<b>${corto}</b> <span class="c3-est c3-${est.tono}">${est.nombre}</span>${extra}`;
     return `${tuyo ? `<span class="c3-tu">${pastilla}</span>` : ''}<b>${nombre}</b>${quien ? ' · ' + quien : ''} <span class="c3-est c3-${est.tono}">${est.nombre}</span>${extra}`;
@@ -393,13 +440,16 @@ export function crearVisor(contenedor, opciones = {}) {
     const mio = TURNOS[st.verComo];
     const dest = destacado();
     const estrecho = ancho < 520;
+    const enParte = juego && !!casa.parte;
 
     for (const p of casa.plantas) {
       const piso = p.def.piso;
       const [estado, nivel, dias, hecho] = estadoPiso(esc, piso);
       const quien = ORDEN_PERSONAS.find((id) => TURNOS[id] === piso);
-      const esDest = juego ? p.def.nivel === miNivel() : p.def.nivel === dest;
-      const modo = juego || esDest ? 'normal' : st.vista === 'transparente' ? 'fantasma' : casa.modo === 'foco' ? 'fondo' : 'apagado';
+      // en la pantalla de juego se ven los tres pisos: el que miras, entero y con su halo; los otros, medio transparentes
+      const esDest = juego ? p.def.nivel === focoNivel() : p.def.nivel === dest;
+      const modo = esDest ? 'normal' : juego ? 'medio' : st.vista === 'transparente' ? 'fantasma' : casa.modo === 'foco' ? 'fondo' : 'apagado';
+      p.grupo.visible = !enParte;
       pintarPlanta(p, estado, nivel, modo, PERSONAS[quien].color, esDest, dias, hecho);
       // la basura llena, esperando a que alguien la saque: bolsas que se acumulan y, al segundo día, moscas
       if (p.basura) {
@@ -410,10 +460,11 @@ export function crearVisor(contenedor, opciones = {}) {
       }
     }
     if (casa.garaje) {
-      casa.garaje.grupo.visible = garajeVisible();
+      casa.garaje.grupo.visible = garajeVisible() && !enParte;
       const esDest = st.visita === -1 || (st.visita == null && st.extra === st.verComo);
-      pintarPlanta(casa.garaje, 'limpiando', 0, esDest ? 'normal' : 'fondo', st.extra ? PERSONAS[st.extra].color : '#ffffff', esDest);
+      pintarPlanta(casa.garaje, 'limpiando', 0, esDest ? 'normal' : juego ? 'medio' : 'fondo', st.extra ? PERSONAS[st.extra].color : '#ffffff', esDest);
     }
+    if (casa.parte) pintarParte(casa.parte);
     atenuar(casa.tejado.materiales, st.vista === 'transparente' ? 'fantasma' : 'normal');
 
     for (const id of ORDEN_PERSONAS) {
@@ -421,7 +472,12 @@ export function crearVisor(contenedor, opciones = {}) {
       const el = etiquetasPersona[id];
       const cfg = (esc.personas && esc.personas[id]) || {};
       let planta, sitio, pose, texto = '';
-      if (st.extra === id && casa.garaje) {
+      if (enParte && id === st.verComo) {
+        // en «Mi parte», tú en tu cuarto (los otros dos se quedan en sus pisos, que no se ven)
+        planta = casa.parte;
+        sitio = planta.def.sitios.pie;
+        pose = 'pie';
+      } else if (st.extra === id && casa.garaje) {
         planta = casa.garaje;
         sitio = GARAJE.sitios.barrer;
         pose = 'barrer';
@@ -531,51 +587,70 @@ export function crearVisor(contenedor, opciones = {}) {
     return puntos;
   }
 
-  // pantalla de juego: la caja de cada piso y el paso suave de una a otra
-  const anim = { de: null, a: null, nivel: null, t0: 0 };
-  function vistaDe(nivel) {
-    const v = VISTAS_JUEGO[nivel] || VISTAS_JUEGO[0];
-    const p = casa.plantas.find((q) => q.def.nivel === nivel);
-    const { xs, ys } = p ? p.huella : { xs: [11, 17.5], ys: [0, 9] };
-    const b = posY[nivel] ?? 0;
-    return [xs[0], ys[0], xs[1], ys[1], b + v.h[0], b + v.h[1], v.margen, v.bajar];
-  }
+  // pantalla de juego: qué se encuadra y el paso suave de una vista a otra. Con el cajón cerrado, los tres pisos
+  // (igual para todos); abierto, el piso que miras; en «Mi parte», tus cuartos. La cámara mira siempre al centro de
+  // la casa y cada vista es un recuadro de lo que se ve (centro y metros por píxel), que es lo que se anima
+  const anim = { de: null, a: null, clave: null, t0: 0 };
   const focoNivel = () => (st.foco ?? miNivel());
+  const centroJuego = new THREE.Vector3();
+  function prisma(pts, { xs, ys }, h0, h1) {
+    for (const x of xs) for (const y of ys) for (const h of [h0, h1]) pts.push(new THREE.Vector3(x - CX, h, y - CZ));
+    return pts;
+  }
+  function puntosJuego() {
+    if (casa.parte) {
+      const v = VISTAS_JUEGO.parte, b = posY[2];
+      return ['parte', prisma([], casa.parte.huella, b + v.h[0], b + v.h[1]), v.margen];
+    }
+    if (!st.cerca) {
+      const v = VISTAS_JUEGO.todos, pts = [];
+      for (const p of casa.plantas) prisma(pts, p.huella, posY[p.def.nivel] + v.h[0], posY[p.def.nivel] + v.h[1]);
+      return ['todos', pts, v.margen];
+    }
+    const nivel = focoNivel(), v = VISTAS_JUEGO.piso;
+    const p = casa.plantas.find((q) => q.def.nivel === nivel);
+    const b = posY[nivel] ?? 0;
+    return ['piso' + nivel, prisma([], p ? p.huella : { xs: [11, 17.5], ys: [0, 9] }, b + v.h[0], b + v.h[1]), v.margen];
+  }
   function encuadrarJuego() {
-    const nivel = focoNivel();
     const ahora = performance.now();
-    if (anim.a === null) { anim.a = vistaDe(nivel); anim.de = anim.a; anim.nivel = nivel; anim.t0 = ahora - 1e4; }
-    let k = suave((ahora - anim.t0) / 700);
-    const actual = anim.de.map((v, i) => v + (anim.a[i] - v) * k);
-    if (anim.nivel !== nivel) { anim.de = actual; anim.a = vistaDe(nivel); anim.nivel = nivel; anim.t0 = ahora; k = 0; }
-    else anim.a = vistaDe(nivel);
-    const [x0, y0, x1, y1, h0, h1, margen, bajar] = k >= 1 ? anim.a : anim.de.map((v, i) => v + (anim.a[i] - v) * k);
-    const pts = [];
-    for (const x of [x0, x1]) for (const y of [y0, y1]) for (const h of [h0, h1]) pts.push(new THREE.Vector3(x - CX, h, y - CZ));
-    const c = new THREE.Vector3();
-    for (const v of pts) c.add(v);
-    c.multiplyScalar(1 / pts.length);
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const p of casa.plantas) {
+      x0 = Math.min(x0, p.huella.xs[0]); x1 = Math.max(x1, p.huella.xs[1]);
+      z0 = Math.min(z0, p.huella.ys[0]); z1 = Math.max(z1, p.huella.ys[1]);
+    }
+    centroJuego.set((x0 + x1) / 2 - CX, (posY[0] + posY[2] + 2.6) / 2, (z0 + z1) / 2 - CZ);
     const dir = v3.set(Math.sin(st.az) * Math.cos(st.el), Math.sin(st.el), -Math.cos(st.az) * Math.cos(st.el));
-    camara.position.copy(c).addScaledVector(dir, 120);
+    camara.position.copy(centroJuego).addScaledVector(dir, 120);
     camara.up.set(0, 1, 0);
-    camara.lookAt(c);
+    camara.lookAt(centroJuego);
     camara.updateMatrixWorld();
+    const [clave, pts, margen] = puntosJuego();
     const inv = camara.matrixWorldInverse;
     let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
-    for (const v of pts) { const q = v.clone().applyMatrix4(inv); a0 = Math.min(a0, q.x); a1 = Math.max(a1, q.x); b0 = Math.min(b0, q.y); b1 = Math.max(b1, q.y); }
-    let w = (a1 - a0) * margen, h = (b1 - b0) * margen;
-    const asp = ancho / alto;
-    if (w / h > asp) h = w / asp; else w = h * asp;
-    w /= st.zoom; h /= st.zoom;
-    // si el cajón de abajo tapa más de lo normal, la casa sube lo que haga falta (poco a poco)
-    const objetivo = Math.max(0, st.margenes.abajo - 150) * 0.5;
-    st.subir += (objetivo - st.subir) * 0.2;
-    if (Math.abs(objetivo - st.subir) < 0.5) st.subir = objetivo;
-    const cx = (a0 + a1) / 2 + st.pan.x, cy = (b0 + b1) / 2 + bajar + st.pan.y - st.subir * (h / alto);
-    camara.left = cx - w / 2; camara.right = cx + w / 2; camara.top = cy + h / 2; camara.bottom = cy - h / 2;
+    for (const v of pts) { v.applyMatrix4(inv); a0 = Math.min(a0, v.x); a1 = Math.max(a1, v.x); b0 = Math.min(b0, v.y); b1 = Math.max(b1, v.y); }
+    // la vista va en el hueco que dejan la cabecera y el cajón (lo que tapa el cajón cambia poco a poco)
+    const objetivo = st.margenes.abajo;
+    st.abajo = st.abajo === null ? objetivo : st.abajo + (objetivo - st.abajo) * 0.2;
+    if (Math.abs(objetivo - st.abajo) < 0.5) st.abajo = objetivo;
+    const hueco = Math.max(60, alto - st.margenes.arriba - st.abajo);
+    const meta = [(a0 + a1) / 2, (b0 + b1) / 2, Math.max((a1 - a0) / ancho, (b1 - b0) / hueco) * margen];   // centro y metros por píxel
+    if (anim.a === null) { anim.de = meta; anim.clave = clave; anim.t0 = ahora - 1e4; }
+    let k = suave((ahora - anim.t0) / 700);
+    if (anim.clave !== clave) {
+      anim.de = anim.de.map((v, i) => v + (anim.a[i] - v) * k);
+      anim.clave = clave; anim.t0 = ahora; k = 0;
+    }
+    anim.a = meta;
+    const [cx0, cy0, s0] = k >= 1 ? meta : anim.de.map((v, i) => v + (meta[i] - v) * k);
+    const s = s0 / st.zoom;
+    const cx = cx0 + st.pan.x;
+    const top = cy0 + s * (st.margenes.arriba + hueco / 2) + st.pan.y;
+    camara.left = cx - (s * ancho) / 2; camara.right = cx + (s * ancho) / 2;
+    camara.top = top; camara.bottom = top - s * alto;
     camara.updateProjectionMatrix();
     if (ultimoAz !== st.az) { cortarMuros(); ultimoAz = st.az; }
-    return k < 1 || st.subir !== objetivo;
+    return k < 1 || st.abajo !== objetivo;
   }
 
   function encuadrar() {
@@ -610,7 +685,7 @@ export function crearVisor(contenedor, opciones = {}) {
 
   function cortarMuros() {
     const mirada = new THREE.Vector2(Math.sin(st.az), -Math.cos(st.az));
-    for (const p of plantasConGaraje()) {
+    for (const p of casa.parte ? [...plantasConGaraje(), casa.parte] : plantasConGaraje()) {
       for (const [l, n] of Object.entries(LADOS)) p.deCara[l] = n.dot(mirada) > 0.15;
       actualizarMuros(p);
     }
@@ -805,6 +880,7 @@ export function crearVisor(contenedor, opciones = {}) {
     }
     moviendo = acercarA(3) || moviendo;
     casa.tejado.grupo.position.y = posY[3];
+    if (casa.parte) { colocar(casa.parte); animarPlanta(casa.parte, t); }
     for (const id of ORDEN_PERSONAS) monigotes[id].animar(t, monigotes[id].fase);
     for (const p of plantasConGaraje()) animarPlanta(p, t);
     moviendo = encuadrar() || moviendo;
@@ -904,7 +980,21 @@ export function crearVisor(contenedor, opciones = {}) {
     },
     visitar,
     // pantalla de juego
-    setFoco(nivel) { const n = nivel ?? null; if (n !== st.foco) { st.foco = n; centrar(); } },
+    setFoco(nivel) { const n = nivel ?? null; if (n !== st.foco) { st.foco = n; centrar(); aplicar(); } },
+    // el cajón abierto: el piso que miras, de cerca, encima del cajón
+    setCerca(cerca) { st.cerca = !!cerca; },
+    // «Mi parte»: { cuartos: ['habitacion1', …], dias: { habitacion1: 3, … } } o null para volver a la casa de los tres
+    setParte(parte) {
+      const nueva = juego && parte && Array.isArray(parte.cuartos) && parte.cuartos.length
+        ? { cuartos: parte.cuartos.slice(), dias: { ...(parte.dias || {}) }, brillo: { ...(parte.brillo || {}) } }
+        : null;
+      const antes = st.parte ? st.parte.cuartos.join(',') : '';
+      const cambia = !st.parte !== !nueva;
+      st.parte = nueva;
+      if ((nueva ? nueva.cuartos.join(',') : '') !== antes) ponerParte();
+      if (cambia) { st.zoom = 1; st.pan.set(0, 0); }
+      aplicar();
+    },
     setBurbujas(lista) { st.burbujas = lista || []; if (juego) { pintarBurbujas(); moverEtiquetas(); } },
     setLuz(luz) { st.luz = luz || null; aplicarLuz(); },
     setMargenes(m) { st.margenes = { ...st.margenes, ...m }; },
@@ -927,6 +1017,7 @@ export function crearVisor(contenedor, opciones = {}) {
         for (const p of plantasConGaraje()) liberar(p.grupo);
         liberar(casa.tejado.grupo);
         if (casa.jardin) liberar(casa.jardin.grupo);
+        if (casa.parte) liberar(casa.parte.grupo);
       }
       for (const m of Object.values(monigotes)) m.liberar();
       renderer.dispose();
