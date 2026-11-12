@@ -1,6 +1,5 @@
 import { Delete } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import portada from '../assets/portada.webp';
 import type { Config, MiembroId } from '../core/tipos';
 import { casaDisponible, entrarEnLaCasa, miembrosDeLaCasa, type MiembroPuerta } from '../datos/casa';
 import { leerInvitacion, olvidarInvitacion } from '../datos/invitacion';
@@ -72,14 +71,14 @@ export function Entrada({ configPrueba, entrarPrueba, entrarCasa }: { configPrue
 
   return (
     <main className="puerta pila">
-      <header className="portada">
-        <img src={portada} alt="La Jamacasa al atardecer con los tres jamaos" />
+      {/* sin foto: como la cabecera de Hoy (Javi, 12 de noviembre: el icono de foto «queda fatal») */}
+      <header className="portada-limpia entrada-banda">
+        <div className="margen pila-s">
+          <h1 className="display">La Jamacasa</h1>
+          <p>Quién limpia qué, quién debe qué y quién va ganando en la casa de los jamaos.</p>
+        </div>
       </header>
       <div className="margen pila">
-        <div className="pila-s">
-          <h1 className="display">La Jamacasa</h1>
-          <p className="suave">Quién limpia qué, quién debe qué y quién va ganando en la casa de los jamaos.</p>
-        </div>
 
         {paso === 'inicio' && !hayCasa && (
           <div className="pila-s">

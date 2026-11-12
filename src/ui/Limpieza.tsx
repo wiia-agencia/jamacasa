@@ -43,7 +43,7 @@ export function Limpieza() {
 // ——— La pantalla de juego ———
 
 /** Para las capturas y las pruebas: ?hora=20:30 enseña la luz de esa hora (solo la luz). */
-export function horaForzada(ahora: number): number | null {
+function horaForzada(ahora: number): number | null {
   try {
     const h = new URLSearchParams(location.search).get('hora');
     const m = h && /^(\d{1,2}):(\d{2})$/.exec(h);
