@@ -1,41 +1,21 @@
-import { Bell, BellOff, CheckCircle2, Clock3, Flame, Info, TriangleAlert } from 'lucide-react';
+import { Bell, BellOff, CheckCircle2, Clock3, Info, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { euros } from '../core/cuentas';
 import { atrasadas, avisosBasuraAbiertos, paraPuntuar, puntosDelMes, tareaDe, tuyosAbiertos } from '../core/estado';
 import type { Intento, Tarea } from '../core/limpieza';
 import { nota } from '../core/noticias';
 import { cuando, duracion, fechaCorta, finSemana, haceRato, lunesDe, nombreMes, rangoSemana } from '../core/tiempo';
-import portada from '../assets/portada.webp';
 import { leer, guardar } from '../datos/guardado';
 import { miembro, useCasa } from './contexto';
 import { ChapaEstado } from './Limpieza';
+import { PortadaHoy } from './PortadaHoy';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
 
 export function Hoy() {
-  const { estado, yo, abrir } = useCasa();
-  const rey = estado.titulos[estado.mes]?.rey ?? [];
   return (
     <div className="pila">
       <div>
-        <header className="portada-hoy">
-          <div className="banda-cielo margen">
-            <div>
-              <h1 className="display marca">JAMACASA</h1>
-              <p className="semana">
-                <span>Semana {rangoSemana(estado.semana, true)}</span>
-                {estado.racha.actual > 0 && (
-                  <span className="racha">
-                    <Flame size={15} /> {estado.racha.actual} {estado.racha.actual === 1 ? 'semana' : 'semanas'} de racha
-                  </span>
-                )}
-              </p>
-            </div>
-            <Avatar id={yo} tam="l" corona={rey.includes(yo)} onClick={() => abrir({ tipo: 'ajustes' })} />
-          </div>
-          <div className="portada">
-            <img src={portada} alt="La Jamacasa al atardecer: uno hace el pino en el tejado, otro escala las columnas y otro da un mortal en el jardín" />
-          </div>
-        </header>
+        <PortadaHoy />
         <div className="margen pila-s">
           <TuPiso />
           <Cifras />
