@@ -1689,7 +1689,7 @@ function construirPlanta(def, estilo, conRuina = false) {
   return { def, grupo, materiales: mats, muros, int, muebles, mueblesRuina, suciedad, basura, animados, brillos, grietas, moho, halo, huella, cerrados, conRuina, ruina: false, deCara: {} };
 }
 
-// ---------- tejados (el piso de José va cerrado) ----------
+// ---------- tejados (el piso de Jose va cerrado) ----------
 
 function triangulosOrientados(L, key, tris) {
   const pts = [];

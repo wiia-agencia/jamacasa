@@ -8,7 +8,7 @@ export const PIEDRA_SUBE = 0.45;  // en la planta 2 el bloque de piedra está un
 
 export const PERSONAS = {
   javi: { id: 'javi', nombre: 'Javi', color: '#d96a14' },
-  jose: { id: 'jose', nombre: 'José', color: '#2f8f5b' },
+  jose: { id: 'jose', nombre: 'Jose', color: '#2f8f5b' },
   josu: { id: 'josu', nombre: 'Josu', color: '#2f6fb0' },
 };
 export const ORDEN_PERSONAS = ['javi', 'jose', 'josu'];
@@ -290,7 +290,7 @@ export const PLANTAS = [
   },
 ];
 
-// Tejados (encima del piso de José, que va cerrado)
+// Tejados (encima del piso de Jose, que va cerrado)
 export const TEJADOS = {
   piedra: { x0: -0.45, x1: 11.0, y0: -0.45, y1: 9.45, alto: 2.3 },
   nuevo: { x0: 10.8, x1: 18.0, y0: -0.6, y1: 9.6, alto: 2.1 },

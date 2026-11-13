@@ -1,7 +1,7 @@
 /* La Jamacasa — una competición semanal en casa al atardecer.
    La portada es el atardecer de la casa; el resto de la app es el cielo justo después
    (azul grisáceo), tranquilo, para que el color quede para las personas:
-   naranja Javi, verde José, azul Josu. Las notas y los puntos se ven como en un
+   naranja Javi, verde Jose, azul Josu. Las notas y los puntos se ven como en un
    marcador de gimnasia: números estrechos y gordos, dorados sobre azul noche. */
 
 @font-face {
@@ -1355,7 +1355,7 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .marcar-cosa.hecha .marcar-caja { background: #1a9150; border-color: #1a9150; }
 .marcar-cosa.hecha span:last-child { color: var(--texto-2); text-decoration: line-through; }
 .marcar-cosa:disabled { cursor: default; opacity: 1; }
-/* «Mi parte» sin cuartos dibujados (José, de momento): la casa, apagada, y un aviso */
+/* «Mi parte» sin cuartos dibujados (Jose, de momento): la casa, apagada, y un aviso */
 .juego.sin-parte .casa3d-juego { opacity: 0.22; }
 .juego-sin-parte {
   position: absolute;

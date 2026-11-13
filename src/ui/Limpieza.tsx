@@ -205,7 +205,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
       </header>
 
       {enParte && !cuartos.length && (
-        // José, de momento: su parte aún no está dibujada en la casa
+        // Jose, de momento: su parte aún no está dibujada en la casa
         <div className="juego-sin-parte" role="note">
           <Lock size={20} aria-hidden="true" />
           <b>Tu parte aún no está dibujada</b>

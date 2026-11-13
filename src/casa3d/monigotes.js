@@ -359,7 +359,7 @@ export function crearMonigote(persona, estilo) {
       const arriba = normal
         ? tabla([[0, 0.655 * PI], [0.1, 0.635 * PI], [0.17, 0.59 * PI], [0.3, 0.53 * PI], [0.4, 0.46 * PI], [0.47, 0.43 * PI]])
         : tabla([[0, 0.66 * PI], [0.1, 0.64 * PI], [0.17, 0.605 * PI], [0.3, 0.56 * PI], [0.4, 0.49 * PI], [0.47, 0.45 * PI]]);
-      // por abajo, bajo la barbilla (la de Josu, «normal», algo más corta: tiene mucha barba pero menos que José)
+      // por abajo, bajo la barbilla (la de Josu, «normal», algo más corta: tiene mucha barba pero menos que Jose)
       const abajo = normal
         ? tabla([[0, 0.855 * PI], [0.25, 0.812 * PI], [0.4, 0.732 * PI], [0.47, 0.68 * PI]])
         : tabla([[0, 0.88 * PI], [0.25, 0.83 * PI], [0.4, 0.74 * PI], [0.47, 0.68 * PI]]);

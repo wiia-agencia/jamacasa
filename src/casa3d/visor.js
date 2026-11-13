@@ -309,8 +309,11 @@ export function crearVisor(contenedor, opciones = {}) {
     }
     if (casa.modo === 'entera') {
       const t = chip('c3-chip c3-chip-tejado');
-      t.innerHTML = '<b>Piso de José</b> · privado';
-      t.style.setProperty('--c', (PERSONAS.jose || Object.values(PERSONAS)[1] || {}).color || '#2f8f5b');
+      const pj = PERSONAS.jose || Object.values(PERSONAS)[1] || {};
+      const negrita = document.createElement('b');
+      negrita.textContent = `Piso de ${pj.nombre || 'Jose'}`;
+      t.replaceChildren(negrita, ' · privado');
+      t.style.setProperty('--c', pj.color || '#2f8f5b');
       etiquetas.push({ tipo: 'tejado', el: t, nivel: 3, local: new THREE.Vector3(-0.3 - CX, 2.4, 4.5 - CZ) });
     }
     etiquetasPersona = {};

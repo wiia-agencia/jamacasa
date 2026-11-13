@@ -38,7 +38,7 @@ export function esDeTipo(tipo: TipoCuarto, nombre: string): boolean {
   return false;
 }
 
-/** Tus cuartos y cómo está cada uno. Vacío si no tienes parte en la casa (José, de momento). */
+/** Tus cuartos y cómo está cada uno. Vacío si no tienes parte en la casa (Jose, de momento). */
 export function parteDe(config: Config, cosas: CosaEspacio[], yo: MiembroId): CuartoParte[] {
   const ids = (config.partes?.[yo] ?? []).filter((id, i, a) => typeof id === 'string' && id && a.indexOf(id) === i);
   return ids.map((id) => {

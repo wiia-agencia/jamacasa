@@ -1,4 +1,4 @@
-// «Tu espacio»: lo de cada uno que no sale en la casa de los tres (su habitación y su baño; José, su piso).
+// «Tu espacio»: lo de cada uno que no sale en la casa de los tres (su habitación y su baño; Jose, su piso).
 // Solo lo ve su dueño (la base de datos no les da a los otros dos estos apuntes) y no da puntos: solo dice cuánto
 // lleva sin limpiarse y avisa cuando toca (Javi, 9 de noviembre: todo cada semana).
 //  · espacio_cosa { cosa, nombre, cada }: apunta una cosa o le cambia el nombre o cada cuánto (días)
