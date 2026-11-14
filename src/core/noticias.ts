@@ -29,6 +29,11 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
     if (t.cubre !== undefined && t.cubiertaEn !== undefined) {
       r.push({ id: `${t.semana}-${t.miembro}-cu`, ts: t.cubiertaEn, quien: t.cubre, texto: `${n(t.cubre)} se encarga del ${zona} de ${X} esta semana.` });
     }
+    // «Le echo una mano»
+    for (const a of t.ayudas) {
+      const con = t.cubre ?? t.miembro;
+      r.push({ id: `${t.semana}-${t.miembro}-${a.quien}-ay`, ts: a.ts, quien: a.quien, texto: `${n(a.quien)} le echa una mano a ${n(con)} con el ${zona}${con === t.miembro ? '' : ` de ${X}`}.` });
+    }
     for (const i of t.intentos) {
       // si lo limpió otro, la noticia es de quien lo limpió y se dice de quién era el piso
       const Q = n(i.quien);
@@ -105,6 +110,8 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
       }
     }
     for (const x of s.sacadas) r.push({ id: `${x.id}-s`, ts: x.ts, quien: x.autor, texto: `${n(x.autor)} ha sacado la basura.` });
+    // «Esta la saqué yo»
+    for (const x of s.ajenas) r.push({ id: `${x.id}-sa`, ts: x.ts, quien: x.autor, texto: `${n(x.autor)} ha sacado la basura de ${n(responsableEn(s, x.ts))}.` });
   }
 
   for (const a of tuyos) {

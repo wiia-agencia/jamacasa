@@ -3,14 +3,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEven
 import { bocadillos, fichaDe, marcaDe, resumenDe, type Bocadillo } from '../core/bocadillos';
 import { escenaCasa } from '../core/escena';
 import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, textoEspacio } from '../core/espacio';
-import { avisosBasuraAbiertos, basuraTocaba, rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
+import { avisosBasuraAbiertos, basuraTocaba, rotacionFutura, tareaDe } from '../core/estado';
 import { enMarcha, type Tarea } from '../core/limpieza';
 import { luzDe } from '../core/luz';
+import { nota } from '../core/noticias';
 import { parteDe, type CuartoParte } from '../core/parte';
 import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, nombreDia, rangoSemana } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
 import { Casa3D, type BurbujaCasa, type ParteCasa } from './Casa3D';
 import { claseColor, miembro, useCasa } from './contexto';
+import { CuadroSemana, QuedarmeBasura } from './Cuadro';
 import { EstadoTarea } from './Hoy';
 import { Avatar, Nombre, Placa, Seccion } from './piezas';
 
@@ -70,8 +72,11 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   const [foco, setFoco] = useState<MiembroId | null>(null);
   // el piso de otro del que te encargas tú («Lo limpio yo»): al mirarlo, su lista en el cajón, como si fuera el tuyo
   const suya = foco && foco !== yo ? tareaDe(estado, w, foco) : undefined;
-  const cuboEse = Boolean(suya && suya.cubre === yo && (suya.estado === 'pendiente' || suya.estado === 'suspendida'));
-  const otraQueLimpio = estado.tareas.find((t) => t.semana === w && t.miembro !== yo && t.cubre === yo && (t.estado === 'pendiente' || t.estado === 'suspendida'));
+  const conEl = (t: Tarea) => (t.cubre === yo || t.ayudan.includes(yo)) && (t.estado === 'pendiente' || t.estado === 'suspendida');
+  const cuboEse = Boolean(suya && conEl(suya)); // lo limpias tú o le echas una mano: su lista, en tu cajón
+  const otrasQueLimpio = estado.tareas.filter((t) => t.semana === w && t.miembro !== yo && conEl(t));
+  // el cajón tiene dos pestañas: lo tuyo («Lo que se limpia») y el cuadro de la semana («La semana»)
+  const [pestana, setPestana] = useState<'lista' | 'semana'>('lista');
   const [abierto, setAbierto] = useState(false);
   const [menuBasura, setMenuBasura] = useState(false);
   // tu cara abre un desplegable escondido: las zonas comunes o «Mi parte», que solo ves tú (Javi, 10 de noviembre)
@@ -130,6 +135,16 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
     if (cuboEse) setAbierto(true);
   }, [cuboEse]);
   const verSuPiso = (m: MiembroId) => { setMenuCara(false); setMenuBasura(false); setEnParte(false); setFoco(m); setAbierto(true); };
+  // las hojas del cuadro piden ir a la lista de un piso (el tuyo o el de otro)
+  useEffect(() => {
+    const ir = (e: Event) => {
+      const m = (e as CustomEvent<MiembroId>).detail;
+      if (m === yo) { setMenuCara(false); setMenuBasura(false); setEnParte(false); setFoco(null); setPestana('lista'); setAbierto(true); }
+      else verSuPiso(m);
+    };
+    window.addEventListener('jamacasa-ver-piso', ir);
+    return () => window.removeEventListener('jamacasa-ver-piso', ir);
+  }, [yo]); // eslint-disable-line react-hooks/exhaustive-deps
   const burbujas: BurbujaCasa[] = useMemo(
     () =>
       enParte ? [] : bocadillos(config, estado, yo).map((b: Bocadillo) => {
@@ -201,7 +216,9 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
                 onClick={() => {
                   setMenuBasura(false);
                   if (tu) { setMenuCara(!menuCara); return; }
-                  setMenuCara(false); setEnParte(false); setFoco(id); setAbierto(tareaDe(estado, w, id)?.cubre === yo);
+                  setMenuCara(false); setEnParte(false); setFoco(id);
+                  const suyo = tareaDe(estado, w, id);
+                  setAbierto(Boolean(suyo && conEl(suyo)));
                 }}
               >
                 <span className="juego-foto">{caras[id] ? <img src={caras[id]} alt="" /> : <Avatar id={id} />}</span>
@@ -257,12 +274,28 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         </Cajon>
       )}
       {!viendoOtro && !enParte && (
-        <Cajon abierto={abierto} setAbierto={setAbierto} alMedir={setAltoCajon} resumen={<ResumenCajon t={mia} />}>
-          {/* el piso de otro del que te encargas, lo primero: si no, queda debajo de tu lista */}
-          {otraQueLimpio && <TambienLimpias t={otraQueLimpio} ver={() => verSuPiso(otraQueLimpio.miembro)} />}
-          {mia ? <LoQueSeLimpia t={mia} empezar={empezar} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
-          <TuEspacio />
-          <Secciones />
+        <Cajon
+          abierto={abierto}
+          setAbierto={setAbierto}
+          alMedir={setAltoCajon}
+          resumen={<ResumenCajon t={mia} />}
+          pestanas={[
+            { id: 'lista', etiqueta: <ResumenCajon t={mia} corto /> },
+            { id: 'semana', etiqueta: <span className="pestana-semana"><b>La semana</b></span> },
+          ]}
+          pestana={pestana}
+          alPestana={(p) => setPestana(p as 'lista' | 'semana')}
+        >
+          {pestana === 'lista' ? (
+            <>
+              {/* el piso de otro del que te encargas (o en el que ayudas), lo primero: si no, queda debajo de tu lista */}
+              {otrasQueLimpio.map((t) => <TambienLimpias key={t.miembro} t={t} ver={() => verSuPiso(t.miembro)} />)}
+              {mia ? <LoQueSeLimpia t={mia} empezar={empezar} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
+              <TuEspacio />
+            </>
+          ) : (
+            <Secciones caras={caras} />
+          )}
         </Cajon>
       )}
     </div>
@@ -311,8 +344,14 @@ function ResumenParte() {
 }
 
 /** Lo que se ve del cajón cerrado: «Lo que se limpia · 2 de 6» o cómo está tu piso (o el de otro que limpias tú). */
-function ResumenCajon({ t }: { t: Tarea | undefined }) {
+function ResumenCajon({ t, corto = false }: { t: Tarea | undefined; corto?: boolean }) {
   const { yo, config } = useCasa();
+  if (corto) {
+    // en la pestaña del cajón: «Lo que se limpia» y, debajo, cuánto llevas
+    const i = t?.intentos[t.intentos.length - 1];
+    const cuanto = !t ? '' : t.estado === 'aprobada' ? `✓ ${nota(i!.media!)}` : t.estado === 'esperando' ? '★' : t.lista.length ? `${t.marcadas.length}/${t.lista.length}` : '';
+    return <span className="pestana-semana"><b>Lo que se limpia</b><small>{cuanto}</small></span>;
+  }
   if (!t) return <h2>Esta semana</h2>;
   const deOtro = t.miembro !== yo ? miembro(config, t.miembro).nombre : null;
   const i = t.intentos[t.intentos.length - 1];
@@ -328,9 +367,9 @@ function ResumenCajon({ t }: { t: Tarea | undefined }) {
 }
 
 /** El cajón de abajo: cerrado asoma lo que se limpia; se abre tocándolo o subiéndolo con el dedo. */
-function Cajon({ abierto, setAbierto, alMedir, resumen, encima, children }: { abierto: boolean; setAbierto: (a: boolean) => void; alMedir: (h: number) => void; resumen: ReactNode; encima?: ReactNode; children: ReactNode }) {
+function Cajon({ abierto, setAbierto, alMedir, resumen, encima, pestanas, pestana, alPestana, children }: { abierto: boolean; setAbierto: (a: boolean) => void; alMedir: (h: number) => void; resumen: ReactNode; encima?: ReactNode; pestanas?: { id: string; etiqueta: ReactNode }[]; pestana?: string; alPestana?: (id: string) => void; children: ReactNode }) {
   const caja = useRef<HTMLDivElement>(null);
-  const arrastre = useRef<{ y: number; dy: number; t: number } | null>(null);
+  const arrastre = useRef<{ y: number; dy: number; t: number; pestana: string | null } | null>(null);
   const [dy, setDy] = useState(0);
   useEffect(() => {
     const el = caja.current;
@@ -339,7 +378,17 @@ function Cajon({ abierto, setAbierto, alMedir, resumen, encima, children }: { ab
     ro.observe(el);
     return () => ro.disconnect();
   }, [alMedir]);
-  const bajar = (e: PEvento) => { arrastre.current = { y: e.clientY, dy: 0, t: Date.now() }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); };
+  // tocar una pestaña: si está cerrado, se abre en ella; si ya estaba en ella, se cierra; si no, se cambia
+  const tocarPestana = (id: string) => {
+    if (!abierto) { alPestana?.(id); setAbierto(true); }
+    else if (pestana === id) setAbierto(false);
+    else alPestana?.(id);
+  };
+  const bajar = (e: PEvento) => {
+    const tab = (e.target as HTMLElement).closest('[data-pestana]')?.getAttribute('data-pestana') ?? null;
+    arrastre.current = { y: e.clientY, dy: 0, t: Date.now(), pestana: tab };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
   const mover = (e: PEvento) => {
     const a = arrastre.current;
     if (!a) return;
@@ -351,8 +400,10 @@ function Cajon({ abierto, setAbierto, alMedir, resumen, encima, children }: { ab
     arrastre.current = null;
     setDy(0);
     if (!a) return;
-    if (Math.abs(a.dy) < 8) setAbierto(!abierto);
-    else if (a.dy < -40) setAbierto(true);
+    if (Math.abs(a.dy) < 8) {
+      if (a.pestana) tocarPestana(a.pestana);
+      else setAbierto(!abierto);
+    } else if (a.dy < -40) setAbierto(true);
     else if (a.dy > 40) setAbierto(false);
   };
   return (
@@ -365,9 +416,27 @@ function Cajon({ abierto, setAbierto, alMedir, resumen, encima, children }: { ab
       {encima}
       <div className="cajon-cabeza" onPointerDown={bajar} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
         <span className="cajon-asa" aria-hidden="true" />
-        <button type="button" className="cajon-titulo" aria-expanded={abierto} onClick={(e) => { if (e.detail === 0) setAbierto(!abierto); }}>
-          {resumen}
-        </button>
+        {pestanas ? (
+          <div className="cajon-pestanas" role="tablist">
+            {pestanas.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="tab"
+                data-pestana={p.id}
+                aria-selected={pestana === p.id}
+                className={pestana === p.id ? 'activa' : ''}
+                onClick={(e) => { if (e.detail === 0) tocarPestana(p.id); }}
+              >
+                {p.etiqueta}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button type="button" className="cajon-titulo" aria-expanded={abierto} onClick={(e) => { if (e.detail === 0) setAbierto(!abierto); }}>
+            {resumen}
+          </button>
+        )}
       </div>
       <div className="cajon-dentro pila">{children}</div>
     </section>
@@ -378,9 +447,11 @@ function Cajon({ abierto, setAbierto, alMedir, resumen, encima, children }: { ab
 function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promise<void> }) {
   const { abrir, acciones, estado, yo, config, avisar } = useCasa();
   const [ocupada, setOcupada] = useState<string | null>(null);
-  // el piso de otro del que te encargas tú: lo que marques va a su piso (con `de`)
+  // el piso de otro del que te encargas tú (o en el que echas una mano): lo que marques va a su piso (con `de`)
   const deOtro = t.miembro !== yo ? t.miembro : undefined;
+  const ayudo = deOtro !== undefined && t.cubre !== yo; // le echas una mano: marcas, pero lo marca hecho quien lo limpia
   const dueno = miembro(config, t.miembro).nombre;
+  const con = miembro(config, t.cubre ?? t.miembro).nombre;
   const marcable = t.estado === 'pendiente' || t.estado === 'suspendida';
   const empezada = deOtro !== undefined || t.empezada !== undefined || t.marcadas.length > 0;
   const todo = t.lista.length > 0 && t.marcadas.length === t.lista.length;
@@ -401,8 +472,11 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
       {!deOtro && t.cubre !== undefined && marcable && (
         <p className="estado-linea"><Handshake size={17} aria-hidden="true" /> Se encarga {miembro(config, t.cubre).nombre}: lo que marque sale aquí.</p>
       )}
+      {!ayudo && t.ayudan.filter((a) => a !== yo).length > 0 && marcable && (
+        <p className="estado-linea"><Handshake size={17} aria-hidden="true" /> Te echa una mano {t.ayudan.filter((a) => a !== yo).map((a) => miembro(config, a).nombre).join(' y ')}: lo que marque sale aquí.</p>
+      )}
       <div className="fila entre">
-        <p className="suave peq" style={{ margin: 0 }}>{deOtro ? `${t.zona.nombre} de ${dueno} · lo limpias tú` : t.zona.nombre}</p>
+        <p className="suave peq" style={{ margin: 0 }}>{ayudo ? `${t.zona.nombre} de ${dueno} · le echas una mano${t.cubre ? ` a ${con}` : ''}` : deOtro ? `${t.zona.nombre} de ${dueno} · lo limpias tú` : t.zona.nombre}</p>
         <button type="button" className="icono-boton" aria-label={`Qué entra en el ${t.zona.nombre.toLowerCase()}`} onClick={() => abrir({ tipo: 'zona', zona: t.zona })}>
           <Info size={19} />
         </button>
@@ -429,12 +503,27 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
           ) : (
             <p className="estado-linea"><Clock3 size={17} /> Hasta el domingo a las 23:59. Quedan {duracion(fin - estado.ahora)}.</p>
           )}
-          {!empezada ? (
+          {ayudo ? (
+            <p className="peq suave">Cuando acabéis, {con} lo marca como hecho. Si se aprueba, {estado.normas.puntosAyuda} puntos para ti.</p>
+          ) : !empezada ? (
             <button type="button" className="boton ancho naranja" onClick={() => empezar(t)}>Empezar a limpiar</button>
           ) : (
             <button type="button" className={`boton ancho ${todo ? 'verde' : ''}`} onClick={() => abrir({ tipo: 'hecho', tarea: t })}>Ya está limpio</button>
           )}
-          {deOtro && (
+          {ayudo && (
+            <button
+              type="button"
+              className="enlace"
+              style={{ alignSelf: 'center' }}
+              onClick={async () => {
+                await acciones.dejarDeAyudar(t.semana, t.miembro);
+                avisar('Vale: ya no sales ayudando.');
+              }}
+            >
+              Ya no ayudo
+            </button>
+          )}
+          {deOtro && !ayudo && (
             <button
               type="button"
               className="enlace"
@@ -487,17 +576,12 @@ function FichaPiso({ id, caras, volver }: { id: MiembroId; caras: Record<string,
 
 /** El menú del botón de la basura: de quién es esta semana y lo que se puede hacer (también quedártela tú). */
 function MenuBasura({ cerrar }: { cerrar: () => void }) {
-  const { estado, yo, acciones, avisar, abrir } = useCasa();
+  const { estado, yo, acciones, avisar, abrir, config } = useCasa();
   const resp = estado.basura;
   const tocaba = basuraTocaba(estado);
   const abiertos = resp ? avisosBasuraAbiertos(estado, resp) : [];
   const mia = resp === yo;
   const deOtro = resp && tocaba && resp !== tocaba; // se la ha quedado alguien («Me la quedo yo»)
-  // desde cuándo te la quedas: ahora (lo normal) o desde un día de esta semana («por si acaso», Javi, 14 de noviembre)
-  const [desde, setDesde] = useState<number | null>(null);
-  const lunes = lunesDe(estado.semana);
-  const hoy = diaLocal(estado.ahora);
-  const dias = Array.from({ length: Math.max(0, hoy - lunes + 1) }, (_, k) => lunes + k);
   return (
     <div className="juego-menu" role="dialog" aria-label="La basura">
       <p className="negrita">{resp ? (mia ? 'Esta semana la basura es tuya' : deOtro ? <>La basura la tiene <Nombre id={resp} /></> : <>La basura: le toca a <Nombre id={resp} /></>) : 'La basura'}</p>
@@ -507,38 +591,22 @@ function MenuBasura({ cerrar }: { cerrar: () => void }) {
         <button type="button" className="boton ancho verde" onClick={async () => { await acciones.basuraSacada(); cerrar(); avisar('Basura sacada. ¡Gracias!'); }}>Ya la saqué</button>
       )}
       {!mia && resp && (
-        <button type="button" className="boton ancho claro" onClick={() => { cerrar(); abrir({ tipo: 'basura' }); }}>Avisar: está llena</button>
-      )}
-      {!mia && resp && (
-        <div className="quedarme">
-          <div className="desde-dias" role="radiogroup" aria-label="Desde cuándo te la quedas">
-            <span>Desde</span>
-            <button type="button" role="radio" aria-checked={desde === null} onClick={() => setDesde(null)}>ahora</button>
-            {dias.map((d) => (
-              <button key={d} type="button" role="radio" aria-checked={desde === d} onClick={() => setDesde(d)}>
-                {d === hoy ? 'hoy' : nombreDia(inicioDia(d), true)}
-              </button>
-            ))}
-          </div>
-          <p className="mini tenue">
-            {desde === null
-              ? `Desde ahora es tuya: los avisos te llegan a ti y, si acabas la semana sin quejas, sus ${estado.normas.puntosBasuraSemana} puntos también.`
-              : desde === lunes
-                ? `Toda la semana: cuenta como si te hubiera tocado a ti desde el lunes (sus ${estado.normas.puntosBasuraSemana} puntos y lo que haya pasado).`
-                : `Desde el ${nombreDia(inicioDia(desde))}: lo de esos días (avisos y quejas) pasa a ser tuyo, y sus ${estado.normas.puntosBasuraSemana} puntos al acabar.`}
-          </p>
+        <>
+          {/* «Esta la saqué yo»: la has sacado tú aunque no te toque (+1, uno al día) */}
           <button
             type="button"
-            className="boton ancho borde"
+            className="boton ancho verde"
             onClick={async () => {
-              await acciones.quedarmeBasura(estado.semana, desde === null ? undefined : inicioDia(desde));
+              await acciones.basuraSacada();
               cerrar();
-              avisar(desde === null ? 'Te quedas la basura esta semana. Ya lo saben.' : `Te quedas la basura desde el ${nombreDia(inicioDia(desde))}. Ya lo saben.`);
+              avisar(`Apuntado: la has sacado tú. Se lo decimos a ${miembro(config, resp).nombre}.`);
             }}
           >
-            Me la quedo yo
+            Esta la saqué yo
           </button>
-        </div>
+          <button type="button" className="boton ancho claro" onClick={() => { cerrar(); abrir({ tipo: 'basura' }); }}>Avisar: está llena</button>
+          <QuedarmeBasura despues={cerrar} />
+        </>
       )}
       {mia && deOtro && tocaba && (
         <button
@@ -558,15 +626,16 @@ function MenuBasura({ cerrar }: { cerrar: () => void }) {
   );
 }
 
-/** En tu cajón, si te encargas del piso de otro: cómo va y un toque para ir a su lista. */
+/** En tu cajón, si te encargas del piso de otro (o le echas una mano): cómo va y un toque para ir a su lista. */
 function TambienLimpias({ t, ver }: { t: Tarea; ver: () => void }) {
-  const { config } = useCasa();
+  const { config, yo } = useCasa();
   const m = miembro(config, t.miembro);
+  const ayudo = t.cubre !== yo;
   return (
     <button type="button" className={`tambien-limpias ${claseColor(m.color)}`} onClick={ver}>
       <Handshake size={20} aria-hidden="true" />
       <span className="crece">
-        <b>También limpias el piso de {m.nombre}</b>
+        <b>{ayudo ? `Le echas una mano a ${miembro(config, t.cubre ?? t.miembro).nombre}` : `También limpias el piso de ${m.nombre}`}</b>
         <span>{t.zona.nombre}{t.lista.length ? ` · ${t.marcadas.length} de ${t.lista.length}` : ''}</span>
       </span>
       <ChevronRight size={18} aria-hidden="true" />
@@ -600,10 +669,9 @@ function ListaLimpieza() {
 }
 
 /** Esta semana, las próximas, los pisos y las semanas anteriores (con «Ver todo», que abre el historial). */
-function Secciones() {
+function Secciones({ caras }: { caras?: Record<string, string> }) {
   const { estado, config, abrir, abrirHistorial } = useCasa();
   const w = estado.semana;
-  const basura = semanaBasura(estado, w);
   const futuras = rotacionFutura(config, Math.max(w, estado.semanaInicio), 6);
   const historial: number[] = [];
   for (let k = w - 1; k >= Math.max(estado.semanaInicio, w - 8); k--) historial.push(k);
@@ -612,35 +680,8 @@ function Secciones() {
       {estado.empezado && (
         // el sorteo ya sale solo a cada uno al empezar la semana; aquí queda para volver a verlo (sin botón en la casa)
         <Seccion titulo="Esta semana" extra={<button type="button" className="enlace" onClick={() => abrir({ tipo: 'sorteo' })}>Ver el sorteo</button>}>
-          <div className="caja">
-            <div className="lista">
-              {config.miembros.map((m) => {
-                const t = tareaDe(estado, w, m.id);
-                if (!t) return null;
-                return (
-                  <button key={m.id} type="button" className="item item-boton" onClick={() => abrir({ tipo: 'tarea', tarea: t })}>
-                    <Avatar id={m.id} />
-                    <span className="crece">
-                      <span className="negrita" style={{ display: 'block' }}>{t.zona.nombre}</span>
-                      <span className="peq suave">{m.nombre}</span>
-                    </span>
-                    <ChapaEstado t={t} />
-                    <ChevronRight size={18} className="tenue" />
-                  </button>
-                );
-              })}
-              {basura && (
-                <div className="item">
-                  <span className="avatar" style={{ background: 'var(--papel-2)', fontSize: '1.1rem' }} aria-hidden="true">🗑️</span>
-                  <span className="crece">
-                    <span className="negrita" style={{ display: 'block' }}>La basura</span>
-                    <span className="peq suave"><Nombre id={basura.responsable} />{basura.responsable !== basura.tocaba && <> (le tocaba a <Nombre id={basura.tocaba} />)</>}{basura.avisos.length ? `: ${basura.avisos.length} ${basura.avisos.length === 1 ? 'aviso' : 'avisos'} esta semana` : ', sin avisos esta semana'}</span>
-                  </span>
-                  <Avatar id={basura.responsable} tam="s" />
-                </div>
-              )}
-            </div>
-          </div>
+          {/* el cuadro de la semana: arrastras tu cara a un piso o a la basura (la B, Javi, 14 de noviembre) */}
+          <CuadroSemana caras={caras} />
         </Seccion>
       )}
 

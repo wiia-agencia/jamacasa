@@ -38,7 +38,9 @@ export interface SemanaBasura {
   avisos: AvisoBasura[];
   quejas: number; // todas las de la semana, sean de quien sean
   cerrada: boolean; // la semana terminó y no queda ningún aviso abierto
-  sacadas: Evento[];
+  sacadas: Evento[]; // las que sacó quien la tenía
+  /** «Esta la saqué yo»: las que sacó otro que no la tenía (Javi, 14 de noviembre: +1 para él, como mucho una al día) */
+  ajenas: Evento[];
 }
 
 /** Quién tenía la basura de esa semana en ese momento. */
@@ -85,8 +87,10 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
     }
     const en = (ts: number) => responsableEn({ tramos }, ts);
 
-    // solo cuenta la que saca quien la tiene en ese momento
+    // la que saca quien la tiene en ese momento y la que saca otro por él («Esta la saqué yo»): las dos la vacían
     const validas = sacadas.filter((x) => x.autor === en(x.ts));
+    const ajenas = sacadas.filter((x) => x.autor !== en(x.ts) && semana(x.ts) === w);
+    const vacian = sacadas; // cualquiera que la saque dentro del plazo resuelve el aviso
     const avisos: AvisoBasura[] = [];
     for (const p of pulsaciones) {
       if (semana(p.ts) !== w || p.autor === en(p.ts)) continue;
@@ -96,7 +100,7 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
         continue;
       }
       const limite = p.ts + normas.horasBasura * HORA;
-      const sacada = validas.find((x) => x.ts >= p.ts);
+      const sacada = vacian.find((x) => x.ts >= p.ts);
       let estado: EstadoAviso = 'abierto';
       let resueltoEn: number | undefined;
       let responsable = en(Math.min(ahora, limite));
@@ -115,6 +119,7 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
       quejas,
       cerrada,
       sacadas: validas.filter((x) => semana(x.ts) === w),
+      ajenas,
     });
   }
   return r;

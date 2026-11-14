@@ -13,6 +13,7 @@ export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego' | 'chat';
 export type Hoja =
   | { tipo: 'hecho'; tarea: Tarea }
   | { tipo: 'cubrir'; tarea: Tarea }
+  | { tipo: 'ponerme'; fila: MiembroId | 'basura' } // el cuadro de la semana: lo que puedes hacer en esa fila
   | { tipo: 'puntuar'; tarea: Tarea; intento: Intento }
   | { tipo: 'basura' }
   | { tipo: 'tuyo' }
@@ -34,6 +35,9 @@ export interface Acciones {
   /** «Lo limpio yo»: te encargas del piso de otro esta semana (o lo dejas) */
   cubrir(semana: number, de: MiembroId): Promise<void>;
   dejarDeCubrir(semana: number, de: MiembroId): Promise<void>;
+  /** «Le echo una mano» con el piso de otro (o «Ya no ayudo») */
+  ayudar(semana: number, de: MiembroId): Promise<void>;
+  dejarDeAyudar(semana: number, de: MiembroId): Promise<void>;
   /** «Me la quedo yo»: la basura de esta semana pasa a ser tuya desde ahora (o se la devuelves a quien le tocaba) */
   quedarmeBasura(semana: number, desde?: number): Promise<void>;
   devolverBasura(semana: number, a: MiembroId): Promise<void>;

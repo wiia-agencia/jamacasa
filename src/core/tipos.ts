@@ -59,6 +59,8 @@ export interface Normas {
   puntosRetrasoDia: number;
   puntosSuspenso: number;
   puntosSinHacer: number;
+  puntosAyuda: number; // «Le echo una mano»: al que ayuda, si el piso se aprueba (Javi, 14 de noviembre)
+  puntosSacarAjena: number; // «Esta la saqué yo»: sacar la basura de otro (como mucho una vez al día)
   diasGracia: number; // días después del domingo hasta "sin hacer"
 }
 
@@ -83,6 +85,7 @@ export type TipoEvento =
   | 'zona_cosa' // marcas (o desmarcas) una cosa de «Lo que se limpia» de tu piso: no avisa a nadie
   | 'zona_hecha'
   | 'zona_cubierta' // «Lo limpio yo»: te encargas del piso de otro esta semana (o, con `deja`, lo dejas)
+  | 'zona_ayuda' // «Le echo una mano»: ayudas con el piso de otro esta semana (o, con `deja`, «Ya no ayudo»)
   | 'puntuacion'
   | 'basura_llena'
   | 'basura_sacada'
@@ -115,6 +118,7 @@ export interface DatosZonaEmpezada { semana: number }
 export interface DatosZonaCosa { semana: number; cosa: string; hecha: boolean; de?: MiembroId }
 export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string; de?: MiembroId }
 export interface DatosZonaCubierta { semana: number; de: MiembroId; deja?: boolean }
+export interface DatosZonaAyuda { semana: number; de: MiembroId; deja?: boolean }
 /** `quien`: quién tiene la basura desde ahora (tú, o quien le tocaba si se la devuelves); `desde`: si te la quedas
  *  desde antes (el comienzo de un día de esa semana; el lunes, toda la semana) */
 export interface DatosBasuraCubierta { semana: number; quien: MiembroId; desde?: number }

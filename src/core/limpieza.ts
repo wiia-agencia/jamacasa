@@ -19,6 +19,8 @@ export interface Intento {
   /** Quién lo limpió: el dueño del piso o el que lo hizo por él («Lo limpio yo»). Se lleva la nota (o el suspenso) y
    *  le ponen nota los otros dos (el dueño también, si lo limpió otro). */
   quien: MiembroId;
+  /** Los que le echaron una mano («Le echo una mano», Javi, 14 de noviembre): +2 cada uno si se aprueba; no ponen nota */
+  ayudaron: MiembroId[];
   jueces: MiembroId[];
   fin: number; // cuándo se cierra el plazo para puntuar
   votos: Voto[]; // el voto que cuenta de cada juez
@@ -45,6 +47,10 @@ export interface Tarea {
    *  lista la marca quien lo limpia y la nota es para él. */
   cubre?: MiembroId;
   cubiertaEn?: number;
+  /** Los que le echan una mano ahora (con su piso o con el de quien se encarga): marcan su lista y no ponen nota */
+  ayudan: MiembroId[];
+  /** Cuándo se puso cada uno a echar una mano (para lo último en la casa) */
+  ayudas: { quien: MiembroId; ts: number }[];
   lista: string[]; // lo que se limpia en su piso (lo de siempre y, si le toca, lo que solo entra a veces)
   marcadas: string[]; // lo que ya ha marcado de la lista en esta vuelta (si se suspende, se empieza de cero)
   retrasoDias: number; // días de retraso hasta que se marcó (o hasta ahora)
@@ -64,6 +70,7 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
   const empezadas = new Map<string, number>();
   const cosas = new Map<string, Evento[]>();
   const cubiertas = new Map<string, Evento[]>();
+  const ayudas = new Map<string, Evento[]>();
   const esMiembro = (m: unknown): m is MiembroId => typeof m === 'string' && config.miembros.some((x) => x.id === m);
   const anadir = (mapa: Map<string, Evento[]>, k: string, e: Evento) => (mapa.get(k) ?? mapa.set(k, []).get(k)!).push(e);
   for (const e of eventos) {
@@ -77,6 +84,9 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
     } else if (e.tipo === 'zona_cubierta') {
       // «Lo limpio yo» en el piso de otro (o, con `deja`, «Ya no lo limpio yo»)
       if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(cubiertas, `${e.datos?.semana}|${e.datos.de}`, e);
+    } else if (e.tipo === 'zona_ayuda') {
+      // «Le echo una mano» en el piso de otro (o, con `deja`, «Ya no ayudo»)
+      if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(ayudas, `${e.datos?.semana}|${e.datos.de}`, e);
     } else if (e.tipo === 'puntuacion') {
       const d = e.datos as DatosPuntuacion;
       const k = `${d.semana}|${d.de}|${d.intento}`;
@@ -90,6 +100,13 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
       const zona = zonaDe(config, w, m.id);
       if (!zona) continue;
       const lista = (hechos.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts);
+      // quién echa una mano en cada momento (el último «Le echo una mano» o «Ya no ayudo» de cada uno)
+      const delPiso = (ayudas.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts);
+      const ayudanEn = (ts: number) => {
+        const r = new Map<MiembroId, boolean>();
+        for (const a of delPiso) if (a.ts <= ts) r.set(a.autor, !a.datos?.deja);
+        return [...r.entries()].filter(([, si]) => si).map(([x]) => x);
+      };
       const intentos: Intento[] = [];
       for (const h of lista) {
         const ult = intentos[intentos.length - 1];
@@ -97,9 +114,11 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
           if (!ult.resuelto || ult.aprobado) continue;
           if (h.ts <= ult.resueltoEn!) continue;
         }
-        // le ponen nota los que no lo han limpiado (si lo limpió otro, también el dueño)
-        const jueces = config.miembros.filter((x) => x.id !== h.autor).map((x) => x.id);
-        intentos.push(resolverIntento(h, intentos.length + 1, h.autor, jueces, votos.get(`${w}|${m.id}|${intentos.length + 1}`) ?? [], normas, ahora));
+        // le ponen nota los que no lo han limpiado: ni quien lo marca ni los que le echaron una mano (si lo limpió
+        // otro, también el dueño)
+        const ayudaron = ayudanEn(h.ts).filter((x) => x !== h.autor && x !== m.id);
+        const jueces = config.miembros.filter((x) => x.id !== h.autor && !ayudaron.includes(x.id)).map((x) => x.id);
+        intentos.push(resolverIntento(h, intentos.length + 1, h.autor, ayudaron, jueces, votos.get(`${w}|${m.id}|${intentos.length + 1}`) ?? [], normas, ahora));
       }
 
       // quién se encarga de su piso esta semana: el último que dijo «Lo limpio yo» (si no lo ha dejado después)
@@ -141,6 +160,9 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         empezada: empezadas.get(`${w}|${m.id}`),
         cubre,
         cubiertaEn,
+        // los que ayudan ahora (si ya está hecho, los que ayudaron)
+        ayudan: estado === 'pendiente' || estado === 'suspendida' ? ayudanEn(ahora).filter((x) => x !== cubre) : (ult?.ayudaron ?? []),
+        ayudas: unidos(delPiso).filter((x) => x.quien !== cubre),
         lista: deLaLista,
         marcadas: marcadasDe(cosas.get(`${w}|${m.id}`) ?? [], deLaLista, intentos, estado),
         retrasoDias,
@@ -152,6 +174,16 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
     }
   }
   return tareas;
+}
+
+/** Los que siguen echando una mano y desde cuándo (su último «Le echo una mano» sin un «Ya no ayudo» después). */
+function unidos(evs: Evento[]): { quien: MiembroId; ts: number }[] {
+  const r = new Map<MiembroId, number>();
+  for (const a of evs) {
+    if (a.datos?.deja) r.delete(a.autor);
+    else if (!r.has(a.autor)) r.set(a.autor, a.ts);
+  }
+  return [...r.entries()].map(([quien, ts]) => ({ quien, ts }));
 }
 
 /** De quién es el piso de un evento de limpieza: el suyo o, si lleva `de` (lo hace por otro), el de ese otro. */
@@ -204,7 +236,7 @@ export function progreso(t: Tarea): { hechas: number; total: number } {
   return { hechas: t.marcadas.length, total: t.lista.length };
 }
 
-function resolverIntento(h: Evento, n: number, quien: MiembroId, jueces: MiembroId[], votosEv: Evento[], normas: Normas, ahora: number): Intento {
+function resolverIntento(h: Evento, n: number, quien: MiembroId, ayudaron: MiembroId[], jueces: MiembroId[], votosEv: Evento[], normas: Normas, ahora: number): Intento {
   const fin = h.ts + normas.horasRevision * HORA;
   const validos = votosEv
     .filter((v) => jueces.includes(v.autor) && v.ts >= h.ts && v.ts <= fin)
@@ -216,7 +248,8 @@ function resolverIntento(h: Evento, n: number, quien: MiembroId, jueces: Miembro
   const completos = jueces.every((j) => primerVoto.has(j));
 
   let resueltoEn: number | undefined;
-  if (completos) resueltoEn = Math.max(...jueces.map((j) => primerVoto.get(j)!));
+  if (!jueces.length) resueltoEn = h.ts; // lo limpiasteis los tres: no queda nadie para poner nota (va la automática)
+  else if (completos) resueltoEn = Math.max(...jueces.map((j) => primerVoto.get(j)!));
   else if (ahora >= fin) resueltoEn = fin;
 
   const corte = resueltoEn ?? Infinity;
@@ -244,7 +277,7 @@ function resolverIntento(h: Evento, n: number, quien: MiembroId, jueces: Miembro
   for (const v of vs) v.primero = primeros.has(v.evento);
 
   const sinVotar = jueces.filter((j) => !ultimo.has(j));
-  const intento: Intento = { n, hecho: h, quien, jueces, fin, votos: vs, sinVotar, resuelto: resueltoEn !== undefined, resueltoEn };
+  const intento: Intento = { n, hecho: h, quien, ayudaron, jueces, fin, votos: vs, sinVotar, resuelto: resueltoEn !== undefined, resueltoEn };
   if (intento.resuelto) {
     if (vs.length > 0) {
       intento.media = redondear1(vs.reduce((a, v) => a + v.nota, 0) / vs.length);

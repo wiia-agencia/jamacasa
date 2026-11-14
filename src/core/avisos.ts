@@ -59,6 +59,17 @@ function resultado(t: Tarea, i: Intento, n: Normas, nombre: (m: MiembroId) => st
   };
 }
 
+/** El resultado a quien lo limpió y, si se aprobó, a los que le echaron una mano (su +2). */
+function resultados(t: Tarea, i: Intento, n: Normas, nombre: (m: MiembroId) => string): Aviso[] {
+  const r = [resultado(t, i, n, nombre)];
+  if (i.aprobado) {
+    for (const a of i.ayudaron) {
+      r.push({ para: a, titulo: `✅ El ${t.zona.nombre.toLowerCase()} de ${nombre(i.quien)}: aprobado con un ${nota(i.media!)}`, texto: `Le echaste una mano: ${pts(n.puntosAyuda)}.`, pantalla: 'limpieza', etiqueta: `nota-${t.semana}-${t.miembro}-${i.n}` });
+    }
+  }
+  return r;
+}
+
 /** Lo que hay que avisar en cuanto se apunta el evento `id`. */
 export function avisosDeEvento(config: Config, eventos: Evento[], id: string): Aviso[] {
   const e = eventos.find((x) => x.id === id);
@@ -124,6 +135,25 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
           etiqueta: `cubierta-${t.semana}-${t.miembro}`,
         }));
     }
+    case 'zona_ayuda': {
+      // «Le echo una mano»: a quien lo está limpiando (y al dueño, si lo limpia otro); al dejarlo, nada
+      if (e.datos?.deja) return [];
+      const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
+      if (!t || !t.ayudan.includes(e.autor)) return [];
+      const con = t.cubre ?? t.miembro;
+      const z = t.zona.nombre.toLowerCase();
+      const r: Aviso[] = [{ para: con, titulo: `🤝 ${yo} te echa una mano con el ${z}`, texto: `Lo que marque cuenta en tu lista. Si se aprueba, ${pts(n.puntosAyuda)} para él.`, pantalla: 'limpieza', etiqueta: `ayuda-${t.semana}-${t.miembro}-${e.autor}` }];
+      if (con !== t.miembro) r.push({ para: t.miembro, titulo: `🤝 ${yo} le echa una mano a ${nombre(con)} con tu piso`, texto: `El ${z}.`, pantalla: 'limpieza', etiqueta: `ayuda-${t.semana}-${t.miembro}-${e.autor}` });
+      return r.filter((x) => x.para !== e.autor);
+    }
+    case 'basura_sacada': {
+      // «Esta la saqué yo»: si la saca otro, se lo dice a quien la tiene
+      const s = estado.semanasBasura.find((x) => x.ajenas.some((a) => a.id === e.id));
+      if (!s) return [];
+      const quien = responsableEn(s, e.ts);
+      const resolvio = s.avisos.some((a) => a.resueltoEn === e.ts && a.estado === 'resuelto');
+      return [{ para: quien, titulo: `🗑️ ${yo} ha sacado tu basura`, texto: `${resolvio ? 'Ya no te cae la queja. ' : ''}${pts(n.puntosSacarAjena)} para él.`, pantalla: 'hoy', etiqueta: `basura-${s.semana}` }];
+    }
     case 'basura_cubierta': {
       // «Me la quedo yo» (o «Te la devuelvo»): se lo dice a los otros dos
       const s = estado.semanasBasura.find((x) => x.semana === Number(e.datos?.semana));
@@ -150,7 +180,7 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
       const i = t?.intentos.find((x) => x.n === d.intento);
       // Solo cuando con este voto queda resuelto (el otro ya había votado)
       if (!t || !i || !i.resuelto || i.resueltoEn !== e.ts) return [];
-      return [resultado(t, i, n, nombre)];
+      return resultados(t, i, n, nombre);
     }
     case 'gasto': {
       const g = estado.cuentas.gastos.find((x) => x.id === e.id);
@@ -273,7 +303,7 @@ export function avisosDelReloj(config: Config, eventos: Evento[], desde: number,
         }
       }
       // Con todas las notas, el resultado sale al votar (avisosDeEvento); si no, al cerrarse el plazo
-      if (i.resuelto && i.resueltoEn === i.fin && i.sinVotar.length > 0 && en(i.fin)) r.push(resultado(t, i, n, nombre));
+      if (i.resuelto && i.resueltoEn === i.fin && i.sinVotar.length > 0 && en(i.fin)) r.push(...resultados(t, i, n, nombre));
     }
   }
 

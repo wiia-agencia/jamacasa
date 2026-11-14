@@ -46,6 +46,13 @@ const llevaHechas = (t: Tarea) => {
   const { hechas, total } = progreso(t);
   return total ? `${hechas} de ${total} hechas` : undefined;
 };
+/** «0 de 11 hechas · 🤝 Javi»: lo que lleva y quién le echa una mano */
+const llevaYcon = (config: Config, t: Tarea, yo: MiembroId) => {
+  const lleva = llevaHechas(t);
+  if (!t.ayudan.length) return lleva;
+  const con = `🤝 ${y(t.ayudan.map((a) => (a === yo ? 'tú' : nombre(config, a))))}`;
+  return lleva ? `${lleva} · ${con}` : con;
+};
 const sinLimpiar = (e: Estado, t: Tarea) => {
   const piso = pisoDe(t.zona);
   return piso ? diasSinLimpiar(e, piso) : 0;
@@ -59,10 +66,10 @@ export function bocadilloDe(config: Config, e: Estado, m: MiembroId, yo: Miembro
   const ult = t.intentos[t.intentos.length - 1];
   // su piso lo limpia otro («Lo limpio yo»): se dice quién, y quien lo limpia lo toca para abrir la lista
   if (t.cubre !== undefined && limpiando(t)) {
-    if (t.cubre === yo) return { miembro: m, titulo: 'Lo limpias tú…', sub: llevaHechas(t), tono: 'yo', accion: 'lista' };
-    return { miembro: m, titulo: `Lo limpia ${nombre(config, t.cubre)}…`, sub: llevaHechas(t), tono: mio ? 'yo' : 'blanco', accion: 'tarea' };
+    if (t.cubre === yo) return { miembro: m, titulo: 'Lo limpias tú…', sub: llevaYcon(config, t, yo), tono: 'yo', accion: 'lista' };
+    return { miembro: m, titulo: `Lo limpia ${nombre(config, t.cubre)}…`, sub: llevaYcon(config, t, yo), tono: mio ? 'yo' : 'blanco', accion: t.ayudan.includes(yo) ? 'lista' : 'tarea' };
   }
-  if (limpiando(t)) return { miembro: m, titulo: t.estado === 'suspendida' ? 'Repasando…' : 'Limpiando…', sub: llevaHechas(t), tono: mio ? 'yo' : 'blanco', accion: mio ? 'lista' : 'tarea' };
+  if (limpiando(t)) return { miembro: m, titulo: t.estado === 'suspendida' ? 'Repasando…' : 'Limpiando…', sub: llevaYcon(config, t, yo), tono: mio ? 'yo' : 'blanco', accion: mio || t.ayudan.includes(yo) ? 'lista' : 'tarea' };
   // lo limpió otro: lo que se espera (o la nota) es suyo
   if (ult && ult.quien !== m) {
     const q = ult.quien === yo ? 'tú' : nombre(config, ult.quien);

@@ -7,6 +7,7 @@ import { nota } from '../core/noticias';
 import { cuando, diaDeTexto, diaLocal, fechaCorta, nombreMes, rangoSemana, textoDeDia } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
 import { claseColor, useCasa, type Hoja as TipoHoja } from './contexto';
+import { PonermeBasura, PonermePiso } from './Cuadro';
 import { EstadoTarea, Jueces } from './Hoy';
 import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, SelectorFotos } from './piezas';
 
@@ -14,6 +15,7 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
   switch (hoja.tipo) {
     case 'hecho': return <HojaHecho tarea={hoja.tarea} />;
     case 'cubrir': return <HojaCubrir tarea={hoja.tarea} />;
+    case 'ponerme': return hoja.fila === 'basura' ? <PonermeBasura /> : <PonermePiso de={hoja.fila} />;
     case 'puntuar': return <HojaPuntuar tarea={hoja.tarea} intento={hoja.intento} />;
     case 'basura': return <HojaBasura />;
     case 'tuyo': return <HojaTuyo />;

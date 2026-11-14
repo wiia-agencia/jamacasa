@@ -1,10 +1,10 @@
-import { quejasDe, type AvisoTuyo, type SemanaBasura } from './basura';
+import { quejasDe, responsableEn, type AvisoTuyo, type SemanaBasura } from './basura';
 import type { Cuentas } from './cuentas';
 import { limpiadoPor, lohizoOtro, redondear1, type Tarea } from './limpieza';
-import { diaSemana, finSemana, hora, mes, mesDeSemana, partes } from './tiempo';
+import { diaLocal, diaSemana, finSemana, hora, mes, mesDeSemana, partes } from './tiempo';
 import type { Config, MiembroId, Normas } from './tipos';
 
-export type ClaseApunte = 'zona' | 'suspenso' | 'retraso' | 'sin_hacer' | 'revision' | 'basura' | 'queja' | 'tuyo';
+export type ClaseApunte = 'zona' | 'suspenso' | 'retraso' | 'sin_hacer' | 'revision' | 'basura' | 'queja' | 'tuyo' | 'ayuda' | 'sacada';
 
 export interface Apunte {
   miembro: MiembroId;
@@ -28,6 +28,10 @@ export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[],
       if (i.resuelto) {
         if (i.aprobado) r.push({ miembro: i.quien, puntos: i.media!, motivo: `${t.zona.nombre}${deQuien} aprobado${i.auto ? ' sin notas' : ''}`, ts: i.resueltoEn!, mes: m, clase: 'zona' });
         else r.push({ miembro: i.quien, puntos: normas.puntosSuspenso, motivo: `${t.zona.nombre}${deQuien} suspendido`, ts: i.resueltoEn!, mes: m, clase: 'suspenso' });
+        // «Le echo una mano»: si se aprueba, +2 a cada uno de los que ayudaron (la nota sigue siendo de quien lo limpió)
+        if (i.aprobado) {
+          for (const a of i.ayudaron) r.push({ miembro: a, puntos: normas.puntosAyuda, motivo: `Echaste una mano en el ${zona} de ${nombre(i.quien)}`, ts: i.resueltoEn!, mes: m, clase: 'ayuda' });
+        }
       }
       for (const v of i.votos) {
         const que = i.quien === t.miembro ? `el ${zona} de ${nombre(t.miembro)}` : `el ${zona} que limpió ${nombre(i.quien)}`;
@@ -53,6 +57,14 @@ export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[],
     // cada queja, para quien tenía la basura cuando se pasó el plazo; los puntos de la semana, para quien la tiene
     // al acabar (si se la quedó de otro, también), si él no se llevó ninguna queja
     for (const a of s.avisos) if (a.estado === 'queja') r.push({ miembro: a.responsable, puntos: normas.puntosQuejaBasura, motivo: `Basura sin sacar en ${normas.horasBasura} h`, ts: a.limite, mes: m, clase: 'queja' });
+    // «Esta la saqué yo»: +1 al que saca la basura de otro, como mucho una vez al día cada uno
+    const contadas = new Set<string>();
+    for (const x of s.ajenas) {
+      const k = `${x.autor}|${diaLocal(x.ts)}`;
+      if (contadas.has(k)) continue;
+      contadas.add(k);
+      r.push({ miembro: x.autor, puntos: normas.puntosSacarAjena, motivo: `Sacaste la basura de ${nombre(responsableEn(s, x.ts))}`, ts: x.ts, mes: m, clase: 'sacada' });
+    }
     if (s.cerrada && quejasDe(s, s.responsable) === 0) {
       const motivo = s.responsable === s.tocaba ? 'Semana de basura sin quejas' : `Semana de basura de ${nombre(s.tocaba)} sin quejas`;
       r.push({ miembro: s.responsable, puntos: normas.puntosBasuraSemana, motivo, ts: finSemana(s.semana), mes: m, clase: 'basura' });

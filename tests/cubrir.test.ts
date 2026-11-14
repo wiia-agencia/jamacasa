@@ -174,10 +174,13 @@ describe('«Me la quedo yo»: la basura de otro', () => {
     expect(avisosBasuraAbiertos(antes, tocaba)).toHaveLength(0);
     const e = derivar(config, [aviso, queda, sacada], dia(2, 12));
     expect(e.semanasBasura.find((x) => x.semana === s)!.avisos[0]).toMatchObject({ estado: 'resuelto', responsable: yo });
-    // y la que saca quien ya no la tiene no cuenta
-    const tarde = ev('basura_sacada', tocaba, dia(2, 11));
-    const e2 = derivar(config, [aviso, queda, tarde], dia(2, 12));
-    expect(e2.semanasBasura.find((x) => x.semana === s)!.avisos[0].estado).toBe('abierto');
+    // y si la saca quien ya no la tiene, también la vacía: es «Esta la saqué yo» (+1 para él)
+    const otra = ev('basura_sacada', tocaba, dia(2, 11));
+    const e2 = derivar(config, [aviso, queda, otra], dia(2, 12));
+    const sem2 = e2.semanasBasura.find((x) => x.semana === s)!;
+    expect(sem2.avisos[0]).toMatchObject({ estado: 'resuelto', responsable: tocaba });
+    expect(sem2.ajenas.map((x) => x.id)).toEqual([otra.id]);
+    expect(e2.apuntes.filter((x) => x.clase === 'sacada').map((x) => x.miembro)).toEqual([tocaba]);
   });
 
   it('se la puede devolver a quien le tocaba, pero no pasársela a otro', () => {
@@ -218,5 +221,58 @@ describe('«Me la quedo yo»: la basura de otro', () => {
     expect(r.find((x) => x.para === tocaba)!.texto).toContain('Ya no te toca');
     const llena = ev('basura_llena', tercero, dia(2, 15));
     expect(avisosDeEvento(config, [queda, llena], llena.id).map((x) => x.para)).toEqual([yo]);
+  });
+});
+
+describe('«Le echo una mano» y «Esta la saqué yo»', () => {
+  it('ayudar: la nota es del dueño, +2 al que ayuda si se aprueba, y el que ayuda no pone nota', () => {
+    const ayuda = ev('zona_ayuda', 'b', dia(1, 10), { semana: s, de: 'a' });
+    const cosa = ev('zona_cosa', 'b', dia(1, 11), { semana: s, de: 'a', cosa: zonaDe(config, s, 'a')!.checklist[1], hecha: true });
+    const hecho = ev('zona_hecha', 'a', dia(1, 12), { semana: s });
+    const espera = derivar(config, [ayuda, cosa, hecho], dia(1, 13));
+    const t = tareaDe(espera, s, 'a')!;
+    expect(t.marcadas).toEqual([zonaDe(config, s, 'a')!.checklist[1]]);
+    expect(t.intentos[0]).toMatchObject({ quien: 'a', ayudaron: ['b'], jueces: ['c'] });
+    expect(paraPuntuar(espera, 'b')).toHaveLength(0);
+    const nota = ev('puntuacion', 'c', dia(1, 20), { semana: s, de: 'a', intento: 1, nota: 9 });
+    const e = derivar(config, [ayuda, cosa, hecho, nota], dia(1, 21));
+    expect(tareaDe(e, s, 'a')!.estado).toBe('aprobada');
+    expect(e.apuntes.find((x) => x.clase === 'zona')).toMatchObject({ miembro: 'a', puntos: 9 });
+    expect(e.apuntes.find((x) => x.clase === 'ayuda')).toMatchObject({ miembro: 'b', puntos: 2 });
+    expect(e.noticias.some((x) => x.id.endsWith('-ay') && x.texto.startsWith('Bea le echa una mano a Ana'))).toBe(true);
+    // avisos: a la que lo limpia al ponerse a ayudar; y el +2, al aprobarse
+    expect(avisosDeEvento(config, [ayuda], ayuda.id)).toMatchObject([{ para: 'a', titulo: expect.stringContaining('Bea te echa una mano') }]);
+    expect(avisosDeEvento(config, [ayuda, cosa, hecho, nota], nota.id).map((x) => x.para).sort()).toEqual(['a', 'b']);
+  });
+
+  it('si suspende, el que ayudó no gana nada; «Ya no ayudo» lo quita; y si lo limpiáis los tres, va la nota automática', () => {
+    const ayuda = ev('zona_ayuda', 'b', dia(1, 10), { semana: s, de: 'a' });
+    const hecho = ev('zona_hecha', 'a', dia(1, 12), { semana: s });
+    const mala = ev('puntuacion', 'c', dia(1, 20), { semana: s, de: 'a', intento: 1, nota: 3, fotos: ['x'] });
+    expect(derivar(config, [ayuda, hecho, mala], dia(1, 21)).apuntes.some((x) => x.clase === 'ayuda')).toBe(false);
+    const deja = ev('zona_ayuda', 'b', dia(1, 11), { semana: s, de: 'a', deja: true });
+    expect(tareaDe(derivar(config, [ayuda, deja], dia(1, 11)), s, 'a')!.ayudan).toEqual([]);
+    const otra = ev('zona_ayuda', 'c', dia(1, 10), { semana: s, de: 'a' });
+    const e = derivar(config, [ayuda, otra, hecho], dia(1, 12));
+    const i = tareaDe(e, s, 'a')!.intentos[0];
+    expect(i).toMatchObject({ jueces: [], resuelto: true, auto: true, aprobado: true });
+  });
+
+  it('«Esta la saqué yo»: +1 al que saca la de otro, como mucho una vez al día; vacía el aviso y se lo dice a quien la tiene', () => {
+    const tocaba = basuraDe(config, s)!;
+    const [yo, tercero] = config.miembros.map((m) => m.id).filter((m) => m !== tocaba);
+    const aviso = ev('basura_llena', tercero, dia(2, 8));
+    const una = ev('basura_sacada', yo, dia(2, 9));
+    const otra = ev('basura_sacada', yo, dia(2, 18)); // mismo día: no suma otra vez
+    const manana = ev('basura_sacada', yo, dia(3, 9));
+    const e = derivar(config, [aviso, una, otra, manana], dia(3, 10));
+    const sem = e.semanasBasura.find((x) => x.semana === s)!;
+    expect(sem.avisos[0]).toMatchObject({ estado: 'resuelto', responsable: yo });
+    expect(e.apuntes.filter((x) => x.clase === 'sacada').map((x) => x.puntos)).toEqual([1, 1]);
+    expect(e.apuntes.find((x) => x.clase === 'sacada')!.motivo).toContain('Sacaste la basura de');
+    const r = avisosDeEvento(config, [aviso, una], una.id);
+    expect(r).toMatchObject([{ para: tocaba, titulo: expect.stringContaining('ha sacado tu basura'), texto: expect.stringContaining('Ya no te cae la queja') }]);
+    // la que saca quien la tiene no es «de otro»
+    expect(derivar(config, [ev('basura_sacada', tocaba, dia(2, 9))], dia(2, 10)).semanasBasura.find((x) => x.semana === s)!.ajenas).toHaveLength(0);
   });
 });
