@@ -12,7 +12,7 @@
 //   · Insignias: corona del rey del mes, racha (3 pisos seguidos con 9 o más), mejorando o empeorando,
 //     debe un piso de antes y peste (2 semanas seguidas sin hacer su piso o 3 «Esto es tuyo» sin recoger en el mes).
 import type { Estado } from './estado';
-import type { Tarea } from './limpieza';
+import { enMarcha, lohizoOtro, type Tarea } from './limpieza';
 import { diaLocal, inicioSemana, mes } from './tiempo';
 import type { MiembroId, Zona } from './tipos';
 
@@ -116,8 +116,10 @@ function insigniasDe(e: Estado, m: MiembroId): Insignia[] {
   const sinLimpiar = (t: Tarea) => t.estado === 'pendiente' || t.estado === 'suspendida';
   if ((dos.length === 2 && dos.every(sinLimpiar)) || multas >= 3) r.push('peste');
 
-  // Racha: los 3 últimos pisos acabados, aprobados con 9 o más (el de esta semana cuenta si ya está aprobado)
-  const acabadas = suyas.filter((t) => !(t.semana === e.semana && t.estado !== 'aprobada'));
+  // Racha: los 3 últimos pisos acabados, aprobados con 9 o más (el de esta semana cuenta si ya está aprobado); si su
+  // piso lo limpió otro, esa semana no cuenta
+  const propias = suyas.filter((t) => !lohizoOtro(t));
+  const acabadas = propias.filter((t) => !(t.semana === e.semana && t.estado !== 'aprobada'));
   let seguidas = 0;
   for (let i = acabadas.length - 1; i >= 0; i--) {
     const t = acabadas[i];
@@ -127,7 +129,7 @@ function insigniasDe(e: Estado, m: MiembroId): Insignia[] {
   if (seguidas >= 3) r.push('racha');
 
   // Mejorando o empeorando: la media de sus 3 últimas notas contra la de las 3 anteriores
-  const notas = suyas.filter((t) => t.estado === 'aprobada').map((t) => t.nota!);
+  const notas = propias.filter((t) => t.estado === 'aprobada').map((t) => t.nota!);
   if (notas.length >= 6) {
     const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
     const d = media(notas.slice(-3)) - media(notas.slice(-6, -3));
@@ -156,7 +158,7 @@ export function escenaCasa(e: Estado): EscenaCasa | null {
     let estado: ValorPiso;
     if (t.estado === 'aprobada') estado = ['limpio', brillo(t.nota)];
     else if (t.estado === 'esperando') estado = ['esperando', 0];
-    else if ((t.empezada !== undefined && t.estado === 'pendiente') || ((t.estado === 'pendiente' || t.estado === 'suspendida') && t.marcadas.length > 0)) {
+    else if ((t.estado === 'pendiente' && enMarcha(t)) || (t.estado === 'suspendida' && t.marcadas.length > 0)) {
       estado = ['limpiando', 0, dias, t.lista.length ? t.marcadas.length / t.lista.length : 0];
     } else estado = ['sucio', sucio, dias];
     pisos[piso] = estado;

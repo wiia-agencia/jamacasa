@@ -232,14 +232,18 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
   const acciones: Acciones = useMemo(
     () => ({
       empezar: (semana) => apuntar('zona_empezada', { semana }),
-      marcarCosa: (semana, cosa, hecha) => apuntar('zona_cosa', { semana, cosa, hecha }),
-      async marcarHecho(semana, fotos, nota) {
-        await apuntar('zona_hecha', { semana, fotos, nota });
+      marcarCosa: (semana, cosa, hecha, de) => apuntar('zona_cosa', de ? { semana, cosa, hecha, de } : { semana, cosa, hecha }),
+      async marcarHecho(semana, fotos, nota, de) {
+        await apuntar('zona_hecha', de ? { semana, fotos, nota, de } : { semana, fotos, nota });
         try { confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: ['#f6c14f', '#ec6b67', '#fa8f59'] }); } catch { /* nada */ }
       },
       puntuar: (t, i, nota, faltan, fotos, comentario) => apuntar('puntuacion', { semana: t.semana, de: t.miembro, intento: i.n, nota, faltan, fotos, comentario }),
       basuraLlena: (fotos) => apuntar('basura_llena', { fotos }),
       basuraSacada: () => apuntar('basura_sacada', {}),
+      cubrir: (semana, de) => apuntar('zona_cubierta', { semana, de }),
+      dejarDeCubrir: (semana, de) => apuntar('zona_cubierta', { semana, de, deja: true }),
+      quedarmeBasura: (semana, desde) => apuntar('basura_cubierta', desde !== undefined ? { semana, quien: yo, desde } : { semana, quien: yo }),
+      devolverBasura: (semana, a) => apuntar('basura_cubierta', { semana, quien: a }),
       estoEsTuyo: (para, fotos, que) => apuntar('esto_es_tuyo', { para, fotos, que }),
       recogido: (aviso) => apuntar('recogido', { aviso }),
       gasto: (d) => apuntar('gasto', d),
@@ -253,7 +257,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       espacioQuitar: (cosa) => apuntar('espacio_cosa_quitada', { cosa }),
       espacioHecho: (cosa) => apuntar('espacio_hecho', { cosa }),
     }),
-    [apuntar],
+    [apuntar, yo],
   );
 
   const ctx: Ctx = {
@@ -292,7 +296,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     },
   };
   const nuevosChat = pantalla === 'chat' ? 0 : sinLeer(estado.chat, yo, leido);
-  const pendientes = paraPuntuar(estado, yo).length + tuyosAbiertos(estado, yo).length + (estado.basura === yo ? avisosBasuraAbiertos(estado).length : 0);
+  const pendientes = paraPuntuar(estado, yo).length + tuyosAbiertos(estado, yo).length + avisosBasuraAbiertos(estado, yo).length;
 
   if (!listo) return <div className="puerta" aria-busy="true" />;
 

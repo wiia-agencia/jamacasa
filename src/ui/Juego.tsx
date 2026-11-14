@@ -2,6 +2,7 @@ import { Flame } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { nivel, puntosDelMes, type Estado } from '../core/estado';
 import { MEDALLAS, TITULOS } from '../core/juego';
+import { limpiadoPor } from '../core/limpieza';
 import { nota } from '../core/noticias';
 import { cuando, mesDeSemana, nombreMes, rangoSemana } from '../core/tiempo';
 import type { MiembroId } from '../core/tipos';
@@ -188,6 +189,8 @@ export function Juego() {
             <Norma texto="Retraso, por día (desde el lunes)" valor={<Puntos valor={n.puntosRetrasoDia} />} />
             <Norma texto="Piso suspendido" valor={<Puntos valor={n.puntosSuspenso} />} />
             <Norma texto="Sin hacer el miércoles a las 23:59" valor={<Puntos valor={n.puntosSinHacer} />} />
+            <Norma texto="Limpias el piso de otro («Lo limpio yo»)" valor="Su nota, para ti" />
+            <Norma texto="Te quedas la basura de otro («Me la quedo yo»)" valor={<>Sus <Puntos valor={n.puntosBasuraSemana} />, para ti</>} />
           </div>
         </div>
         <p className="tenue mini">Son las normas de arranque. Más adelante las cambiaréis votando desde aquí: con dos de tres votos, se cambian.</p>
@@ -198,7 +201,8 @@ export function Juego() {
 
 /** Debajo de cada nombre del ranking: cómo le va el mes («2 pisos aprobados · media 8,4»). */
 function resumenMes(estado: Estado, m: MiembroId): string {
-  const notas = estado.tareas.filter((t) => t.miembro === m && t.estado === 'aprobada' && mesDeSemana(t.semana) === estado.mes).map((t) => t.nota!);
+  // las notas de los pisos que limpió él (también el de otro, si lo hizo por él)
+  const notas = estado.tareas.filter((t) => t.estado === 'aprobada' && limpiadoPor(t) === m && mesDeSemana(t.semana) === estado.mes).map((t) => t.nota!);
   if (!notas.length) return 'Aún sin pisos aprobados este mes';
   const media = notas.reduce((a, b) => a + b, 0) / notas.length;
   return `${notas.length} ${notas.length === 1 ? 'piso aprobado' : 'pisos aprobados'} · media ${nota(Math.round(media * 10) / 10)}`;

@@ -1,6 +1,6 @@
-import type { AvisoTuyo, SemanaBasura } from './basura';
+import { quejasDe, type AvisoTuyo, type SemanaBasura } from './basura';
 import type { Cuentas } from './cuentas';
-import { redondear1, type Tarea } from './limpieza';
+import { limpiadoPor, lohizoOtro, redondear1, type Tarea } from './limpieza';
 import { diaSemana, finSemana, hora, mes, mesDeSemana, partes } from './tiempo';
 import type { Config, MiembroId, Normas } from './tipos';
 
@@ -23,12 +23,15 @@ export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[],
     const m = mesDeSemana(t.semana);
     const zona = t.zona.nombre.toLowerCase();
     for (const i of t.intentos) {
+      // la nota (o el suspenso) es de quien lo limpió; si fue el piso de otro, se dice de quién
+      const deQuien = i.quien === t.miembro ? '' : ` de ${nombre(t.miembro)}`;
       if (i.resuelto) {
-        if (i.aprobado) r.push({ miembro: t.miembro, puntos: i.media!, motivo: `${t.zona.nombre} aprobado${i.auto ? ' sin notas' : ''}`, ts: i.resueltoEn!, mes: m, clase: 'zona' });
-        else r.push({ miembro: t.miembro, puntos: normas.puntosSuspenso, motivo: `${t.zona.nombre} suspendido`, ts: i.resueltoEn!, mes: m, clase: 'suspenso' });
+        if (i.aprobado) r.push({ miembro: i.quien, puntos: i.media!, motivo: `${t.zona.nombre}${deQuien} aprobado${i.auto ? ' sin notas' : ''}`, ts: i.resueltoEn!, mes: m, clase: 'zona' });
+        else r.push({ miembro: i.quien, puntos: normas.puntosSuspenso, motivo: `${t.zona.nombre}${deQuien} suspendido`, ts: i.resueltoEn!, mes: m, clase: 'suspenso' });
       }
       for (const v of i.votos) {
-        r.push({ miembro: v.autor, puntos: normas.puntosRevisar, motivo: `Puntuaste el ${zona} de ${nombre(t.miembro)}`, ts: v.ts, mes: m, clase: 'revision' });
+        const que = i.quien === t.miembro ? `el ${zona} de ${nombre(t.miembro)}` : `el ${zona} que limpió ${nombre(i.quien)}`;
+        r.push({ miembro: v.autor, puntos: normas.puntosRevisar, motivo: `Puntuaste ${que}`, ts: v.ts, mes: m, clase: 'revision' });
       }
     }
     if (t.retrasoDias > 0) {
@@ -47,8 +50,13 @@ export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[],
   }
   for (const s of basura) {
     const m = mesDeSemana(s.semana);
-    for (const a of s.avisos) if (a.estado === 'queja') r.push({ miembro: s.responsable, puntos: normas.puntosQuejaBasura, motivo: 'Basura sin sacar en 12 h', ts: a.limite, mes: m, clase: 'queja' });
-    if (s.cerrada && s.quejas === 0) r.push({ miembro: s.responsable, puntos: normas.puntosBasuraSemana, motivo: 'Semana de basura sin quejas', ts: finSemana(s.semana), mes: m, clase: 'basura' });
+    // cada queja, para quien tenía la basura cuando se pasó el plazo; los puntos de la semana, para quien la tiene
+    // al acabar (si se la quedó de otro, también), si él no se llevó ninguna queja
+    for (const a of s.avisos) if (a.estado === 'queja') r.push({ miembro: a.responsable, puntos: normas.puntosQuejaBasura, motivo: `Basura sin sacar en ${normas.horasBasura} h`, ts: a.limite, mes: m, clase: 'queja' });
+    if (s.cerrada && quejasDe(s, s.responsable) === 0) {
+      const motivo = s.responsable === s.tocaba ? 'Semana de basura sin quejas' : `Semana de basura de ${nombre(s.tocaba)} sin quejas`;
+      r.push({ miembro: s.responsable, puntos: normas.puntosBasuraSemana, motivo, ts: finSemana(s.semana), mes: m, clase: 'basura' });
+    }
   }
   for (const a of tuyos) if (a.estado === 'multa') r.push({ miembro: a.para, puntos: normas.puntosEstoEsTuyo, motivo: `Sin recoger: ${a.que || 'lo que dejaste por ahí'}`, ts: a.limite, mes: mes(a.limite), clase: 'tuyo' });
   return r.sort((a, b) => b.ts - a.ts);
@@ -92,7 +100,7 @@ export const MEDALLAS: DefMedalla[] = [
   { id: 'ojo', emoji: '🦅', nombre: 'Ojo de Halcón', texto: 'Pusiste menos de un 5 con foto y el piso suspendió.' },
   { id: 'sinred', emoji: '🧗', nombre: 'Sin Red', texto: 'Cuatro semanas seguidas a tiempo y aprobando a la primera.' },
   { id: 'basurero', emoji: '🗑️', nombre: 'Basurero de Oro', texto: 'Tres semanas de basura seguidas sin una sola queja.' },
-  { id: 'salvavidas', emoji: '🛟', nombre: 'Salvavidas', texto: 'Cubriste a un compañero. Llega con los cambios de turno.', proximamente: true },
+  { id: 'salvavidas', emoji: '🛟', nombre: 'Salvavidas', texto: 'Limpiaste el piso de otro y se aprobó, o le hiciste la semana de basura sin una queja.' },
   { id: 'chapuzas', emoji: '🛠️', nombre: 'Chapuzas', texto: 'Te suspendieron un piso.', mala: true },
   { id: 'repetidor', emoji: '🔁', nombre: 'Repetidor', texto: 'Te suspendieron el mismo piso dos veces seguidas.', mala: true },
   { id: 'fantasma', emoji: '👻', nombre: 'Fantasma', texto: 'Se te pasó el plazo para puntuar a un compañero.', mala: true },
@@ -146,28 +154,37 @@ export function calcularMedallas(
     registro?.push({ miembro: m, medalla: id, ts });
   };
 
+  // Lo de cada vez que se marca un piso es de quien lo limpió (si fue el de otro, además, Salvavidas)
+  for (const t of tareas) {
+    const fin = finSemana(t.semana);
+    let suspSeguidos = 0;
+    let antes: MiembroId | undefined;
+    for (const i of t.intentos) {
+      if (!i.resuelto) continue;
+      if (i.quien !== antes) { suspSeguidos = 0; antes = i.quien; }
+      const cuando = i.resueltoEn ?? i.fin;
+      if (i.aprobado) {
+        suspSeguidos = 0;
+        if (i.media === 10) dar(i.quien, 'quirofano', cuando);
+        const p = partes(i.hecho.ts);
+        if (i.n === 1 && diaSemana(i.hecho.ts) === 0 && i.hecho.ts <= fin) dar(i.quien, 'pole', cuando);
+        if (diaSemana(i.hecho.ts) === 6 && p.h >= 22 && i.hecho.ts <= fin) dar(i.quien, 'limite', cuando);
+        if (i.quien !== t.miembro) dar(i.quien, 'salvavidas', cuando);
+      } else {
+        dar(i.quien, 'chapuzas', cuando);
+        suspSeguidos++;
+        if (suspSeguidos === 2) dar(i.quien, 'repetidor', cuando);
+      }
+    }
+  }
+
+  // Las rachas de cada uno van con los pisos que limpió él: si su piso lo limpió otro, esa semana ni suma ni rompe
   for (const m of config.miembros) {
-    const suyas = tareas.filter((t) => t.miembro === m.id).sort((a, b) => a.semana - b.semana);
+    const suyas = tareas.filter((t) => t.miembro === m.id && !lohizoOtro(t)).sort((a, b) => a.semana - b.semana);
     let seguidasNueve = 0;
     let seguidasSinRed = 0;
     for (const t of suyas) {
       const fin = finSemana(t.semana);
-      let suspSeguidos = 0;
-      for (const i of t.intentos) {
-        if (!i.resuelto) continue;
-        if (i.aprobado) {
-          suspSeguidos = 0;
-          const cuando = i.resueltoEn ?? i.fin;
-          if (i.media === 10) dar(m.id, 'quirofano', cuando);
-          const p = partes(i.hecho.ts);
-          if (i.n === 1 && diaSemana(i.hecho.ts) === 0 && i.hecho.ts <= fin) dar(m.id, 'pole', cuando);
-          if (diaSemana(i.hecho.ts) === 6 && p.h >= 22 && i.hecho.ts <= fin) dar(m.id, 'limite', cuando);
-        } else {
-          dar(m.id, 'chapuzas', i.resueltoEn ?? i.fin);
-          suspSeguidos++;
-          if (suspSeguidos === 2) dar(m.id, 'repetidor', i.resueltoEn ?? i.fin);
-        }
-      }
       if (t.estado === 'aprobada') {
         const aprobadaEn = t.intentos.find((i) => i.resuelto && i.aprobado)?.resueltoEn ?? fin;
         if ((t.nota ?? 0) >= 9) { seguidasNueve++; if (seguidasNueve === 3) { dar(m.id, 'suelo', aprobadaEn); seguidasNueve = 0; } }
@@ -192,14 +209,17 @@ export function calcularMedallas(
     }
   }
 
-  // Basurero de Oro
+  // Basurero de Oro (y Salvavidas si era la semana de otro)
   for (const m of config.miembros) {
     let seguidas = 0;
     for (const s of basura.filter((x) => x.responsable === m.id && x.cerrada)) {
       // se cierra al acabar la semana (o al resolverse el último aviso, si quedó alguno abierto)
       const cerradaEn = Math.max(finSemana(s.semana), ...s.avisos.map((a) => a.resueltoEn ?? 0));
-      if (s.quejas === 0) { seguidas++; if (seguidas === 3) { dar(m.id, 'basurero', cerradaEn); seguidas = 0; } }
-      else seguidas = 0;
+      if (quejasDe(s, m.id) === 0) {
+        if (s.tocaba !== m.id) dar(m.id, 'salvavidas', cerradaEn);
+        seguidas++;
+        if (seguidas === 3) { dar(m.id, 'basurero', cerradaEn); seguidas = 0; }
+      } else seguidas = 0;
     }
   }
 
@@ -238,7 +258,8 @@ export function calcularTitulos(
 
     const notas: Record<MiembroId, number> = {};
     for (const i of ids) {
-      const ns = tareas.filter((t) => t.miembro === i && t.estado === 'aprobada' && mesDeSemana(t.semana) === m).map((t) => t.nota!);
+      // la nota es de quien limpió el piso (si limpiaste el de otro, cuenta para tu media)
+      const ns = tareas.filter((t) => t.estado === 'aprobada' && limpiadoPor(t) === i && mesDeSemana(t.semana) === m).map((t) => t.nota!);
       notas[i] = ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : -1;
     }
     fila.matricula = mejores(notas, -1);

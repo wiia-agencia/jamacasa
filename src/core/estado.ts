@@ -72,7 +72,8 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
     mes: mes(ahora),
     meses,
     reparto: repartoSemana(config, w),
-    basura: basuraDe(config, w),
+    // quien la tiene ahora: la del sorteo o, si alguien se la quedó («Me la quedo yo»), ese
+    basura: semanasBasura.find((x) => x.semana === w)?.responsable ?? basuraDe(config, w),
     tareas,
     semanasBasura,
     tuyos,
@@ -107,9 +108,14 @@ export function semanaBasura(e: Estado, w: number): SemanaBasura | undefined {
   return e.semanasBasura.find((s) => s.semana === w);
 }
 
-/** Avisos de basura abiertos ahora mismo (de la semana actual o de la anterior). */
-export function avisosBasuraAbiertos(e: Estado): AvisoBasura[] {
-  return e.semanasBasura.flatMap((s) => s.avisos).filter((a) => a.estado === 'abierto');
+/** Avisos de basura abiertos ahora mismo (de la semana actual o de la anterior); con `para`, solo los que le tocan a él. */
+export function avisosBasuraAbiertos(e: Estado, para?: MiembroId): AvisoBasura[] {
+  return e.semanasBasura.flatMap((s) => s.avisos).filter((a) => a.estado === 'abierto' && (!para || a.responsable === para));
+}
+
+/** A quién le salió la basura esta semana en el sorteo (si se la ha quedado otro, no es quien la tiene). */
+export function basuraTocaba(e: Estado): MiembroId | null {
+  return e.semanasBasura.find((x) => x.semana === e.semana)?.tocaba ?? null;
 }
 
 export function tuyosAbiertos(e: Estado, para?: MiembroId): AvisoTuyo[] {

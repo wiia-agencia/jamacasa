@@ -13,6 +13,7 @@ import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, SelectorFotos } from './pie
 export function Hojas({ hoja }: { hoja: TipoHoja }) {
   switch (hoja.tipo) {
     case 'hecho': return <HojaHecho tarea={hoja.tarea} />;
+    case 'cubrir': return <HojaCubrir tarea={hoja.tarea} />;
     case 'puntuar': return <HojaPuntuar tarea={hoja.tarea} intento={hoja.intento} />;
     case 'basura': return <HojaBasura />;
     case 'tuyo': return <HojaTuyo />;
@@ -29,20 +30,24 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
 }
 
 function HojaHecho({ tarea }: { tarea: Tarea }) {
-  const { cerrar, acciones, avisar, config, yo } = useCasa();
+  const { cerrar, acciones, avisar, config, yo, estado } = useCasa();
   const [fotos, setFotos] = useState<string[]>([]);
   const [texto, setTexto] = useState('');
   const repaso = tarea.estado === 'suspendida';
+  // el piso de otro que limpias tú («Lo limpio yo»): se apunta a su nombre y te ponen nota los otros dos
+  const deOtro = tarea.miembro !== yo ? tarea.miembro : undefined;
+  const dueno = config.miembros.find((m) => m.id === tarea.miembro)?.nombre ?? '';
   const jueces = config.miembros.filter((m) => m.id !== yo).map((m) => m.nombre).join(' y ');
+  const piso = deOtro ? `${tarea.zona.nombre} de ${dueno}` : tarea.zona.nombre;
   return (
     <Hoja
-      titulo={repaso ? `Repaso del ${tarea.zona.nombre.toLowerCase()}` : tarea.zona.nombre}
-      subtitulo={`Al marcarlo, ${jueces} tienen 48 horas para ponerte nota.`}
+      titulo={repaso ? `Repaso del ${piso.charAt(0).toLowerCase()}${piso.slice(1)}` : piso}
+      subtitulo={`Al marcarlo, ${jueces} tienen ${estado.normas.horasRevision} horas para ponerte nota.${deOtro ? ' La nota es para ti.' : ''}`}
       onCerrar={cerrar}
       pie={
         <BotonAccion
           hacer={async () => {
-            await acciones.marcarHecho(tarea.semana, fotos, texto.trim() || undefined);
+            await acciones.marcarHecho(tarea.semana, fotos, texto.trim() || undefined, deOtro);
             cerrar();
             avisar(repaso ? 'Marcado como repasado. A esperar la nota.' : `Marcado como hecho. Ahora te puntúan ${jueces}.`);
           }}
@@ -65,6 +70,51 @@ function HojaHecho({ tarea }: { tarea: Tarea }) {
   );
 }
 
+/** «Lo limpio yo»: te encargas del piso de otro esta semana. Lo que marques va a su piso y la nota es para ti. */
+function HojaCubrir({ tarea }: { tarea: Tarea }) {
+  const { cerrar, abrir, acciones, avisar, config, yo, estado } = useCasa();
+  const vivo = estado.tareas.find((t) => t.semana === tarea.semana && t.miembro === tarea.miembro) ?? tarea;
+  const dueno = config.miembros.find((m) => m.id === vivo.miembro)?.nombre ?? '';
+  const otros = config.miembros.filter((m) => m.id !== yo).map((m) => m.nombre).join(' y ');
+  const piso = vivo.zona.nombre.toLowerCase();
+  return (
+    <Hoja
+      titulo={`¿Limpias tú el ${piso} de ${dueno}?`}
+      subtitulo={`Si no está, lo haces tú: lo marcas como si fuera el tuyo, te ponen nota ${otros} y los puntos son para ti.`}
+      onCerrar={cerrar}
+      pie={
+        <div className="pila-s">
+          <BotonAccion
+            hacer={async () => {
+              await acciones.cubrir(vivo.semana, vivo.miembro);
+              cerrar();
+              avisar(`Te encargas del ${piso} de ${dueno}. Ya lo saben.`);
+            }}
+          >
+            Lo limpio yo
+          </BotonAccion>
+          <BotonAccion
+            clase="boton ancho claro"
+            hacer={async () => {
+              // ya lo ha limpiado: se encarga y lo marca hecho del tirón
+              if (vivo.cubre !== yo) await acciones.cubrir(vivo.semana, vivo.miembro);
+              abrir({ tipo: 'hecho', tarea: vivo });
+            }}
+          >
+            Ya lo he limpiado
+          </BotonAccion>
+        </div>
+      }
+    >
+      <ul className="pila-s peq" style={{ margin: 0, paddingLeft: 18 }}>
+        <li>El piso sigue siendo de {dueno}: si al final no lo hace nadie, el retraso es suyo.</li>
+        <li>Lo que marques de la lista va a su piso y la casa se limpia igual.</li>
+        <li>Ganas su nota y la medalla Salvavidas 🛟.</li>
+      </ul>
+    </Hoja>
+  );
+}
+
 function HojaPuntuar({ tarea, intento }: { tarea: Tarea; intento: Intento }) {
   const { cerrar, acciones, avisar, estado, config } = useCasa();
   const [valor, setValor] = useState<number | null>(null);
@@ -72,7 +122,8 @@ function HojaPuntuar({ tarea, intento }: { tarea: Tarea; intento: Intento }) {
   const [fotos, setFotos] = useState<string[]>([]);
   const [comentario, setComentario] = useState('');
   const [error, setError] = useState('');
-  const quien = config.miembros.find((m) => m.id === tarea.miembro)!.nombre;
+  // se puntúa a quien lo limpió (si tu piso lo limpió otro, a él)
+  const quien = config.miembros.find((m) => m.id === intento.quien)!.nombre;
   const minima = estado.normas.notaMinima;
   const fotosHecho: string[] = intento.hecho.datos?.fotos ?? [];
   const notaHecho: string | undefined = intento.hecho.datos?.nota;
@@ -445,10 +496,18 @@ function HojaTarea({ tarea }: { tarea: Tarea }) {
   const vivo = estado.tareas.find((t) => t.semana === tarea.semana && t.miembro === tarea.miembro) ?? tarea;
   const i = vivo.intentos[vivo.intentos.length - 1];
   const puedoPuntuar = i && !i.resuelto && i.sinVotar.includes(yo);
-  const quien = config.miembros.find((m) => m.id === vivo.miembro)!.nombre;
+  const nombre = (m: MiembroId) => config.miembros.find((x) => x.id === m)?.nombre ?? '';
+  const quien = nombre(vivo.miembro);
+  // el de otro, sin hacer y sin nadie que se encargue: «Lo limpio yo» (solo esta semana o la pasada)
+  const puedoCubrir = vivo.miembro !== yo && vivo.cubre === undefined && (vivo.estado === 'pendiente' || vivo.estado === 'suspendida') && vivo.semana >= estado.semana - 1;
+  const lleva = vivo.cubre !== undefined && (vivo.estado === 'pendiente' || vivo.estado === 'suspendida') ? (vivo.cubre === yo ? 'Te encargas tú' : `Se encarga ${nombre(vivo.cubre)}`) : i && i.quien !== vivo.miembro ? (i.quien === yo ? 'Lo limpiaste tú' : `Lo limpió ${nombre(i.quien)}`) : '';
   return (
-    <Hoja titulo={`${quien}: ${vivo.zona.nombre.toLowerCase()}`} subtitulo={`Semana ${rangoSemana(vivo.semana, true)}`} onCerrar={cerrar}
-      pie={puedoPuntuar ? <button type="button" className="boton ancho" onClick={() => abrir({ tipo: 'puntuar', tarea: vivo, intento: i })}>Puntuar a {quien}</button> : undefined}
+    <Hoja titulo={`${quien}: ${vivo.zona.nombre.toLowerCase()}`} subtitulo={`Semana ${rangoSemana(vivo.semana, true)}${lleva ? ` · ${lleva}` : ''}`} onCerrar={cerrar}
+      pie={
+        puedoPuntuar ? <button type="button" className="boton ancho" onClick={() => abrir({ tipo: 'puntuar', tarea: vivo, intento: i })}>Puntuar a {nombre(i.quien)}</button>
+        : puedoCubrir ? <button type="button" className="boton ancho claro" onClick={() => abrir({ tipo: 'cubrir', tarea: vivo })}>Lo limpio yo</button>
+        : undefined
+      }
     >
       <div className="pila-s" style={{ gap: 18 }}>
         <EstadoTarea t={vivo} />
@@ -494,7 +553,7 @@ function HojaMedalla({ def, titulo }: { def: DefMedalla; titulo?: boolean }) {
           </div>
         </div>
       ) : def.proximamente ? (
-        <p className="peq suave">Esta medalla llega con los cambios de turno, cuando uno pueda cubrir a otro.</p>
+        <p className="peq suave">Esta medalla llega más adelante.</p>
       ) : (
         <div className="caja">
           <div className="lista">

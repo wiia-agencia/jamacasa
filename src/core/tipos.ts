@@ -82,9 +82,11 @@ export type TipoEvento =
   | 'zona_empezada' // «Empezar a limpiar»: tu muñeco se pone a barrer y se avisa a los otros dos
   | 'zona_cosa' // marcas (o desmarcas) una cosa de «Lo que se limpia» de tu piso: no avisa a nadie
   | 'zona_hecha'
+  | 'zona_cubierta' // «Lo limpio yo»: te encargas del piso de otro esta semana (o, con `deja`, lo dejas)
   | 'puntuacion'
   | 'basura_llena'
   | 'basura_sacada'
+  | 'basura_cubierta' // «Me la quedo yo»: desde ahora la basura de esta semana es tuya (o se la devuelves a quien le tocaba)
   | 'esto_es_tuyo'
   | 'recogido'
   | 'gasto'
@@ -109,8 +111,13 @@ export interface Evento {
 
 // Datos de cada tipo de evento (lo que se guarda en "datos")
 export interface DatosZonaEmpezada { semana: number }
-export interface DatosZonaCosa { semana: number; cosa: string; hecha: boolean }
-export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string }
+/** `de`: el dueño del piso, si lo marcas por otro (te encargas tú de su piso) */
+export interface DatosZonaCosa { semana: number; cosa: string; hecha: boolean; de?: MiembroId }
+export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string; de?: MiembroId }
+export interface DatosZonaCubierta { semana: number; de: MiembroId; deja?: boolean }
+/** `quien`: quién tiene la basura desde ahora (tú, o quien le tocaba si se la devuelves); `desde`: si te la quedas
+ *  desde antes (el comienzo de un día de esa semana; el lunes, toda la semana) */
+export interface DatosBasuraCubierta { semana: number; quien: MiembroId; desde?: number }
 export interface DatosPuntuacion {
   semana: number;
   de: MiembroId;

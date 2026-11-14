@@ -16,6 +16,10 @@ export interface Voto {
 export interface Intento {
   n: number;
   hecho: Evento;
+  /** Quién lo limpió: el dueño del piso o el que lo hizo por él («Lo limpio yo»). Se lleva la nota (o el suspenso) y
+   *  le ponen nota los otros dos (el dueño también, si lo limpió otro). */
+  quien: MiembroId;
+  jueces: MiembroId[];
   fin: number; // cuándo se cierra el plazo para puntuar
   votos: Voto[]; // el voto que cuenta de cada juez
   sinVotar: MiembroId[]; // jueces que no han votado (o no votaron a tiempo)
@@ -36,6 +40,11 @@ export interface Tarea {
   estado: EstadoTarea;
   primerHecho?: number;
   empezada?: number; // cuándo le dio a «Empezar a limpiar» (la primera vez)
+  /** Alguien se encarga de su piso esta semana («Lo limpio yo», Javi, 14 de noviembre: Josu no estaba y su piso lo
+   *  hizo Jose). El piso sigue siendo del dueño (si nadie lo hace, el retraso y el «sin hacer» son suyos), pero la
+   *  lista la marca quien lo limpia y la nota es para él. */
+  cubre?: MiembroId;
+  cubiertaEn?: number;
   lista: string[]; // lo que se limpia en su piso (lo de siempre y, si le toca, lo que solo entra a veces)
   marcadas: string[]; // lo que ya ha marcado de la lista en esta vuelta (si se suspende, se empieza de cero)
   retrasoDias: number; // días de retraso hasta que se marcó (o hasta ahora)
@@ -54,16 +63,20 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
   const votos = new Map<string, Evento[]>();
   const empezadas = new Map<string, number>();
   const cosas = new Map<string, Evento[]>();
+  const cubiertas = new Map<string, Evento[]>();
+  const esMiembro = (m: unknown): m is MiembroId => typeof m === 'string' && config.miembros.some((x) => x.id === m);
+  const anadir = (mapa: Map<string, Evento[]>, k: string, e: Evento) => (mapa.get(k) ?? mapa.set(k, []).get(k)!).push(e);
   for (const e of eventos) {
     if (e.tipo === 'zona_cosa') {
-      const k = `${e.datos?.semana}|${e.autor}`;
-      (cosas.get(k) ?? cosas.set(k, []).get(k)!).push(e);
+      anadir(cosas, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
     } else if (e.tipo === 'zona_empezada') {
       const k = `${e.datos?.semana}|${e.autor}`;
       if (!empezadas.has(k) || e.ts < empezadas.get(k)!) empezadas.set(k, e.ts);
     } else if (e.tipo === 'zona_hecha') {
-      const k = `${e.datos.semana}|${e.autor}`;
-      (hechos.get(k) ?? hechos.set(k, []).get(k)!).push(e);
+      anadir(hechos, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
+    } else if (e.tipo === 'zona_cubierta') {
+      // «Lo limpio yo» en el piso de otro (o, con `deja`, «Ya no lo limpio yo»)
+      if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(cubiertas, `${e.datos?.semana}|${e.datos.de}`, e);
     } else if (e.tipo === 'puntuacion') {
       const d = e.datos as DatosPuntuacion;
       const k = `${d.semana}|${d.de}|${d.intento}`;
@@ -76,7 +89,6 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
     for (const m of config.miembros) {
       const zona = zonaDe(config, w, m.id);
       if (!zona) continue;
-      const jueces = config.miembros.filter((x) => x.id !== m.id).map((x) => x.id);
       const lista = (hechos.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts);
       const intentos: Intento[] = [];
       for (const h of lista) {
@@ -85,7 +97,21 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
           if (!ult.resuelto || ult.aprobado) continue;
           if (h.ts <= ult.resueltoEn!) continue;
         }
-        intentos.push(resolverIntento(h, intentos.length + 1, jueces, votos.get(`${w}|${m.id}|${intentos.length + 1}`) ?? [], normas, ahora));
+        // le ponen nota los que no lo han limpiado (si lo limpió otro, también el dueño)
+        const jueces = config.miembros.filter((x) => x.id !== h.autor).map((x) => x.id);
+        intentos.push(resolverIntento(h, intentos.length + 1, h.autor, jueces, votos.get(`${w}|${m.id}|${intentos.length + 1}`) ?? [], normas, ahora));
+      }
+
+      // quién se encarga de su piso esta semana: el último que dijo «Lo limpio yo» (si no lo ha dejado después)
+      let cubre: MiembroId | undefined;
+      let cubiertaEn: number | undefined;
+      for (const c of (cubiertas.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts)) {
+        if (c.datos?.deja) {
+          if (c.autor === cubre) { cubre = undefined; cubiertaEn = undefined; }
+        } else if (c.autor !== cubre) {
+          cubre = c.autor;
+          cubiertaEn = c.ts;
+        }
       }
 
       const fin = finSemana(w);
@@ -113,6 +139,8 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         estado,
         primerHecho,
         empezada: empezadas.get(`${w}|${m.id}`),
+        cubre,
+        cubiertaEn,
         lista: deLaLista,
         marcadas: marcadasDe(cosas.get(`${w}|${m.id}`) ?? [], deLaLista, intentos, estado),
         retrasoDias,
@@ -124,6 +152,27 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
     }
   }
   return tareas;
+}
+
+/** De quién es el piso de un evento de limpieza: el suyo o, si lleva `de` (lo hace por otro), el de ese otro. */
+function duenoDe(e: Evento, esMiembro: (m: unknown) => m is MiembroId): MiembroId {
+  const de = e.datos?.de;
+  return esMiembro(de) ? de : e.autor;
+}
+
+/** Quién lo ha limpiado (el último intento): el dueño o quien lo hizo por él. */
+export function limpiadoPor(t: Tarea): MiembroId | undefined {
+  return t.intentos[t.intentos.length - 1]?.quien;
+}
+
+/** ¿Lo limpió (o lo intentó) otro que no es el dueño? */
+export function lohizoOtro(t: Tarea): boolean {
+  return t.intentos.some((i) => i.quien !== t.miembro);
+}
+
+/** Alguien está con él: lo ha empezado su dueño, se encarga otro o ya hay cosas marcadas de la lista. */
+export function enMarcha(t: Tarea): boolean {
+  return t.empezada !== undefined || t.cubre !== undefined || t.marcadas.length > 0;
 }
 
 /** Lo que se limpia en un piso para quien le toca: la lista de siempre y lo que solo entra si le toca a él
@@ -155,7 +204,7 @@ export function progreso(t: Tarea): { hechas: number; total: number } {
   return { hechas: t.marcadas.length, total: t.lista.length };
 }
 
-function resolverIntento(h: Evento, n: number, jueces: MiembroId[], votosEv: Evento[], normas: Normas, ahora: number): Intento {
+function resolverIntento(h: Evento, n: number, quien: MiembroId, jueces: MiembroId[], votosEv: Evento[], normas: Normas, ahora: number): Intento {
   const fin = h.ts + normas.horasRevision * HORA;
   const validos = votosEv
     .filter((v) => jueces.includes(v.autor) && v.ts >= h.ts && v.ts <= fin)
@@ -195,7 +244,7 @@ function resolverIntento(h: Evento, n: number, jueces: MiembroId[], votosEv: Eve
   for (const v of vs) v.primero = primeros.has(v.evento);
 
   const sinVotar = jueces.filter((j) => !ultimo.has(j));
-  const intento: Intento = { n, hecho: h, fin, votos: vs, sinVotar, resuelto: resueltoEn !== undefined, resueltoEn };
+  const intento: Intento = { n, hecho: h, quien, jueces, fin, votos: vs, sinVotar, resuelto: resueltoEn !== undefined, resueltoEn };
   if (intento.resuelto) {
     if (vs.length > 0) {
       intento.media = redondear1(vs.reduce((a, v) => a + v.nota, 0) / vs.length);
@@ -212,7 +261,7 @@ function resolverIntento(h: Evento, n: number, jueces: MiembroId[], votosEv: Eve
 export function porPuntuar(tareas: Tarea[], m: MiembroId): { tarea: Tarea; intento: Intento }[] {
   const r: { tarea: Tarea; intento: Intento }[] = [];
   for (const t of tareas) {
-    if (t.miembro === m) continue;
+    // los jueces son los que no lo han limpiado: si tu piso lo limpió otro, también te toca ponerle nota
     const i = t.intentos[t.intentos.length - 1];
     if (i && !i.resuelto && i.sinVotar.includes(m)) r.push({ tarea: t, intento: i });
   }

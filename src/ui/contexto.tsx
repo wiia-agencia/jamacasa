@@ -12,6 +12,7 @@ export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego' | 'chat';
 
 export type Hoja =
   | { tipo: 'hecho'; tarea: Tarea }
+  | { tipo: 'cubrir'; tarea: Tarea }
   | { tipo: 'puntuar'; tarea: Tarea; intento: Intento }
   | { tipo: 'basura' }
   | { tipo: 'tuyo' }
@@ -27,9 +28,15 @@ export type Hoja =
 
 export interface Acciones {
   empezar(semana: number): Promise<void>;
-  /** «Lo que se limpia»: marcar (o desmarcar) una cosa de la lista de tu piso */
-  marcarCosa(semana: number, cosa: string, hecha: boolean): Promise<void>;
-  marcarHecho(semana: number, fotos: string[], nota?: string): Promise<void>;
+  /** «Lo que se limpia»: marcar (o desmarcar) una cosa de la lista de tu piso (o del de `de`, si lo limpias tú) */
+  marcarCosa(semana: number, cosa: string, hecha: boolean, de?: MiembroId): Promise<void>;
+  marcarHecho(semana: number, fotos: string[], nota?: string, de?: MiembroId): Promise<void>;
+  /** «Lo limpio yo»: te encargas del piso de otro esta semana (o lo dejas) */
+  cubrir(semana: number, de: MiembroId): Promise<void>;
+  dejarDeCubrir(semana: number, de: MiembroId): Promise<void>;
+  /** «Me la quedo yo»: la basura de esta semana pasa a ser tuya desde ahora (o se la devuelves a quien le tocaba) */
+  quedarmeBasura(semana: number, desde?: number): Promise<void>;
+  devolverBasura(semana: number, a: MiembroId): Promise<void>;
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string): Promise<void>;
   basuraLlena(fotos: string[]): Promise<void>;
   basuraSacada(): Promise<void>;

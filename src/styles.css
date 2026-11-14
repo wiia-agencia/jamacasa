@@ -1392,3 +1392,42 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .entrada-banda { padding-top: calc(40px + env(safe-area-inset-top, 0px)); padding-bottom: 30px; color: #0e2a47; }
 .vista .entrada-banda { padding-top: 40px; }
 .entrada-banda p { font-weight: 600; opacity: 0.85; }
+
+/* ——— Hacer lo de otro (Javi, 14 de noviembre: Josu no estaba; su piso lo limpió Jose y la basura la sacó Javi) ——— */
+.boton.cubrir { background: #13233a; color: #ffffff; min-height: 46px; padding: 0 14px; font-size: 0.92rem; white-space: nowrap; flex: none; }
+.cajon > .juego-ficha-volver { display: inline-flex; align-items: center; gap: 5px; }
+.tambien-limpias {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--c, var(--texto)) 12%, var(--papel));
+  color: var(--texto);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c, var(--texto)) 40%, transparent);
+  cursor: pointer;
+}
+.tambien-limpias svg:first-child { color: var(--c, var(--texto)); flex: none; }
+.tambien-limpias b { display: block; font-size: 0.95rem; }
+.tambien-limpias .crece > span { display: block; font-size: 0.8rem; color: var(--texto-2); }
+.atajo .atajo-enlace { padding: 2px 0 0; align-self: flex-start; font-size: 0.8rem; }
+/* «Me la quedo yo»: desde cuándo (ahora, o desde un día de esta semana) */
+.desde-dias { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: -2px; }
+.desde-dias > span { font-size: 0.78rem; font-weight: 650; color: var(--texto-2); margin-right: 2px; }
+.desde-dias button {
+  appearance: none;
+  border: 0;
+  font: 650 0.78rem var(--f);
+  color: var(--texto);
+  background: var(--papel-2);
+  padding: 6px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.desde-dias button[aria-checked='true'] { background: #13233a; color: #ffffff; }
+.juego-menu .quedarme { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--linea); }

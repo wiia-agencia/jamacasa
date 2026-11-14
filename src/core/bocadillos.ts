@@ -3,7 +3,7 @@
 // tocar la cara de otro. Reglas puras: la pantalla solo lo pinta.
 import { diasSinLimpiar, pisoDe } from './escena';
 import { tareaDe, type Estado } from './estado';
-import { progreso, type Tarea } from './limpieza';
+import { enMarcha, progreso, type Tarea } from './limpieza';
 import { nota } from './noticias';
 import { cuando, nombreDia } from './tiempo';
 import type { Config, MiembroId } from './tipos';
@@ -34,12 +34,14 @@ export interface Ficha {
   boton?: { texto: string; accion: QueHace };
   nota?: number;
   suspensa?: boolean;
+  /** Está sin hacer y nadie se encarga: puedes limpiarlo tú («Lo limpio yo») */
+  cubrir?: boolean;
 }
 
 const nombre = (config: Config, m: MiembroId) => config.miembros.find((x) => x.id === m)?.nombre ?? m;
 const y = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
 const dias = (n: number) => `${n} ${n === 1 ? 'día' : 'días'}`;
-const limpiando = (t: Tarea) => (t.estado === 'pendiente' && (t.empezada !== undefined || t.marcadas.length > 0)) || (t.estado === 'suspendida' && t.marcadas.length > 0);
+const limpiando = (t: Tarea) => (t.estado === 'pendiente' && enMarcha(t)) || (t.estado === 'suspendida' && t.marcadas.length > 0);
 const llevaHechas = (t: Tarea) => {
   const { hechas, total } = progreso(t);
   return total ? `${hechas} de ${total} hechas` : undefined;
@@ -55,7 +57,29 @@ export function bocadilloDe(config: Config, e: Estado, m: MiembroId, yo: Miembro
   if (!t) return null;
   const mio = m === yo;
   const ult = t.intentos[t.intentos.length - 1];
+  // su piso lo limpia otro («Lo limpio yo»): se dice quién, y quien lo limpia lo toca para abrir la lista
+  if (t.cubre !== undefined && limpiando(t)) {
+    if (t.cubre === yo) return { miembro: m, titulo: 'Lo limpias tú…', sub: llevaHechas(t), tono: 'yo', accion: 'lista' };
+    return { miembro: m, titulo: `Lo limpia ${nombre(config, t.cubre)}…`, sub: llevaHechas(t), tono: mio ? 'yo' : 'blanco', accion: 'tarea' };
+  }
   if (limpiando(t)) return { miembro: m, titulo: t.estado === 'suspendida' ? 'Repasando…' : 'Limpiando…', sub: llevaHechas(t), tono: mio ? 'yo' : 'blanco', accion: mio ? 'lista' : 'tarea' };
+  // lo limpió otro: lo que se espera (o la nota) es suyo
+  if (ult && ult.quien !== m) {
+    const q = ult.quien === yo ? 'tú' : nombre(config, ult.quien);
+    const lo = ult.quien === yo ? 'Lo limpiaste tú' : `Lo limpió ${q}`;
+    if (t.estado === 'esperando') {
+      const faltan = ult.sinVotar;
+      if (ult.quien === yo) return { miembro: m, titulo: 'Esperando nota ★', sub: faltan.length ? `De ${y(faltan.map((j) => nombre(config, j)))}` : undefined, tono: 'yo', accion: 'tarea' };
+      if (faltan.includes(yo)) return { miembro: m, titulo: `${q} espera tu nota ★`, sub: mio ? 'Ha limpiado tu piso' : undefined, tono: 'blanco', accion: 'puntuar' };
+      return { miembro: m, titulo: 'Esperando nota', sub: lo, tono: 'blanco', accion: 'tarea' };
+    }
+    if (t.estado === 'aprobada') return { miembro: m, titulo: `Aprobado ✓ ${nota(t.nota!)}`, sub: lo, tono: 'verde', accion: 'tarea' };
+    if (t.estado === 'suspendida') {
+      return ult.quien === yo || mio
+        ? { miembro: m, titulo: 'Suspenso: a repasar', sub: `Nota ${nota(ult.media!)} · ${lo.toLowerCase()}`, tono: 'rojo', accion: 'lista' }
+        : { miembro: m, titulo: `Suspenso ${nota(ult.media!)}`, sub: lo, tono: 'rojo', accion: 'tarea' };
+    }
+  }
   switch (t.estado) {
     case 'pendiente': {
       if (!t.enCurso) {
@@ -98,11 +122,16 @@ export function marcaDe(e: Estado, m: MiembroId, yo: MiembroId): Marca {
   return m === yo ? { marca: '!', tono: 'naranja' } : { marca: '', tono: '' };
 }
 
-/** La frase de debajo de la semana: cómo vas tú. */
-export function resumenDe(e: Estado, yo: MiembroId): string {
+/** La frase de debajo de la semana: cómo vas tú (y, si te encargas del piso de otro, el suyo). */
+export function resumenDe(e: Estado, yo: MiembroId, config?: Config): string {
   const t = tareaDe(e, e.semana, yo);
+  const n = (m: MiembroId) => (config ? nombre(config, m) : m);
+  const otro = e.tareas.find((x) => x.semana === e.semana && x.cubre === yo && x.miembro !== yo && (x.estado === 'pendiente' || x.estado === 'suspendida'));
+  if (otro && (!t || t.estado === 'esperando' || t.estado === 'aprobada')) return `Te queda el ${otro.zona.nombre.toLowerCase()} de ${n(otro.miembro)}`;
   if (!t) return 'Esta semana no te toca piso';
   const piso = t.zona.nombre.toLowerCase();
+  if (t.cubre !== undefined && t.estado === 'pendiente') return `${n(t.cubre)} se encarga de tu piso`;
+  if (otro) return `Te tocan el ${piso} y el de ${n(otro.miembro)}`;
   if (limpiando(t)) return t.estado === 'suspendida' ? `Repasando el ${piso}` : `Limpiando el ${piso}`;
   if (t.estado === 'pendiente') return t.enCurso ? `Te toca el ${piso}` : `Vas tarde con el ${piso}`;
   if (t.estado === 'esperando') return `${t.zona.nombre}: esperando nota`;
@@ -117,15 +146,32 @@ export function fichaDe(config: Config, e: Estado, m: MiembroId, yo: MiembroId):
   const ult = t.intentos[t.intentos.length - 1];
   const base = { miembro: m, titulo: m === yo ? 'Tú' : nombre(config, m) };
   const z = t.zona.nombre;
-  if (limpiando(t)) {
+  // «lo limpia Jose» / «lo limpias tú» (y en pasado: «lo limpió Jose» / «lo limpiaste tú»)
+  const limpia = (x: MiembroId) => (x === yo ? 'lo limpias tú' : `lo limpia ${nombre(config, x)}`);
+  const limpio = (x: MiembroId) => (x === yo ? 'lo limpiaste tú' : `lo limpió ${nombre(config, x)}`);
+  const haLimpiado = (x: MiembroId) => (x === yo ? 'lo has limpiado tú' : `lo ha limpiado ${nombre(config, x)}`);
+  // se puede hacer por él si está sin hacer (o suspendido) y nadie se encarga todavía
+  const cubrir = m !== yo && t.cubre === undefined && (t.estado === 'pendiente' || t.estado === 'suspendida') ? { cubrir: true } : {};
+  if (t.cubre !== undefined && limpiando(t)) {
     const lleva = llevaHechas(t);
-    return { ...base, texto: `${z} · ${t.estado === 'suspendida' ? 'repasando' : 'limpiando'}${lleva ? `: ${lleva}` : ''}` };
+    return { ...base, texto: `${z} · ${limpia(t.cubre)}${lleva ? `: ${lleva}` : ''}` };
+  }
+  if (ult && ult.quien !== m && t.estado === 'esperando') {
+    const hecho = `${haLimpiado(ult.quien)} ${cuando(ult.hecho.ts, e.ahora)}`;
+    if (ult.sinVotar.includes(yo)) return { ...base, texto: `${z} · ${hecho}`, boton: { texto: 'Ponle nota ★', accion: 'puntuar' } };
+    const faltan = ult.sinVotar.filter((j) => j !== yo).map((j) => nombre(config, j));
+    return { ...base, texto: `${z} · ${hecho}${faltan.length ? `; falta la nota de ${y(faltan)}` : ''}` };
+  }
+  if (limpiando(t)) {
+    // aunque lo haya empezado, si no está (Josu, 11 de noviembre: lo empezó y se fue), otro puede acabarlo por él
+    const lleva = llevaHechas(t);
+    return { ...base, ...cubrir, texto: `${z} · ${t.estado === 'suspendida' ? 'repasando' : 'limpiando'}${lleva ? `: ${lleva}` : ''}` };
   }
   switch (t.estado) {
     case 'pendiente': {
       const d = sinLimpiar(e, t);
-      if (!t.enCurso) return { ...base, texto: `${z} · va ${dias(t.retrasoDias)} tarde` };
-      return { ...base, texto: `${z} · sin empezar${d > 0 ? `, ${dias(d)} sin limpiar` : ''}` };
+      if (!t.enCurso) return { ...base, ...cubrir, texto: `${z} · va ${dias(t.retrasoDias)} tarde` };
+      return { ...base, ...cubrir, texto: `${z} · sin empezar${d > 0 ? `, ${dias(d)} sin limpiar` : ''}` };
     }
     case 'esperando': {
       const hecho = `lo ha limpiado ${cuando(ult.hecho.ts, e.ahora)}`;
@@ -133,9 +179,11 @@ export function fichaDe(config: Config, e: Estado, m: MiembroId, yo: MiembroId):
       const faltan = ult.sinVotar.filter((j) => j !== yo).map((j) => nombre(config, j));
       return { ...base, texto: `${z} · ${hecho}${faltan.length ? `; falta la nota de ${y(faltan)}` : ''}` };
     }
-    case 'aprobada':
-      return { ...base, texto: `${z} · aprobado el ${nombreDia(ult.resueltoEn ?? ult.hecho.ts)}`, nota: t.nota };
+    case 'aprobada': {
+      const lo = ult.quien !== m ? ` (${limpio(ult.quien)})` : '';
+      return { ...base, texto: `${z} · aprobado el ${nombreDia(ult.resueltoEn ?? ult.hecho.ts)}${lo}`, nota: t.nota };
+    }
     case 'suspendida':
-      return { ...base, texto: `${z} · suspenso: tiene que repasarlo`, nota: ult.media, suspensa: true };
+      return { ...base, ...cubrir, texto: `${z} · suspenso: tiene que repasarlo`, nota: ult.media, suspensa: true };
   }
 }

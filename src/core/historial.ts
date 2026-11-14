@@ -4,6 +4,7 @@
 import { avisosBasuraAbiertos, derivar, paraPuntuar, type Estado } from './estado';
 import type { CosaEspacio } from './espacio';
 import { calcularMedallas, type MedallaGanada } from './juego';
+import { enMarcha } from './limpieza';
 import type { Noticia } from './noticias';
 import { diaLocal, fechaDeDia, inicioDia, instanteLocal, lunesDe, mesDeDia, semanaDeDia } from './tiempo';
 import type { Config, Evento, MiembroId } from './tipos';
@@ -78,7 +79,7 @@ export function situacionDe(e: Estado, m: MiembroId): { zona: string | null; sit
     : t.estado === 'suspendida' ? 'suspendido'
     : t.estado === 'esperando' ? 'esperando'
     : !t.enCurso ? (t.sinHacer ? 'sin_hacer' : 'tarde')
-    : t.empezada !== undefined ? 'limpiando'
+    : enMarcha(t) ? 'limpiando'
     : 'sin_empezar';
   return { zona: t.zona.nombre, situacion, nota: t.estado === 'aprobada' ? t.nota : undefined };
 }
@@ -151,7 +152,7 @@ export function marcasDelMes(config: Config, eventos: Evento[], mesId: string, e
     for (const i of t.intentos) {
       if (!i.resuelto || i.resueltoEn === undefined) continue;
       const k = de(i.resueltoEn);
-      if (k) anadir(i.aprobado ? k.aprobados : k.suspensos, t.miembro);
+      if (k) anadir(i.aprobado ? k.aprobados : k.suspensos, i.quien); // de quien lo limpió (si fue el piso de otro, también)
     }
   }
   for (const a of e.cuentas.alquiler) {
@@ -218,7 +219,7 @@ export function resumenDelMes(config: Config, e: Estado, mesId: string): Resumen
         t.estado === 'aprobada' ? 'aprobado'
         : t.estado === 'suspendida' ? 'suspendido'
         : t.estado === 'esperando' ? 'esperando'
-        : t.enCurso ? (t.empezada !== undefined ? 'limpiando' : 'en_curso')
+        : t.enCurso ? (enMarcha(t) ? 'limpiando' : 'en_curso')
         : t.sinHacer ? 'sin_hacer' : 'tarde';
       return [{
         miembro: x.id,

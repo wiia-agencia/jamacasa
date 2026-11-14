@@ -1,7 +1,7 @@
 import { Bell, BellOff, CheckCircle2, Clock3, Info, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { euros } from '../core/cuentas';
-import { atrasadas, avisosBasuraAbiertos, paraPuntuar, puntosDelMes, tareaDe, tuyosAbiertos } from '../core/estado';
+import { atrasadas, avisosBasuraAbiertos, basuraTocaba, paraPuntuar, puntosDelMes, tareaDe, tuyosAbiertos } from '../core/estado';
 import type { Intento, Tarea } from '../core/limpieza';
 import { nota } from '../core/noticias';
 import { cuando, duracion, fechaCorta, finSemana, haceRato, lunesDe, nombreMes, rangoSemana } from '../core/tiempo';
@@ -157,7 +157,8 @@ function Cifras() {
 export function EstadoTarea({ t, compacto = false }: { t: Tarea; compacto?: boolean }) {
   const { estado, abrir, yo } = useCasa();
   const i = t.intentos[t.intentos.length - 1];
-  const mia = t.miembro === yo;
+  // tu piso o el de otro del que te encargas tú («Lo limpio yo»)
+  const mia = t.miembro === yo || t.cubre === yo;
   const ahora = estado.ahora;
   const fin = finSemana(t.semana);
 
@@ -249,7 +250,8 @@ export function EstadoTarea({ t, compacto = false }: { t: Tarea; compacto?: bool
 
 export function Jueces({ t, i }: { t: Tarea; i: Intento }) {
   const { config } = useCasa();
-  const jueces = config.miembros.filter((m) => m.id !== t.miembro);
+  // los que no lo limpiaron (si lo limpió otro, también el dueño)
+  const jueces = config.miembros.filter((m) => i.jueces.includes(m.id));
   return (
     <div className="jueces">
       {jueces.map((j) => {
@@ -313,8 +315,9 @@ function Atajos() {
     );
   }
   const resp = estado.basura;
-  const abiertos = avisosBasuraAbiertos(estado);
-  const aviso = abiertos[0];
+  const tocaba = basuraTocaba(estado);
+  // los avisos abiertos de quien la tiene (si te la has quedado tú, los tuyos)
+  const aviso = resp ? avisosBasuraAbiertos(estado, resp)[0] : undefined;
   return (
     <div className="atajos">
       {resp === yo ? (
@@ -322,7 +325,9 @@ function Atajos() {
           <span className="emoji" aria-hidden="true">🗑️</span>
           <strong>{aviso ? 'La basura está llena' : 'Esta semana la basura es tuya'}</strong>
           <span className="peq">
-            {aviso ? <>Avisó <Nombre id={aviso.pulsaciones[0].autor} />. Te quedan {duracion(aviso.limite - estado.ahora)}.</> : 'Sácala cada vez que se llene.'}
+            {aviso ? <>Avisó <Nombre id={aviso.pulsaciones[0].autor} />. Te quedan {duracion(aviso.limite - estado.ahora)}.</>
+              : tocaba && tocaba !== yo ? <>Te la has quedado tú: le tocaba a <Nombre id={tocaba} />.</>
+              : 'Sácala cada vez que se llene.'}
           </span>
           <button
             type="button"
@@ -346,6 +351,19 @@ function Atajos() {
           <button type="button" className="boton mini" style={{ marginTop: 'auto' }} disabled={!resp || Boolean(aviso)} onClick={() => abrir({ tipo: 'basura' })}>
             {aviso ? 'Aviso enviado' : 'Basura llena'}
           </button>
+          {resp && (
+            // si no está (o la sacas tú igualmente), te la quedas: desde ahora es tuya y sus puntos también
+            <button
+              type="button"
+              className="enlace atajo-enlace"
+              onClick={async () => {
+                await acciones.quedarmeBasura(estado.semana);
+                avisar('Te quedas la basura esta semana. Ya lo saben.');
+              }}
+            >
+              Me la quedo yo
+            </button>
+          )}
         </div>
       )}
       <div className="atajo">

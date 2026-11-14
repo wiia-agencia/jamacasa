@@ -1,13 +1,13 @@
-import { Bath, BedDouble, Check, ChevronDown, ChevronRight, Clock3, Dices, DoorOpen, House, Info, Lock, Plus, Sparkles, TriangleAlert, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bath, BedDouble, Check, ChevronDown, ChevronRight, Clock3, Dices, DoorOpen, Handshake, House, Info, Lock, Plus, Sparkles, TriangleAlert, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as PEvento, type ReactNode } from 'react';
 import { bocadillos, fichaDe, marcaDe, resumenDe, type Bocadillo } from '../core/bocadillos';
 import { escenaCasa } from '../core/escena';
 import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, textoEspacio } from '../core/espacio';
-import { avisosBasuraAbiertos, rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
-import type { Tarea } from '../core/limpieza';
+import { avisosBasuraAbiertos, basuraTocaba, rotacionFutura, semanaBasura, tareaDe } from '../core/estado';
+import { enMarcha, type Tarea } from '../core/limpieza';
 import { luzDe } from '../core/luz';
 import { parteDe, type CuartoParte } from '../core/parte';
-import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, rangoSemana } from '../core/tiempo';
+import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, nombreDia, rangoSemana } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
 import { Casa3D, type BurbujaCasa, type ParteCasa } from './Casa3D';
 import { claseColor, miembro, useCasa } from './contexto';
@@ -26,7 +26,7 @@ export function ChapaEstado({ t }: { t: Tarea }) {
   if (t.estado === 'suspendida') return <Placa valor={i.media!} peq suspensa />;
   if (t.estado === 'esperando') return <span className="chapa">Esperando nota</span>;
   if (!t.enCurso) return <span className="chapa mal">{t.sinHacer ? 'Sin hacer' : 'Tarde'}</span>;
-  if (t.empezada !== undefined || t.marcadas.length > 0) return <span className="chapa oro">Limpiando</span>;
+  if (enMarcha(t)) return <span className="chapa oro">Limpiando</span>;
   return <span className="chapa">Pendiente</span>;
 }
 
@@ -68,6 +68,10 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   const w = estado.semana;
   const mia = tareaDe(estado, w, yo);
   const [foco, setFoco] = useState<MiembroId | null>(null);
+  // el piso de otro del que te encargas tú («Lo limpio yo»): al mirarlo, su lista en el cajón, como si fuera el tuyo
+  const suya = foco && foco !== yo ? tareaDe(estado, w, foco) : undefined;
+  const cuboEse = Boolean(suya && suya.cubre === yo && (suya.estado === 'pendiente' || suya.estado === 'suspendida'));
+  const otraQueLimpio = estado.tareas.find((t) => t.semana === w && t.miembro !== yo && t.cubre === yo && (t.estado === 'pendiente' || t.estado === 'suspendida'));
   const [abierto, setAbierto] = useState(false);
   const [menuBasura, setMenuBasura] = useState(false);
   // tu cara abre un desplegable escondido: las zonas comunes o «Mi parte», que solo ves tú (Javi, 10 de noviembre)
@@ -121,13 +125,23 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   };
 
   const viendoOtro = foco !== null && foco !== yo;
+  // al decir «Lo limpio yo», se abre su lista
+  useEffect(() => {
+    if (cuboEse) setAbierto(true);
+  }, [cuboEse]);
+  const verSuPiso = (m: MiembroId) => { setMenuCara(false); setMenuBasura(false); setEnParte(false); setFoco(m); setAbierto(true); };
   const burbujas: BurbujaCasa[] = useMemo(
     () =>
       enParte ? [] : bocadillos(config, estado, yo).map((b: Bocadillo) => {
         const t = tareaDe(estado, w, b.miembro);
         let alTocar: (() => void) | undefined;
         if (t && b.accion === 'empezar') alTocar = () => { empezar(t); };
-        else if (b.accion === 'lista') alTocar = () => { setFoco(null); setAbierto(true); };
+        else if (b.accion === 'lista') {
+          alTocar = () => {
+            if (b.miembro === yo) { setFoco(null); setAbierto(true); }
+            else verSuPiso(b.miembro); // el piso de otro que limpias tú
+          };
+        }
         else if (t && b.accion === 'puntuar') {
           const i = t.intentos[t.intentos.length - 1];
           alTocar = () => abrir({ tipo: 'puntuar', tarea: t, intento: i });
@@ -138,12 +152,12 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   );
 
   // lo que tapan la cabecera y el cajón (o la ficha): la casa se encuadra en lo que queda y los bocadillos no se meten debajo
-  const abajo = viendoOtro ? 175 : abierto ? Math.max(altoCajon, 300) : ASOMA_CAJON + (enParte ? 28 : 44);
+  const abajo = viendoOtro && !cuboEse ? 175 : abierto ? Math.max(altoCajon, 300) : ASOMA_CAJON + (enParte ? 28 : 44);
   const margenes = useMemo(() => ({ arriba: ALTO_CABECERA, abajo }), [abajo]);
 
   const ordenCaras = [yo, ...config.miembros.map((m) => m.id).filter((id) => id !== yo)];
   const basura = escena.basura;
-  const basuraMia = estado.basura === yo && avisosBasuraAbiertos(estado).length > 0;
+  const basuraMia = avisosBasuraAbiertos(estado, yo).length > 0;
 
   return (
     <div className={`juego ${deNoche ? 'de-noche' : ''} ${enParte ? 'en-parte' : ''} ${enParte && !cuartos.length ? 'sin-parte' : ''}`} style={{ top: banda || undefined, ['--cielo-arriba' as string]: cielo || undefined }}>
@@ -165,7 +179,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
           ) : (
             <>
               <h1>{tituloSemana(w)}</h1>
-              <p>{resumenDe(estado, yo)}</p>
+              <p>{resumenDe(estado, yo, config)}</p>
             </>
           )}
         </div>
@@ -187,7 +201,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
                 onClick={() => {
                   setMenuBasura(false);
                   if (tu) { setMenuCara(!menuCara); return; }
-                  setMenuCara(false); setEnParte(false); setFoco(id); setAbierto(false);
+                  setMenuCara(false); setEnParte(false); setFoco(id); setAbierto(tareaDe(estado, w, id)?.cubre === yo);
                 }}
               >
                 <span className="juego-foto">{caras[id] ? <img src={caras[id]} alt="" /> : <Avatar id={id} />}</span>
@@ -224,7 +238,18 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         </>
       )}
 
-      {viendoOtro && <FichaPiso id={foco!} caras={caras} volver={() => setFoco(null)} />}
+      {viendoOtro && !cuboEse && <FichaPiso id={foco!} caras={caras} volver={() => setFoco(null)} />}
+      {viendoOtro && cuboEse && suya && (
+        <Cajon
+          abierto={abierto}
+          setAbierto={setAbierto}
+          alMedir={setAltoCajon}
+          resumen={<ResumenCajon t={suya} />}
+          encima={<button type="button" className="juego-ficha-volver" onClick={() => { setFoco(null); setAbierto(false); }}><ArrowLeft size={14} strokeWidth={3} aria-hidden="true" /> Tu piso</button>}
+        >
+          <LoQueSeLimpia t={suya} empezar={empezar} />
+        </Cajon>
+      )}
 
       {!viendoOtro && enParte && (
         <Cajon abierto={abierto} setAbierto={setAbierto} alMedir={setAltoCajon} resumen={<ResumenParte />}>
@@ -233,6 +258,8 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
       )}
       {!viendoOtro && !enParte && (
         <Cajon abierto={abierto} setAbierto={setAbierto} alMedir={setAltoCajon} resumen={<ResumenCajon t={mia} />}>
+          {/* el piso de otro del que te encargas, lo primero: si no, queda debajo de tu lista */}
+          {otraQueLimpio && <TambienLimpias t={otraQueLimpio} ver={() => verSuPiso(otraQueLimpio.miembro)} />}
           {mia ? <LoQueSeLimpia t={mia} empezar={empezar} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
           <TuEspacio />
           <Secciones />
@@ -283,23 +310,25 @@ function ResumenParte() {
   );
 }
 
-/** Lo que se ve del cajón cerrado: «Lo que se limpia · 2 de 6» o cómo está tu piso. */
+/** Lo que se ve del cajón cerrado: «Lo que se limpia · 2 de 6» o cómo está tu piso (o el de otro que limpias tú). */
 function ResumenCajon({ t }: { t: Tarea | undefined }) {
+  const { yo, config } = useCasa();
   if (!t) return <h2>Esta semana</h2>;
+  const deOtro = t.miembro !== yo ? miembro(config, t.miembro).nombre : null;
   const i = t.intentos[t.intentos.length - 1];
   let derecha: ReactNode = <span className="cuenta">{t.lista.length ? `${t.marcadas.length} de ${t.lista.length}` : ''}</span>;
   if (t.estado === 'aprobada') derecha = <Placa valor={i.media!} peq auto={i.auto} />;
   else if (t.estado === 'esperando') derecha = <span className="cuenta">Esperando nota</span>;
   return (
     <>
-      <h2>Lo que se limpia</h2>
+      <h2>{deOtro ? `El piso de ${deOtro}` : 'Lo que se limpia'}</h2>
       {derecha}
     </>
   );
 }
 
 /** El cajón de abajo: cerrado asoma lo que se limpia; se abre tocándolo o subiéndolo con el dedo. */
-function Cajon({ abierto, setAbierto, alMedir, resumen, children }: { abierto: boolean; setAbierto: (a: boolean) => void; alMedir: (h: number) => void; resumen: ReactNode; children: ReactNode }) {
+function Cajon({ abierto, setAbierto, alMedir, resumen, encima, children }: { abierto: boolean; setAbierto: (a: boolean) => void; alMedir: (h: number) => void; resumen: ReactNode; encima?: ReactNode; children: ReactNode }) {
   const caja = useRef<HTMLDivElement>(null);
   const arrastre = useRef<{ y: number; dy: number; t: number } | null>(null);
   const [dy, setDy] = useState(0);
@@ -333,6 +362,7 @@ function Cajon({ abierto, setAbierto, alMedir, resumen, children }: { abierto: b
       style={dy ? { ['--arrastre' as string]: `${dy}px` } : undefined}
       aria-label="Lo que se limpia y el resto de Limpieza"
     >
+      {encima}
       <div className="cajon-cabeza" onPointerDown={bajar} onPointerMove={mover} onPointerUp={soltar} onPointerCancel={soltar}>
         <span className="cajon-asa" aria-hidden="true" />
         <button type="button" className="cajon-titulo" aria-expanded={abierto} onClick={(e) => { if (e.detail === 0) setAbierto(!abierto); }}>
@@ -346,10 +376,13 @@ function Cajon({ abierto, setAbierto, alMedir, resumen, children }: { abierto: b
 
 /** Tu lista de esta semana: se marca cosa a cosa (y al marcar la primera, empiezas a limpiar). */
 function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promise<void> }) {
-  const { abrir, acciones, estado } = useCasa();
+  const { abrir, acciones, estado, yo, config, avisar } = useCasa();
   const [ocupada, setOcupada] = useState<string | null>(null);
+  // el piso de otro del que te encargas tú: lo que marques va a su piso (con `de`)
+  const deOtro = t.miembro !== yo ? t.miembro : undefined;
+  const dueno = miembro(config, t.miembro).nombre;
   const marcable = t.estado === 'pendiente' || t.estado === 'suspendida';
-  const empezada = t.empezada !== undefined || t.marcadas.length > 0;
+  const empezada = deOtro !== undefined || t.empezada !== undefined || t.marcadas.length > 0;
   const todo = t.lista.length > 0 && t.marcadas.length === t.lista.length;
   const fin = finSemana(t.semana);
   const marcar = async (cosa: string) => {
@@ -357,15 +390,19 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
     setOcupada(cosa);
     try {
       if (!empezada && t.estado === 'pendiente') await acciones.empezar(t.semana);
-      await acciones.marcarCosa(t.semana, cosa, !t.marcadas.includes(cosa));
+      await acciones.marcarCosa(t.semana, cosa, !t.marcadas.includes(cosa), deOtro);
     } finally {
       setOcupada(null);
     }
   };
   return (
-    <section className="pila-s" aria-label="Lo que se limpia en tu piso">
+    <section className="pila-s" aria-label={deOtro ? `Lo que se limpia en el piso de ${dueno}` : 'Lo que se limpia en tu piso'}>
+      {/* tu piso, si se encarga otro: quién */}
+      {!deOtro && t.cubre !== undefined && marcable && (
+        <p className="estado-linea"><Handshake size={17} aria-hidden="true" /> Se encarga {miembro(config, t.cubre).nombre}: lo que marque sale aquí.</p>
+      )}
       <div className="fila entre">
-        <p className="suave peq" style={{ margin: 0 }}>{t.zona.nombre}</p>
+        <p className="suave peq" style={{ margin: 0 }}>{deOtro ? `${t.zona.nombre} de ${dueno} · lo limpias tú` : t.zona.nombre}</p>
         <button type="button" className="icono-boton" aria-label={`Qué entra en el ${t.zona.nombre.toLowerCase()}`} onClick={() => abrir({ tipo: 'zona', zona: t.zona })}>
           <Info size={19} />
         </button>
@@ -388,7 +425,7 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
       {t.estado === 'pendiente' ? (
         <div className="cajon-accion pila-s">
           {estado.ahora > fin ? (
-            <p className="estado-linea mal"><TriangleAlert size={17} /> Vas tarde: {t.retrasoDias} {t.retrasoDias === 1 ? 'día' : 'días'}</p>
+            <p className="estado-linea mal"><TriangleAlert size={17} /> {deOtro ? 'Va' : 'Vas'} tarde: {t.retrasoDias} {t.retrasoDias === 1 ? 'día' : 'días'}</p>
           ) : (
             <p className="estado-linea"><Clock3 size={17} /> Hasta el domingo a las 23:59. Quedan {duracion(fin - estado.ahora)}.</p>
           )}
@@ -396,6 +433,19 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
             <button type="button" className="boton ancho naranja" onClick={() => empezar(t)}>Empezar a limpiar</button>
           ) : (
             <button type="button" className={`boton ancho ${todo ? 'verde' : ''}`} onClick={() => abrir({ tipo: 'hecho', tarea: t })}>Ya está limpio</button>
+          )}
+          {deOtro && (
+            <button
+              type="button"
+              className="enlace"
+              style={{ alignSelf: 'center' }}
+              onClick={async () => {
+                await acciones.dejarDeCubrir(t.semana, deOtro);
+                avisar(`Vale: el piso de ${dueno} vuelve a ser cosa suya.`);
+              }}
+            >
+              Ya no lo limpio yo
+            </button>
           )}
         </div>
       ) : (
@@ -424,6 +474,9 @@ function FichaPiso({ id, caras, volver }: { id: MiembroId; caras: Record<string,
       </button>
       {f.boton ? (
         <button type="button" className="boton oro" onClick={() => abrir({ tipo: 'puntuar', tarea: t, intento: i })}>{f.boton.texto}</button>
+      ) : f.cubrir ? (
+        // sin hacer y sin nadie que se encargue: si no está, lo haces tú
+        <button type="button" className="boton cubrir" onClick={() => abrir({ tipo: 'cubrir', tarea: t })}>Lo limpio yo</button>
       ) : f.nota !== undefined ? (
         <Placa valor={f.nota} suspensa={f.suspensa} />
       ) : null}
@@ -432,15 +485,23 @@ function FichaPiso({ id, caras, volver }: { id: MiembroId; caras: Record<string,
   );
 }
 
-/** El menú del botón de la basura: de quién es esta semana y lo que se puede hacer. */
+/** El menú del botón de la basura: de quién es esta semana y lo que se puede hacer (también quedártela tú). */
 function MenuBasura({ cerrar }: { cerrar: () => void }) {
   const { estado, yo, acciones, avisar, abrir } = useCasa();
   const resp = estado.basura;
-  const abiertos = avisosBasuraAbiertos(estado);
+  const tocaba = basuraTocaba(estado);
+  const abiertos = resp ? avisosBasuraAbiertos(estado, resp) : [];
   const mia = resp === yo;
+  const deOtro = resp && tocaba && resp !== tocaba; // se la ha quedado alguien («Me la quedo yo»)
+  // desde cuándo te la quedas: ahora (lo normal) o desde un día de esta semana («por si acaso», Javi, 14 de noviembre)
+  const [desde, setDesde] = useState<number | null>(null);
+  const lunes = lunesDe(estado.semana);
+  const hoy = diaLocal(estado.ahora);
+  const dias = Array.from({ length: Math.max(0, hoy - lunes + 1) }, (_, k) => lunes + k);
   return (
     <div className="juego-menu" role="dialog" aria-label="La basura">
-      <p className="negrita">{resp ? (mia ? 'Esta semana la basura es tuya' : <>La basura: le toca a <Nombre id={resp} /></>) : 'La basura'}</p>
+      <p className="negrita">{resp ? (mia ? 'Esta semana la basura es tuya' : deOtro ? <>La basura la tiene <Nombre id={resp} /></> : <>La basura: le toca a <Nombre id={resp} /></>) : 'La basura'}</p>
+      {deOtro && <p className="peq suave">{mia ? 'Te la has quedado tú' : 'Se la ha quedado'}: le tocaba a <Nombre id={tocaba} />.</p>}
       <p className="peq suave">{abiertos.length ? `Está llena: ${abiertos.length === 1 ? '1 aviso' : `${abiertos.length} avisos`} sin sacar.` : 'Nadie ha avisado de que esté llena.'}</p>
       {mia && abiertos.length > 0 && (
         <button type="button" className="boton ancho verde" onClick={async () => { await acciones.basuraSacada(); cerrar(); avisar('Basura sacada. ¡Gracias!'); }}>Ya la saqué</button>
@@ -448,7 +509,68 @@ function MenuBasura({ cerrar }: { cerrar: () => void }) {
       {!mia && resp && (
         <button type="button" className="boton ancho claro" onClick={() => { cerrar(); abrir({ tipo: 'basura' }); }}>Avisar: está llena</button>
       )}
+      {!mia && resp && (
+        <div className="quedarme">
+          <div className="desde-dias" role="radiogroup" aria-label="Desde cuándo te la quedas">
+            <span>Desde</span>
+            <button type="button" role="radio" aria-checked={desde === null} onClick={() => setDesde(null)}>ahora</button>
+            {dias.map((d) => (
+              <button key={d} type="button" role="radio" aria-checked={desde === d} onClick={() => setDesde(d)}>
+                {d === hoy ? 'hoy' : nombreDia(inicioDia(d), true)}
+              </button>
+            ))}
+          </div>
+          <p className="mini tenue">
+            {desde === null
+              ? `Desde ahora es tuya: los avisos te llegan a ti y, si acabas la semana sin quejas, sus ${estado.normas.puntosBasuraSemana} puntos también.`
+              : desde === lunes
+                ? `Toda la semana: cuenta como si te hubiera tocado a ti desde el lunes (sus ${estado.normas.puntosBasuraSemana} puntos y lo que haya pasado).`
+                : `Desde el ${nombreDia(inicioDia(desde))}: lo de esos días (avisos y quejas) pasa a ser tuyo, y sus ${estado.normas.puntosBasuraSemana} puntos al acabar.`}
+          </p>
+          <button
+            type="button"
+            className="boton ancho borde"
+            onClick={async () => {
+              await acciones.quedarmeBasura(estado.semana, desde === null ? undefined : inicioDia(desde));
+              cerrar();
+              avisar(desde === null ? 'Te quedas la basura esta semana. Ya lo saben.' : `Te quedas la basura desde el ${nombreDia(inicioDia(desde))}. Ya lo saben.`);
+            }}
+          >
+            Me la quedo yo
+          </button>
+        </div>
+      )}
+      {mia && deOtro && tocaba && (
+        <button
+          type="button"
+          className="enlace"
+          style={{ alignSelf: 'flex-start' }}
+          onClick={async () => {
+            await acciones.devolverBasura(estado.semana, tocaba);
+            cerrar();
+            avisar('Devuelta: vuelve a ser suya.');
+          }}
+        >
+          Devolvérsela
+        </button>
+      )}
     </div>
+  );
+}
+
+/** En tu cajón, si te encargas del piso de otro: cómo va y un toque para ir a su lista. */
+function TambienLimpias({ t, ver }: { t: Tarea; ver: () => void }) {
+  const { config } = useCasa();
+  const m = miembro(config, t.miembro);
+  return (
+    <button type="button" className={`tambien-limpias ${claseColor(m.color)}`} onClick={ver}>
+      <Handshake size={20} aria-hidden="true" />
+      <span className="crece">
+        <b>También limpias el piso de {m.nombre}</b>
+        <span>{t.zona.nombre}{t.lista.length ? ` · ${t.marcadas.length} de ${t.lista.length}` : ''}</span>
+      </span>
+      <ChevronRight size={18} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -512,7 +634,7 @@ function Secciones() {
                   <span className="avatar" style={{ background: 'var(--papel-2)', fontSize: '1.1rem' }} aria-hidden="true">🗑️</span>
                   <span className="crece">
                     <span className="negrita" style={{ display: 'block' }}>La basura</span>
-                    <span className="peq suave"><Nombre id={basura.responsable} />{basura.avisos.length ? `: ${basura.avisos.length} ${basura.avisos.length === 1 ? 'aviso' : 'avisos'} esta semana` : ', sin avisos esta semana'}</span>
+                    <span className="peq suave"><Nombre id={basura.responsable} />{basura.responsable !== basura.tocaba && <> (le tocaba a <Nombre id={basura.tocaba} />)</>}{basura.avisos.length ? `: ${basura.avisos.length} ${basura.avisos.length === 1 ? 'aviso' : 'avisos'} esta semana` : ', sin avisos esta semana'}</span>
                   </span>
                   <Avatar id={basura.responsable} tam="s" />
                 </div>
