@@ -41,6 +41,9 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
       const elPiso = suyo ? `el ${zona}` : `el ${zona} de ${X}`;
       const elDe = suyo ? `el ${zona} de ${X}` : `el ${zona} que limpió ${Q}`;
       r.push({ id: `${i.hecho.id}-h`, ts: i.hecho.ts, quien: i.quien, texto: i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`, fotos: i.hecho.datos?.fotos });
+      if (i.corregido) {
+        r.push({ id: `${t.semana}-${t.miembro}-${i.n}-hp`, ts: i.corregido.ts, quien: i.corregido.por, texto: `${n(i.corregido.por)} dice que el ${zona} de ${X} lo limpió ${Q}.` });
+      }
       if (!i.resuelto) continue;
       const id = `${i.hecho.id}-r`;
       if (i.aprobado) {

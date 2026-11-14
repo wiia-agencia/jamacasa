@@ -7093,6 +7093,7 @@ function calcularTareas(config, normas, eventos, ahora) {
 	const cosas = /* @__PURE__ */ new Map();
 	const cubiertas = /* @__PURE__ */ new Map();
 	const ayudas = /* @__PURE__ */ new Map();
+	const correcciones = /* @__PURE__ */ new Map();
 	const esMiembro = (m) => typeof m === "string" && config.miembros.some((x) => x.id === m);
 	const anadir = (mapa, k, e) => (mapa.get(k) ?? mapa.set(k, []).get(k)).push(e);
 	for (const e of eventos) if (e.tipo === "zona_cosa") anadir(cosas, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
@@ -7102,6 +7103,8 @@ function calcularTareas(config, normas, eventos, ahora) {
 	} else if (e.tipo === "zona_hecha") anadir(hechos, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
 	else if (e.tipo === "zona_cubierta") {
 		if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(cubiertas, `${e.datos?.semana}|${e.datos.de}`, e);
+	} else if (e.tipo === "zona_hecha_por") {
+		if (esMiembro(e.datos?.de) && esMiembro(e.datos?.quien) && e.datos.quien !== e.autor) anadir(correcciones, `${e.datos?.semana}|${e.datos.de}|${Number(e.datos?.intento)}`, e);
 	} else if (e.tipo === "zona_ayuda") {
 		if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(ayudas, `${e.datos?.semana}|${e.datos.de}`, e);
 	} else if (e.tipo === "puntuacion") {
@@ -7127,9 +7130,22 @@ function calcularTareas(config, normas, eventos, ahora) {
 				if (!ult.resuelto || ult.aprobado) continue;
 				if (h.ts <= ult.resueltoEn) continue;
 			}
-			const ayudaron = ayudanEn(h.ts).filter((x) => x !== h.autor && x !== m.id);
-			const jueces = config.miembros.filter((x) => x.id !== h.autor && !ayudaron.includes(x.id)).map((x) => x.id);
-			intentos.push(resolverIntento(h, intentos.length + 1, h.autor, ayudaron, jueces, votos.get(`${w}|${m.id}|${intentos.length + 1}`) ?? [], normas, ahora));
+			const n = intentos.length + 1;
+			let quien = h.autor;
+			let corregido;
+			for (const c of (correcciones.get(`${w}|${m.id}|${n}`) ?? []).slice().sort((a, b) => a.ts - b.ts)) {
+				if (c.ts < h.ts) continue;
+				quien = c.datos.quien;
+				corregido = {
+					por: c.autor,
+					ts: c.ts
+				};
+			}
+			const ayudaron = ayudanEn(h.ts).filter((x) => x !== quien && x !== m.id);
+			const jueces = config.miembros.filter((x) => x.id !== quien && !ayudaron.includes(x.id)).map((x) => x.id);
+			const intento = resolverIntento(h, n, quien, ayudaron, jueces, votos.get(`${w}|${m.id}|${n}`) ?? [], normas, ahora);
+			if (corregido) intento.corregido = corregido;
+			intentos.push(intento);
 		}
 		let cubre;
 		let cubiertaEn;
@@ -7610,6 +7626,12 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 				texto: i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`,
 				fotos: i.hecho.datos?.fotos
 			});
+			if (i.corregido) r.push({
+				id: `${t.semana}-${t.miembro}-${i.n}-hp`,
+				ts: i.corregido.ts,
+				quien: i.corregido.por,
+				texto: `${n(i.corregido.por)} dice que el ${zona} de ${X} lo limpió ${Q}.`
+			});
 			if (!i.resuelto) continue;
 			const id = `${i.hecho.id}-r`;
 			if (i.aprobado) {
@@ -7907,6 +7929,23 @@ function avisosDeEvento(config, eventos, id) {
 				pantalla: "limpieza",
 				etiqueta: `cubierta-${t.semana}-${t.miembro}`
 			}));
+		}
+		case "zona_hecha_por": {
+			const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
+			const i = t?.intentos.find((x) => x.n === Number(e.datos?.intento));
+			if (!t || !i || i.corregido?.ts !== e.ts || i.quien !== e.datos?.quien) return [];
+			const z = t.zona.nombre.toLowerCase();
+			return config.miembros.filter((x) => x.id !== e.autor).map((x) => {
+				const piso = x.id === t.miembro ? `tu ${z}` : `el ${z} de ${nombre(t.miembro)}`;
+				const suyo = x.id === i.quien;
+				return {
+					para: x.id,
+					titulo: `✏️ ${yo} dice que ${piso} lo ${suyo ? "limpiaste tú" : `limpió ${nombre(i.quien)}`}`,
+					texto: suyo ? "La nota es para ti." : i.sinVotar.includes(x.id) ? `La nota es para ${nombre(i.quien)}: ponle nota.` : `La nota es para ${nombre(i.quien)}.`,
+					pantalla: "limpieza",
+					etiqueta: `corregido-${t.semana}-${t.miembro}-${i.n}`
+				};
+			});
 		}
 		case "zona_ayuda": {
 			if (e.datos?.deja) return [];

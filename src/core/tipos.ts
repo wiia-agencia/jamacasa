@@ -86,6 +86,7 @@ export type TipoEvento =
   | 'zona_hecha'
   | 'zona_cubierta' // «Lo limpio yo»: te encargas del piso de otro esta semana (o, con `deja`, lo dejas)
   | 'zona_ayuda' // «Le echo una mano»: ayudas con el piso de otro esta semana (o, con `deja`, «Ya no ayudo»)
+  | 'zona_hecha_por' // «Lo limpió Jose»: quién limpió de verdad lo que se marcó como hecho (a otro, nunca a ti)
   | 'puntuacion'
   | 'basura_llena'
   | 'basura_sacada'
@@ -119,6 +120,7 @@ export interface DatosZonaCosa { semana: number; cosa: string; hecha: boolean; d
 export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string; de?: MiembroId }
 export interface DatosZonaCubierta { semana: number; de: MiembroId; deja?: boolean }
 export interface DatosZonaAyuda { semana: number; de: MiembroId; deja?: boolean }
+export interface DatosZonaHechaPor { semana: number; de: MiembroId; intento: number; quien: MiembroId }
 /** `quien`: quién tiene la basura desde ahora (tú, o quien le tocaba si se la devuelves); `desde`: si te la quedas
  *  desde antes (el comienzo de un día de esa semana; el lunes, toda la semana) */
 export interface DatosBasuraCubierta { semana: number; quien: MiembroId; desde?: number }

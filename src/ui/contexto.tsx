@@ -37,6 +37,8 @@ export interface Acciones {
   dejarDeCubrir(semana: number, de: MiembroId): Promise<void>;
   /** «Le echo una mano» con el piso de otro (o «Ya no ayudo») */
   ayudar(semana: number, de: MiembroId): Promise<void>;
+  /** «Lo limpió Jose»: quién limpió de verdad un piso que ya está marcado (a otro, nunca a ti) */
+  corregirQuien(semana: number, de: MiembroId, intento: number, quien: MiembroId): Promise<void>;
   dejarDeAyudar(semana: number, de: MiembroId): Promise<void>;
   /** «Me la quedo yo»: la basura de esta semana pasa a ser tuya desde ahora (o se la devuelves a quien le tocaba) */
   quedarmeBasura(semana: number, desde?: number): Promise<void>;

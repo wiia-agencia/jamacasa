@@ -135,6 +135,26 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
           etiqueta: `cubierta-${t.semana}-${t.miembro}`,
         }));
     }
+    case 'zona_hecha_por': {
+      // «Lo limpió Jose»: a los otros dos (al que lo limpió, que la nota es suya; a los demás, quién fue)
+      const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
+      const i = t?.intentos.find((x) => x.n === Number(e.datos?.intento));
+      if (!t || !i || i.corregido?.ts !== e.ts || i.quien !== e.datos?.quien) return [];
+      const z = t.zona.nombre.toLowerCase();
+      return config.miembros
+        .filter((x) => x.id !== e.autor)
+        .map((x) => {
+          const piso = x.id === t.miembro ? `tu ${z}` : `el ${z} de ${nombre(t.miembro)}`;
+          const suyo = x.id === i.quien;
+          return {
+            para: x.id,
+            titulo: `✏️ ${yo} dice que ${piso} lo ${suyo ? 'limpiaste tú' : `limpió ${nombre(i.quien)}`}`,
+            texto: suyo ? 'La nota es para ti.' : i.sinVotar.includes(x.id) ? `La nota es para ${nombre(i.quien)}: ponle nota.` : `La nota es para ${nombre(i.quien)}.`,
+            pantalla: 'limpieza' as const,
+            etiqueta: `corregido-${t.semana}-${t.miembro}-${i.n}`,
+          };
+        });
+    }
     case 'zona_ayuda': {
       // «Le echo una mano»: a quien lo está limpiando (y al dueño, si lo limpia otro); al dejarlo, nada
       if (e.datos?.deja) return [];

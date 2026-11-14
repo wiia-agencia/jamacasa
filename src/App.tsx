@@ -243,6 +243,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       cubrir: (semana, de) => apuntar('zona_cubierta', { semana, de }),
       dejarDeCubrir: (semana, de) => apuntar('zona_cubierta', { semana, de, deja: true }),
       ayudar: (semana, de) => apuntar('zona_ayuda', { semana, de }),
+      corregirQuien: (semana, de, intento, quien) => apuntar('zona_hecha_por', { semana, de, intento, quien }),
       dejarDeAyudar: (semana, de) => apuntar('zona_ayuda', { semana, de, deja: true }),
       quedarmeBasura: (semana, desde) => apuntar('basura_cubierta', desde !== undefined ? { semana, quien: yo, desde } : { semana, quien: yo }),
       devolverBasura: (semana, a) => apuntar('basura_cubierta', { semana, quien: a }),

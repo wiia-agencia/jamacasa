@@ -6,9 +6,10 @@ import { createPortal } from 'react-dom';
 import { avisosBasuraAbiertos, basuraTocaba, paraPuntuar, tareaDe } from '../core/estado';
 import { nota } from '../core/noticias';
 import { diaLocal, inicioDia, lunesDe, nombreDia } from '../core/tiempo';
+import type { Tarea } from '../core/limpieza';
 import type { MiembroId } from '../core/tipos';
 import { useCasa } from './contexto';
-import { BotonAccion, Hoja } from './piezas';
+import { BotonAccion, Hoja, Nombre } from './piezas';
 
 // ——— El cuadro de la semana: lo que puedes hacer en cada fila (Javi, 14 de noviembre: la B) ———
 
@@ -96,9 +97,14 @@ export function PonermePiso({ de }: { de: MiembroId }) {
   } else {
     const p = paraPuntuar(estado, yo).find((x) => x.tarea.miembro === t.miembro && x.tarea.semana === t.semana);
     sub = t.estado === 'esperando' ? `Ya está hecho: ${i.quien === yo ? 'lo limpiaste tú' : `lo limpió ${n(i.quien)}`} y espera nota.` : t.estado === 'aprobada' ? `Aprobado con un ${nota(t.nota!)}.` : 'Está hecho.';
-    ops = p
-      ? <Opcion e="★" titulo={`Ponle nota a ${n(p.intento.quien)}`} principal hacer={() => abrir({ tipo: 'puntuar', tarea: p.tarea, intento: p.intento })} />
-      : <Opcion e="🔎" titulo="Ver cómo ha quedado" hacer={() => abrir({ tipo: 'tarea', tarea: t })} />;
+    ops = (
+      <>
+        {p
+          ? <Opcion e="★" titulo={`Ponle nota a ${n(p.intento.quien)}`} principal hacer={() => abrir({ tipo: 'puntuar', tarea: p.tarea, intento: p.intento })} />
+          : <Opcion e="🔎" titulo="Ver cómo ha quedado" hacer={() => abrir({ tipo: 'tarea', tarea: t })} />}
+        <LoLimpioOtro t={t} />
+      </>
+    );
   }
   return (
     <Hoja titulo={t.miembro === yo ? `Tu ${z.charAt(0).toLowerCase()}${z.slice(1)}` : `${z} de ${n(t.miembro)}`} subtitulo={sub} onCerrar={cerrar}>
@@ -300,6 +306,37 @@ export function CuadroSemana({ caras = {} }: { caras?: Record<string, string> })
         </span>,
         document.body,
       )}
+    </div>
+  );
+}
+
+/** «¿Lo limpió otro?»: si se marcó como hecho pero lo limpió otro, cualquiera puede decir quién fue (menos ponérselo a
+ *  sí mismo); les llega a los otros dos y la nota pasa a ser de ese (Javi, 14 de noviembre: lo marcó Josu y lo había
+ *  limpiado Jose). */
+export function LoLimpioOtro({ t }: { t: Tarea }) {
+  const { config, yo, acciones, avisar } = useCasa();
+  const i = t.intentos[t.intentos.length - 1];
+  if (!i) return null;
+  const otros = config.miembros.filter((m) => m.id !== yo && m.id !== i.quien);
+  if (!otros.length) return null;
+  const quien = config.miembros.find((m) => m.id === i.quien)?.nombre ?? '';
+  return (
+    <div className="lo-limpio-otro">
+      <p className="peq suave">{i.corregido ? <>Lo limpió <b>{quien}</b> ({i.corregido.por === yo ? 'lo dijiste tú' : <>lo dijo <Nombre id={i.corregido.por} /></>}). </> : <>Lo marcó <b>{quien}</b>. </>}¿Lo limpió otro?</p>
+      <div className="fila" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {otros.map((m) => (
+          <BotonAccion
+            key={m.id}
+            clase="boton mini borde"
+            hacer={async () => {
+              await acciones.corregirQuien(t.semana, t.miembro, i.n, m.id);
+              avisar(`Apuntado: lo limpió ${m.nombre}. La nota es para él y ya lo saben.`);
+            }}
+          >
+            Lo limpió {m.nombre}
+          </BotonAccion>
+        ))}
+      </div>
     </div>
   );
 }

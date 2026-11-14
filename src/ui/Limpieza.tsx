@@ -470,7 +470,7 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
     <section className="pila-s" aria-label={deOtro ? `Lo que se limpia en el piso de ${dueno}` : 'Lo que se limpia en tu piso'}>
       {/* tu piso, si se encarga otro: quién */}
       {!deOtro && t.cubre !== undefined && marcable && (
-        <p className="estado-linea"><Handshake size={17} aria-hidden="true" /> Se encarga {miembro(config, t.cubre).nombre}: lo que marque sale aquí.</p>
+        <p className="estado-linea"><Handshake size={17} aria-hidden="true" /> Se encarga {miembro(config, t.cubre).nombre}: lo que marque sale aquí y lo marca él como hecho.</p>
       )}
       {!ayudo && t.ayudan.filter((a) => a !== yo).length > 0 && marcable && (
         <p className="estado-linea"><Handshake size={17} aria-hidden="true" /> Te echa una mano {t.ayudan.filter((a) => a !== yo).map((a) => miembro(config, a).nombre).join(' y ')}: lo que marque sale aquí.</p>
@@ -505,6 +505,9 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
           )}
           {ayudo ? (
             <p className="peq suave">Cuando acabéis, {con} lo marca como hecho. Si se aprueba, {estado.normas.puntosAyuda} puntos para ti.</p>
+          ) : !deOtro && t.cubre !== undefined ? (
+            // tu piso lo limpia otro: lo marca él (así la nota no se va a quien no lo limpió)
+            <p className="peq suave">Cuando acabe, {con} lo marca como hecho y la nota es para él.</p>
           ) : !empezada ? (
             <button type="button" className="boton ancho naranja" onClick={() => empezar(t)}>Empezar a limpiar</button>
           ) : (

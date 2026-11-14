@@ -211,7 +211,7 @@ function NotaDeVoz({ refAudio, segundos }: { refAudio: string; segundos: number 
   );
 }
 
-const EMOJI: Record<string, string> = { h: '🧹', r: '✅', sh: '📢', b: '🗑️', q: '📢', s: '🗑️', t: '🧦', tr: '🧦', tm: '📢', g: '💶', p: '💸', cu: '🤝', bc: '🤝', ay: '🤝', sa: '🗑️' };
+const EMOJI: Record<string, string> = { h: '🧹', r: '✅', sh: '📢', b: '🗑️', q: '📢', s: '🗑️', t: '🧦', tr: '🧦', tm: '📢', g: '💶', p: '💸', cu: '🤝', bc: '🤝', ay: '🤝', sa: '🗑️', hp: '✏️' };
 
 /** Lo que pasa en la casa, en medio de la conversación (con su botón si te toca hacer algo). */
 function EnCasa({ n }: { n: Noticia }) {

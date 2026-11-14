@@ -7,7 +7,7 @@ import { nota } from '../core/noticias';
 import { cuando, diaDeTexto, diaLocal, fechaCorta, nombreMes, rangoSemana, textoDeDia } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
 import { claseColor, useCasa, type Hoja as TipoHoja } from './contexto';
-import { PonermeBasura, PonermePiso } from './Cuadro';
+import { LoLimpioOtro, PonermeBasura, PonermePiso } from './Cuadro';
 import { EstadoTarea, Jueces } from './Hoy';
 import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, SelectorFotos } from './piezas';
 
@@ -513,6 +513,7 @@ function HojaTarea({ tarea }: { tarea: Tarea }) {
     >
       <div className="pila-s" style={{ gap: 18 }}>
         <EstadoTarea t={vivo} />
+        {i && vivo.semana >= estado.semana - 1 && <LoLimpioOtro t={vivo} />}
         {vivo.retrasoDias > 0 && vivo.primerHecho && <p className="peq mal">Se marcó con {vivo.retrasoDias} {vivo.retrasoDias === 1 ? 'día' : 'días'} de retraso.</p>}
         {i?.hecho.datos?.fotos?.length > 0 && <div className="fotos">{i.hecho.datos.fotos.map((f: string) => <FotoRef key={f} ref_={f} />)}</div>}
         {i?.hecho.datos?.nota && <p className="peq suave">«{i.hecho.datos.nota}»</p>}

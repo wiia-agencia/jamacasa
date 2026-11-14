@@ -1484,3 +1484,6 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
   :root:not([data-theme='light']) .opcion-grande.principal { background: #2b4a73; }
 }
 :root[data-theme='dark'] .opcion-grande.principal { background: #2b4a73; }
+/* «¿Lo limpió otro?» (Javi, 14 de noviembre) */
+.lo-limpio-otro { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--papel-2); }
+.lo-limpio-otro p { margin: 0; }

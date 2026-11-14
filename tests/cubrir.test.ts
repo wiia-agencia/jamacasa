@@ -276,3 +276,35 @@ describe('«Le echo una mano» y «Esta la saqué yo»', () => {
     expect(derivar(config, [ev('basura_sacada', tocaba, dia(2, 9))], dia(2, 10)).semanasBasura.find((x) => x.semana === s)!.ajenas).toHaveLength(0);
   });
 });
+
+describe('«Lo limpió otro»: corregir quién limpió un piso ya marcado', () => {
+  // como el 14 de noviembre: Ana (la dueña) marca su piso como hecho, pero lo había limpiado Bea
+  const hecho = ev('zona_hecha', 'a', dia(1, 12), { semana: s });
+
+  it('cualquiera de los otros dice quién fue: la nota (y Salvavidas) para ese, y le ponen nota los demás', () => {
+    const corr = ev('zona_hecha_por', 'c', dia(1, 13), { semana: s, de: 'a', intento: 1, quien: 'b' });
+    const e = derivar(config, [hecho, corr], dia(1, 14));
+    const i = tareaDe(e, s, 'a')!.intentos[0];
+    expect(i).toMatchObject({ quien: 'b', jueces: ['a', 'c'], corregido: { por: 'c' } });
+    expect(paraPuntuar(e, 'a').map((x) => x.tarea.miembro)).toEqual(['a']);
+    const v1 = ev('puntuacion', 'a', dia(1, 15), { semana: s, de: 'a', intento: 1, nota: 8 });
+    const v2 = ev('puntuacion', 'c', dia(1, 16), { semana: s, de: 'a', intento: 1, nota: 10 });
+    const fin = derivar(config, [hecho, corr, v1, v2], dia(1, 17));
+    expect(fin.apuntes.find((x) => x.clase === 'zona')).toMatchObject({ miembro: 'b', puntos: 9 });
+    expect(fin.medallas.b.salvavidas).toBe(1);
+    expect(fin.noticias.some((x) => x.id.endsWith('-hp') && x.texto === `Cris dice que el ${zonaDe(config, s, 'a')!.nombre.toLowerCase()} de Ana lo limpió Bea.`)).toBe(true);
+    // avisos: a los otros dos
+    const r = avisosDeEvento(config, [hecho, corr], corr.id);
+    expect(r.map((x) => x.para).sort()).toEqual(['a', 'b']);
+    expect(r.find((x) => x.para === 'b')!.titulo).toContain('lo limpiaste tú');
+    expect(r.find((x) => x.para === 'a')!.texto).toContain('ponle nota');
+  });
+
+  it('nadie se lo puede poner a sí mismo; vale lo último que se diga', () => {
+    const yoMismo = ev('zona_hecha_por', 'b', dia(1, 13), { semana: s, de: 'a', intento: 1, quien: 'b' });
+    expect(tareaDe(derivar(config, [hecho, yoMismo], dia(1, 14)), s, 'a')!.intentos[0].quien).toBe('a');
+    const una = ev('zona_hecha_por', 'c', dia(1, 13), { semana: s, de: 'a', intento: 1, quien: 'b' });
+    const otra = ev('zona_hecha_por', 'b', dia(1, 14), { semana: s, de: 'a', intento: 1, quien: 'a' });
+    expect(tareaDe(derivar(config, [hecho, una, otra], dia(1, 15)), s, 'a')!.intentos[0].quien).toBe('a');
+  });
+});

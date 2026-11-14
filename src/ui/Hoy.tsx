@@ -157,8 +157,8 @@ function Cifras() {
 export function EstadoTarea({ t, compacto = false }: { t: Tarea; compacto?: boolean }) {
   const { estado, abrir, yo } = useCasa();
   const i = t.intentos[t.intentos.length - 1];
-  // tu piso o el de otro del que te encargas tú («Lo limpio yo»)
-  const mia = t.miembro === yo || t.cubre === yo;
+  // tu piso o el de otro del que te encargas tú («Lo limpio yo»); si tu piso lo limpia otro, lo marca él
+  const mia = t.cubre !== undefined ? t.cubre === yo : t.miembro === yo;
   const ahora = estado.ahora;
   const fin = finSemana(t.semana);
 
