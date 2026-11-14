@@ -6925,12 +6925,16 @@ function responsableEn(s, ts) {
 function quejasDe(s, m) {
 	return s.avisos.filter((a) => a.estado === "queja" && a.responsable === m).length;
 }
+/** Quién sacó la basura: quien lo apunta o, si lleva `quien` (desde el cuadro: «La ha sacado Jose»), ese. */
+function sacadaPor(e) {
+	return typeof e.datos?.quien === "string" && e.datos.quien ? e.datos.quien : e.autor;
+}
 function calcularBasura(config, normas, eventos, ahora) {
 	const s = semanaInicial(config);
 	const wAhora = semana(ahora);
 	const esMiembro = (m) => typeof m === "string" && config.miembros.some((x) => x.id === m);
 	const pulsaciones = eventos.filter((e) => e.tipo === "basura_llena").sort((a, b) => a.ts - b.ts);
-	const sacadas = eventos.filter((e) => e.tipo === "basura_sacada").sort((a, b) => a.ts - b.ts);
+	const sacadas = eventos.filter((e) => e.tipo === "basura_sacada" && (e.datos?.quien === void 0 || esMiembro(e.datos.quien))).sort((a, b) => a.ts - b.ts);
 	const cambios = eventos.filter((e) => e.tipo === "basura_cubierta").sort((a, b) => a.ts - b.ts);
 	const r = [];
 	for (let w = s; w <= wAhora; w++) {
@@ -6945,10 +6949,7 @@ function calcularBasura(config, normas, eventos, ahora) {
 			if (Number(c.datos?.semana) !== w || c.ts > fin || !esMiembro(c.datos?.quien)) continue;
 			const quien = c.datos.quien;
 			const actual = responsableEn({ tramos }, c.ts);
-			const toma = quien === c.autor;
-			const devuelve = !toma && c.autor === actual && quien === tocaba;
-			if (!toma && !devuelve) continue;
-			const pedido = toma && Number.isFinite(Number(c.datos?.desde)) ? Number(c.datos.desde) : c.ts;
+			const pedido = quien === c.autor && Number.isFinite(Number(c.datos?.desde)) ? Number(c.datos.desde) : c.ts;
 			const desde = Math.max(inicioSemana(w), Math.min(c.ts, pedido));
 			if (quien === actual && desde >= c.ts) continue;
 			const antes = tramos.filter((t) => t.desde < desde);
@@ -6959,8 +6960,8 @@ function calcularBasura(config, normas, eventos, ahora) {
 			});
 		}
 		const en = (ts) => responsableEn({ tramos }, ts);
-		const validas = sacadas.filter((x) => x.autor === en(x.ts));
-		const ajenas = sacadas.filter((x) => x.autor !== en(x.ts) && semana(x.ts) === w);
+		const validas = sacadas.filter((x) => sacadaPor(x) === en(x.ts));
+		const ajenas = sacadas.filter((x) => sacadaPor(x) !== en(x.ts) && semana(x.ts) === w);
 		const vacian = sacadas;
 		const avisos = [];
 		for (const p of pulsaciones) {
@@ -6978,7 +6979,7 @@ function calcularBasura(config, normas, eventos, ahora) {
 			if (sacada && sacada.ts <= limite) {
 				estado = "resuelto";
 				resueltoEn = sacada.ts;
-				responsable = sacada.autor;
+				responsable = sacadaPor(sacada);
 			} else if (ahora > limite) {
 				estado = "queja";
 				resueltoEn = limite;
@@ -7033,8 +7034,29 @@ function calcularEstoEsTuyo(normas, eventos, ahora) {
 		};
 	}).sort((a, b) => b.evento.ts - a.evento.ts);
 }
+/** Los «Hecho» de «Tu espacio» que se desmarcaron después (cada espacio_deshecho quita el último que quede). */
+function espacioAnulados(eventos, ahora = Infinity) {
+	const vivos = /* @__PURE__ */ new Map();
+	const r = /* @__PURE__ */ new Set();
+	for (const e of [...eventos].sort((a, b) => a.ts - b.ts)) {
+		if (e.ts > ahora || e.tipo !== "espacio_hecho" && e.tipo !== "espacio_deshecho" && e.tipo !== "espacio_cosa_quitada") continue;
+		const k = `${e.autor}|${e.datos?.cosa}`;
+		if (e.tipo === "espacio_cosa_quitada") {
+			vivos.delete(k);
+			continue;
+		}
+		const l = vivos.get(k) ?? vivos.set(k, []).get(k);
+		if (e.tipo === "espacio_hecho") l.push(e.id);
+		else {
+			const id = l.pop();
+			if (id) r.add(id);
+		}
+	}
+	return r;
+}
 function calcularEspacio(eventos, ahora) {
 	const cosas = /* @__PURE__ */ new Map();
+	const anulados = espacioAnulados(eventos, ahora);
 	for (const e of [...eventos].sort((a, b) => a.ts - b.ts)) {
 		if (e.ts > ahora || !e.tipo.startsWith("espacio_")) continue;
 		const id = e.datos?.cosa;
@@ -7056,7 +7078,7 @@ function calcularEspacio(eventos, ahora) {
 				ultima: null
 			});
 		} else if (e.tipo === "espacio_cosa_quitada") cosas.delete(k);
-		else if (e.tipo === "espacio_hecho") {
+		else if (e.tipo === "espacio_hecho" && !anulados.has(e.id)) {
 			const ya = cosas.get(k);
 			if (ya) ya.ultima = e.ts;
 		}
@@ -7096,17 +7118,18 @@ function calcularTareas(config, normas, eventos, ahora) {
 	const correcciones = /* @__PURE__ */ new Map();
 	const esMiembro = (m) => typeof m === "string" && config.miembros.some((x) => x.id === m);
 	const anadir = (mapa, k, e) => (mapa.get(k) ?? mapa.set(k, []).get(k)).push(e);
+	const actor = (e) => esMiembro(e.datos?.quien) ? e.datos.quien : e.autor;
 	for (const e of eventos) if (e.tipo === "zona_cosa") anadir(cosas, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
 	else if (e.tipo === "zona_empezada") {
 		const k = `${e.datos?.semana}|${e.autor}`;
 		if (!empezadas.has(k) || e.ts < empezadas.get(k)) empezadas.set(k, e.ts);
 	} else if (e.tipo === "zona_hecha") anadir(hechos, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
 	else if (e.tipo === "zona_cubierta") {
-		if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(cubiertas, `${e.datos?.semana}|${e.datos.de}`, e);
+		if (esMiembro(e.datos?.de) && e.datos.de !== actor(e)) anadir(cubiertas, `${e.datos?.semana}|${e.datos.de}`, e);
 	} else if (e.tipo === "zona_hecha_por") {
 		if (esMiembro(e.datos?.de) && esMiembro(e.datos?.quien) && e.datos.quien !== e.autor) anadir(correcciones, `${e.datos?.semana}|${e.datos.de}|${Number(e.datos?.intento)}`, e);
 	} else if (e.tipo === "zona_ayuda") {
-		if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(ayudas, `${e.datos?.semana}|${e.datos.de}`, e);
+		if (esMiembro(e.datos?.de) && e.datos.de !== actor(e)) anadir(ayudas, `${e.datos?.semana}|${e.datos.de}`, e);
 	} else if (e.tipo === "puntuacion") {
 		const d = e.datos;
 		const k = `${d.semana}|${d.de}|${d.intento}`;
@@ -7120,7 +7143,7 @@ function calcularTareas(config, normas, eventos, ahora) {
 		const delPiso = (ayudas.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts);
 		const ayudanEn = (ts) => {
 			const r = /* @__PURE__ */ new Map();
-			for (const a of delPiso) if (a.ts <= ts) r.set(a.autor, !a.datos?.deja);
+			for (const a of delPiso) if (a.ts <= ts) r.set(actor(a), !a.datos?.deja);
 			return [...r.entries()].filter(([, si]) => si).map(([x]) => x);
 		};
 		const intentos = [];
@@ -7131,7 +7154,7 @@ function calcularTareas(config, normas, eventos, ahora) {
 				if (h.ts <= ult.resueltoEn) continue;
 			}
 			const n = intentos.length + 1;
-			let quien = h.autor;
+			let quien = actor(h);
 			let corregido;
 			for (const c of (correcciones.get(`${w}|${m.id}|${n}`) ?? []).slice().sort((a, b) => a.ts - b.ts)) {
 				if (c.ts < h.ts) continue;
@@ -7149,14 +7172,20 @@ function calcularTareas(config, normas, eventos, ahora) {
 		}
 		let cubre;
 		let cubiertaEn;
-		for (const c of (cubiertas.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts)) if (c.datos?.deja) {
-			if (c.autor === cubre) {
-				cubre = void 0;
-				cubiertaEn = void 0;
+		let cubiertaPor;
+		for (const c of (cubiertas.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts)) {
+			const q = actor(c);
+			if (c.datos?.deja) {
+				if (q === cubre) {
+					cubre = void 0;
+					cubiertaEn = void 0;
+					cubiertaPor = void 0;
+				}
+			} else if (q !== cubre) {
+				cubre = q;
+				cubiertaEn = c.ts;
+				cubiertaPor = c.autor;
 			}
-		} else if (c.autor !== cubre) {
-			cubre = c.autor;
-			cubiertaEn = c.ts;
 		}
 		const fin = finSemana(w);
 		const lunesSig = lunesDe(w + 1);
@@ -7181,8 +7210,9 @@ function calcularTareas(config, normas, eventos, ahora) {
 			empezada: empezadas.get(`${w}|${m.id}`),
 			cubre,
 			cubiertaEn,
+			cubiertaPor,
 			ayudan: estado === "pendiente" || estado === "suspendida" ? ayudanEn(ahora).filter((x) => x !== cubre) : ult?.ayudaron ?? [],
-			ayudas: unidos(delPiso).filter((x) => x.quien !== cubre),
+			ayudas: unidos(delPiso, actor).filter((x) => x.quien !== cubre),
 			lista: deLaLista,
 			marcadas: marcadasDe(cosas.get(`${w}|${m.id}`) ?? [], deLaLista, intentos, estado),
 			retrasoDias,
@@ -7194,14 +7224,21 @@ function calcularTareas(config, normas, eventos, ahora) {
 	}
 	return tareas;
 }
-/** Los que siguen echando una mano y desde cuándo (su último «Le echo una mano» sin un «Ya no ayudo» después). */
-function unidos(evs) {
+/** Los que siguen echando una mano, desde cuándo y quién lo dijo (su último «Le echo una mano» sin un «Ya no ayudo»
+*  después). */
+function unidos(evs, actor) {
 	const r = /* @__PURE__ */ new Map();
-	for (const a of evs) if (a.datos?.deja) r.delete(a.autor);
-	else if (!r.has(a.autor)) r.set(a.autor, a.ts);
-	return [...r.entries()].map(([quien, ts]) => ({
+	for (const a of evs) {
+		const q = actor(a);
+		if (a.datos?.deja) r.delete(q);
+		else if (!r.has(q)) r.set(q, {
+			ts: a.ts,
+			por: a.autor
+		});
+	}
+	return [...r.entries()].map(([quien, x]) => ({
 		quien,
-		ts
+		...x
 	}));
 }
 /** De quién es el piso de un evento de limpieza: el suyo o, si lleva `de` (lo hace por otro), el de ese otro. */
@@ -7376,11 +7413,12 @@ function calcularApuntes(config, normas, tareas, basura, tuyos, ahora) {
 		});
 		const contadas = /* @__PURE__ */ new Set();
 		for (const x of s.ajenas) {
-			const k = `${x.autor}|${diaLocal(x.ts)}`;
+			const quien = sacadaPor(x);
+			const k = `${quien}|${diaLocal(x.ts)}`;
 			if (contadas.has(k)) continue;
 			contadas.add(k);
 			r.push({
-				miembro: x.autor,
+				miembro: quien,
 				puntos: normas.puntosSacarAjena,
 				motivo: `Sacaste la basura de ${nombre(responsableEn(s, x.ts))}`,
 				ts: x.ts,
@@ -7599,19 +7637,24 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 			quien: t.miembro,
 			texto: `${X} ha empezado a limpiar el ${zona}.`
 		});
-		if (t.cubre !== void 0 && t.cubiertaEn !== void 0) r.push({
-			id: `${t.semana}-${t.miembro}-cu`,
-			ts: t.cubiertaEn,
-			quien: t.cubre,
-			texto: `${n(t.cubre)} se encarga del ${zona} de ${X} esta semana.`
-		});
+		if (t.cubre !== void 0 && t.cubiertaEn !== void 0) {
+			const por = t.cubiertaPor ?? t.cubre;
+			const dice = por !== t.cubre ? `${n(por)} dice que ` : "";
+			r.push({
+				id: `${t.semana}-${t.miembro}-cu`,
+				ts: t.cubiertaEn,
+				quien: por,
+				texto: `${dice}${n(t.cubre)} se encarga del ${zona} de ${X} esta semana.`
+			});
+		}
 		for (const a of t.ayudas) {
 			const con = t.cubre ?? t.miembro;
+			const dice = a.por !== a.quien ? `${n(a.por)} dice que ` : "";
 			r.push({
 				id: `${t.semana}-${t.miembro}-${a.quien}-ay`,
 				ts: a.ts,
-				quien: a.quien,
-				texto: `${n(a.quien)} le echa una mano a ${n(con)} con el ${zona}${con === t.miembro ? "" : ` de ${X}`}.`
+				quien: a.por,
+				texto: `${dice}${n(a.quien)} le echa una mano a ${n(con)} con el ${zona}${con === t.miembro ? "" : ` de ${X}`}.`
 			});
 		}
 		for (const i of t.intentos) {
@@ -7619,11 +7662,12 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 			const suyo = i.quien === t.miembro;
 			const elPiso = suyo ? `el ${zona}` : `el ${zona} de ${X}`;
 			const elDe = suyo ? `el ${zona} de ${X}` : `el ${zona} que limpió ${Q}`;
+			const apunta = i.hecho.autor !== i.quien && !i.corregido ? ` Lo apunta ${n(i.hecho.autor)}.` : "";
 			r.push({
 				id: `${i.hecho.id}-h`,
 				ts: i.hecho.ts,
 				quien: i.quien,
-				texto: i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`,
+				texto: (i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`) + apunta,
 				fotos: i.hecho.datos?.fotos
 			});
 			if (i.corregido) r.push({
@@ -7670,7 +7714,8 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 			const c = tr.evento;
 			if (!c) continue;
 			const cuando = desdeAntes(tr) ? `desde el ${nombreDia(tr.desde)}` : "de esta semana";
-			const texto = c.autor === tr.quien ? `${n(tr.quien)} se queda la basura ${cuando}${tr.quien === s.tocaba ? "" : ` (le tocaba a ${n(s.tocaba)})`}.` : `${n(c.autor)} le devuelve la basura a ${n(tr.quien)}.`;
+			const antes = responsableEn(s, tr.desde - 1);
+			const texto = c.autor === tr.quien ? `${n(tr.quien)} se queda la basura ${cuando}${tr.quien === s.tocaba ? "" : ` (le tocaba a ${n(s.tocaba)})`}.` : c.autor === antes ? tr.quien === s.tocaba ? `${n(c.autor)} le devuelve la basura a ${n(tr.quien)}.` : `${n(c.autor)} le pasa la basura a ${n(tr.quien)}.` : `${n(c.autor)} le pasa la basura de ${n(antes)} a ${n(tr.quien)}.`;
 			r.push({
 				id: `${c.id}-bc`,
 				ts: c.ts,
@@ -7698,17 +7743,18 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 				});
 			}
 		}
+		const apunta = (x) => sacadaPor(x) !== x.autor ? ` Lo apunta ${n(x.autor)}.` : "";
 		for (const x of s.sacadas) r.push({
 			id: `${x.id}-s`,
 			ts: x.ts,
-			quien: x.autor,
-			texto: `${n(x.autor)} ha sacado la basura.`
+			quien: sacadaPor(x),
+			texto: `${n(sacadaPor(x))} ha sacado la basura.${apunta(x)}`
 		});
 		for (const x of s.ajenas) r.push({
 			id: `${x.id}-sa`,
 			ts: x.ts,
-			quien: x.autor,
-			texto: `${n(x.autor)} ha sacado la basura de ${n(responsableEn(s, x.ts))}.`
+			quien: sacadaPor(x),
+			texto: `${n(sacadaPor(x))} ha sacado la basura de ${n(responsableEn(s, x.ts))}.${apunta(x)}`
 		});
 	}
 	for (const a of tuyos) {
@@ -7853,6 +7899,9 @@ function avisosDeEvento(config, eventos, id) {
 	const nombre = nombres(config);
 	const yo = nombre(e.autor);
 	const w = semana(e.ts);
+	const actor = config.miembros.some((x) => x.id === e.datos?.quien) ? e.datos.quien : e.autor;
+	const porOtro = actor !== e.autor;
+	const dice = porOtro ? `${yo} dice que ` : "";
 	switch (e.tipo) {
 		case "basura_llena": {
 			if (w < estado.semanaInicio) return [];
@@ -7896,39 +7945,70 @@ function avisosDeEvento(config, eventos, id) {
 			const i = t?.intentos[t.intentos.length - 1];
 			if (!t || !i || i.hecho.id !== e.id) return [];
 			const hecho = i.n > 1 ? "ha repasado" : "ha terminado";
-			return i.sinVotar.map((j) => {
-				const piso = de === e.autor ? `el ${t.zona.nombre}` : j === de ? `tu ${t.zona.nombre.toLowerCase()}` : `el ${t.zona.nombre} de ${nombre(de)}`;
+			const z = t.zona.nombre.toLowerCase();
+			const r = i.sinVotar.map((j) => {
+				const piso = de === i.quien ? `el ${t.zona.nombre}` : j === de ? `tu ${z}` : `el ${t.zona.nombre} de ${nombre(de)}`;
 				return {
 					para: j,
-					titulo: `🧹 ${yo} ${hecho} ${piso}`,
-					texto: `Ponle nota: tienes ${n.horasRevision} horas.`,
+					titulo: `🧹 ${nombre(i.quien)} ${hecho} ${piso}`,
+					texto: `${porOtro ? `Lo apunta ${yo}. ` : ""}Ponle nota: tienes ${n.horasRevision} horas.`,
 					pantalla: "hoy",
 					etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}`
 				};
 			});
+			if (porOtro && i.quien === actor) r.push({
+				para: actor,
+				titulo: `✅ ${yo} ha marcado como hecho ${de === actor ? `tu ${z}` : `el ${z} de ${nombre(de)}`}`,
+				texto: "Dice que lo limpiaste tú: la nota es para ti.",
+				pantalla: "limpieza",
+				etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}`
+			});
+			return r.filter((x) => x.para !== e.autor);
 		}
 		case "zona_cubierta": {
 			const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
-			if (!t || t.miembro === e.autor) return [];
+			if (!t || t.miembro === actor) return [];
 			const z = t.zona.nombre.toLowerCase();
+			const Q = porOtro ? nombre(actor) : yo;
+			const etiqueta = `cubierta-${t.semana}-${t.miembro}`;
 			if (e.datos?.deja) {
 				if (t.cubre !== void 0 || t.primerHecho !== void 0) return [];
-				return [{
+				const r = [{
 					para: t.miembro,
-					titulo: `🤝 ${yo} ya no se encarga de tu piso`,
+					titulo: `🤝 ${dice}${Q} ya no se encarga de tu piso`,
 					texto: `El ${z} vuelve a ser cosa tuya esta semana.`,
 					pantalla: "limpieza",
-					etiqueta: `cubierta-${t.semana}-${t.miembro}`
+					etiqueta
 				}];
+				if (porOtro) r.push(e.autor === t.miembro ? {
+					para: actor,
+					titulo: `🤝 ${yo} vuelve a encargarse de su piso`,
+					texto: `El ${z}: ya no te toca a ti.`,
+					pantalla: "limpieza",
+					etiqueta
+				} : {
+					para: actor,
+					titulo: `🤝 ${yo} dice que ya no te encargas del piso de ${nombre(t.miembro)}`,
+					texto: `El ${z} vuelve a ser cosa de ${nombre(t.miembro)}.`,
+					pantalla: "limpieza",
+					etiqueta
+				});
+				return r.filter((x) => x.para !== e.autor);
 			}
-			if (t.cubre !== e.autor || t.cubiertaEn !== e.ts) return [];
-			return config.miembros.filter((x) => x.id !== e.autor).map((x) => ({
+			if (t.cubre !== actor || t.cubiertaEn !== e.ts) return [];
+			return config.miembros.filter((x) => x.id !== e.autor).map((x) => x.id === actor ? {
 				para: x.id,
-				titulo: x.id === t.miembro ? `🤝 ${yo} se encarga de tu piso esta semana` : `🤝 ${yo} se encarga del piso de ${nombre(t.miembro)}`,
+				titulo: `🤝 ${yo} dice que te encargas del piso de ${nombre(t.miembro)}`,
+				texto: `El ${z}, esta semana: la nota es para ti.`,
+				pantalla: "limpieza",
+				etiqueta
+			} : {
+				para: x.id,
+				titulo: x.id === t.miembro ? `🤝 ${dice}${Q} se encarga de tu piso esta semana` : `🤝 ${dice}${Q} se encarga del piso de ${nombre(t.miembro)}`,
 				texto: `El ${z}. Cuando lo marque, le pones nota.`,
 				pantalla: "limpieza",
-				etiqueta: `cubierta-${t.semana}-${t.miembro}`
-			}));
+				etiqueta
+			});
 		}
 		case "zona_hecha_por": {
 			const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
@@ -7950,37 +8030,66 @@ function avisosDeEvento(config, eventos, id) {
 		case "zona_ayuda": {
 			if (e.datos?.deja) return [];
 			const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
-			if (!t || !t.ayudan.includes(e.autor)) return [];
+			if (!t || !t.ayudan.includes(actor)) return [];
 			const con = t.cubre ?? t.miembro;
 			const z = t.zona.nombre.toLowerCase();
+			const Q = porOtro ? nombre(actor) : yo;
+			const etiqueta = `ayuda-${t.semana}-${t.miembro}-${actor}`;
 			const r = [{
 				para: con,
-				titulo: `🤝 ${yo} te echa una mano con el ${z}`,
+				titulo: `🤝 ${dice}${Q} te echa una mano con el ${z}`,
 				texto: `Lo que marque cuenta en tu lista. Si se aprueba, ${pts(n.puntosAyuda)} para él.`,
 				pantalla: "limpieza",
-				etiqueta: `ayuda-${t.semana}-${t.miembro}-${e.autor}`
+				etiqueta
 			}];
 			if (con !== t.miembro) r.push({
 				para: t.miembro,
-				titulo: `🤝 ${yo} le echa una mano a ${nombre(con)} con tu piso`,
+				titulo: `🤝 ${dice}${Q} le echa una mano a ${nombre(con)} con tu piso`,
 				texto: `El ${z}.`,
 				pantalla: "limpieza",
-				etiqueta: `ayuda-${t.semana}-${t.miembro}-${e.autor}`
+				etiqueta
+			});
+			if (porOtro) r.push({
+				para: actor,
+				titulo: `🤝 ${yo} dice que le echas una mano a ${nombre(con)}`,
+				texto: `Con el ${z}${con === t.miembro ? "" : ` de ${nombre(t.miembro)}`}. Si se aprueba, ${pts(n.puntosAyuda)} para ti.`,
+				pantalla: "limpieza",
+				etiqueta
 			});
 			return r.filter((x) => x.para !== e.autor);
 		}
 		case "basura_sacada": {
+			const q = sacadaPor(e);
+			const deOtro = q !== e.autor;
 			const s = estado.semanasBasura.find((x) => x.ajenas.some((a) => a.id === e.id));
-			if (!s) return [];
+			if (!s) {
+				const suya = deOtro ? estado.semanasBasura.find((x) => x.sacadas.some((a) => a.id === e.id)) : void 0;
+				return suya ? [{
+					para: q,
+					titulo: `🗑️ ${yo} ha apuntado que sacaste la basura`,
+					texto: "Ya consta: si estaba avisada, se acaba el aviso.",
+					pantalla: "hoy",
+					etiqueta: `basura-${suya.semana}`
+				}] : [];
+			}
 			const quien = responsableEn(s, e.ts);
 			const resolvio = s.avisos.some((a) => a.resueltoEn === e.ts && a.estado === "resuelto");
-			return [{
+			const gana = estado.apuntes.some((a) => a.clase === "sacada" && a.ts === e.ts && a.miembro === q);
+			const r = [{
 				para: quien,
-				titulo: `🗑️ ${yo} ha sacado tu basura`,
-				texto: `${resolvio ? "Ya no te cae la queja. " : ""}${pts(n.puntosSacarAjena)} para él.`,
+				titulo: `🗑️ ${deOtro ? nombre(q) : yo} ha sacado tu basura`,
+				texto: `${deOtro ? `Lo apunta ${yo}. ` : ""}${resolvio ? "Ya no te cae la queja. " : ""}${gana ? `${pts(n.puntosSacarAjena)} para él.` : ""}`.trim(),
 				pantalla: "hoy",
 				etiqueta: `basura-${s.semana}`
 			}];
+			if (deOtro) r.push({
+				para: q,
+				titulo: `🗑️ ${yo} ha apuntado que sacaste la basura de ${nombre(quien)}`,
+				texto: gana ? `${pts(n.puntosSacarAjena)} para ti.` : "Ya consta.",
+				pantalla: "hoy",
+				etiqueta: `basura-${s.semana}`
+			});
+			return r.filter((x) => x.para !== e.autor && x.texto);
 		}
 		case "basura_cubierta": {
 			const s = estado.semanasBasura.find((x) => x.semana === Number(e.datos?.semana));
@@ -7994,13 +8103,28 @@ function avisosDeEvento(config, eventos, id) {
 				pantalla: "hoy",
 				etiqueta: `basura-${s.semana}`
 			}));
-			return [{
+			const etiqueta = `basura-${s.semana}`;
+			const r = [e.autor === antes && tr.quien === s.tocaba ? {
 				para: tr.quien,
 				titulo: `🗑️ ${yo} te devuelve la basura`,
 				texto: "Esta semana vuelve a ser tuya: sácala cada vez que se llene.",
 				pantalla: "hoy",
-				etiqueta: `basura-${s.semana}`
+				etiqueta
+			} : {
+				para: tr.quien,
+				titulo: `🗑️ ${yo} te pasa la basura`,
+				texto: "Desde ahora es tuya: si se llena, te avisan a ti.",
+				pantalla: "hoy",
+				etiqueta
 			}];
+			if (antes !== e.autor && antes !== tr.quien) r.push({
+				para: antes,
+				titulo: `🗑️ ${yo} le pasa tu basura a ${nombre(tr.quien)}`,
+				texto: "Desde ahora ya no te toca: los avisos le llegan a él.",
+				pantalla: "hoy",
+				etiqueta
+			});
+			return r;
 		}
 		case "puntuacion": {
 			const d = e.datos ?? {};

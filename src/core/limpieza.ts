@@ -50,10 +50,13 @@ export interface Tarea {
    *  lista la marca quien lo limpia y la nota es para él. */
   cubre?: MiembroId;
   cubiertaEn?: number;
+  /** Quién lo dijo: el propio `cubre` («Lo limpio yo») u otro desde el cuadro («Lo limpia Jose», Javi, 14 de noviembre:
+   *  «coger a un personaje y moverlo al piso que quiera») */
+  cubiertaPor?: MiembroId;
   /** Los que le echan una mano ahora (con su piso o con el de quien se encarga): marcan su lista y no ponen nota */
   ayudan: MiembroId[];
-  /** Cuándo se puso cada uno a echar una mano (para lo último en la casa) */
-  ayudas: { quien: MiembroId; ts: number }[];
+  /** Cuándo se puso cada uno a echar una mano y quién lo dijo (él mismo u otro desde el cuadro) */
+  ayudas: { quien: MiembroId; ts: number; por: MiembroId }[];
   lista: string[]; // lo que se limpia en su piso (lo de siempre y, si le toca, lo que solo entra a veces)
   marcadas: string[]; // lo que ya ha marcado de la lista en esta vuelta (si se suspende, se empieza de cero)
   retrasoDias: number; // días de retraso hasta que se marcó (o hasta ahora)
@@ -77,6 +80,9 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
   const correcciones = new Map<string, Evento[]>();
   const esMiembro = (m: unknown): m is MiembroId => typeof m === 'string' && config.miembros.some((x) => x.id === m);
   const anadir = (mapa: Map<string, Evento[]>, k: string, e: Evento) => (mapa.get(k) ?? mapa.set(k, []).get(k)!).push(e);
+  // a quién se refiere: a quien lo apunta o, si lleva `quien`, a ese (desde el cuadro se puede poner a cualquiera:
+  // «Lo limpia Jose», «Josu le echa una mano», «Ya lo ha limpiado Jose»; Javi, 14 de noviembre)
+  const actor = (e: Evento): MiembroId => (esMiembro(e.datos?.quien) ? e.datos.quien : e.autor);
   for (const e of eventos) {
     if (e.tipo === 'zona_cosa') {
       anadir(cosas, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
@@ -86,14 +92,14 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
     } else if (e.tipo === 'zona_hecha') {
       anadir(hechos, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
     } else if (e.tipo === 'zona_cubierta') {
-      // «Lo limpio yo» en el piso de otro (o, con `deja`, «Ya no lo limpio yo»)
-      if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(cubiertas, `${e.datos?.semana}|${e.datos.de}`, e);
+      // «Lo limpio yo» en el piso de otro (o, con `deja`, «Ya no lo limpio yo»); con `quien`, por otro
+      if (esMiembro(e.datos?.de) && e.datos.de !== actor(e)) anadir(cubiertas, `${e.datos?.semana}|${e.datos.de}`, e);
     } else if (e.tipo === 'zona_hecha_por') {
       // «Lo limpió Jose»: quién limpió de verdad lo que se marcó como hecho (nadie puede ponérselo a sí mismo)
       if (esMiembro(e.datos?.de) && esMiembro(e.datos?.quien) && e.datos.quien !== e.autor) anadir(correcciones, `${e.datos?.semana}|${e.datos.de}|${Number(e.datos?.intento)}`, e);
     } else if (e.tipo === 'zona_ayuda') {
-      // «Le echo una mano» en el piso de otro (o, con `deja`, «Ya no ayudo»)
-      if (esMiembro(e.datos?.de) && e.datos.de !== e.autor) anadir(ayudas, `${e.datos?.semana}|${e.datos.de}`, e);
+      // «Le echo una mano» en el piso de otro (o, con `deja`, «Ya no ayudo»); con `quien`, por otro
+      if (esMiembro(e.datos?.de) && e.datos.de !== actor(e)) anadir(ayudas, `${e.datos?.semana}|${e.datos.de}`, e);
     } else if (e.tipo === 'puntuacion') {
       const d = e.datos as DatosPuntuacion;
       const k = `${d.semana}|${d.de}|${d.intento}`;
@@ -111,7 +117,7 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
       const delPiso = (ayudas.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts);
       const ayudanEn = (ts: number) => {
         const r = new Map<MiembroId, boolean>();
-        for (const a of delPiso) if (a.ts <= ts) r.set(a.autor, !a.datos?.deja);
+        for (const a of delPiso) if (a.ts <= ts) r.set(actor(a), !a.datos?.deja);
         return [...r.entries()].filter(([, si]) => si).map(([x]) => x);
       };
       const intentos: Intento[] = [];
@@ -121,9 +127,10 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
           if (!ult.resuelto || ult.aprobado) continue;
           if (h.ts <= ult.resueltoEn!) continue;
         }
-        // quién lo limpió: quien lo marcó, salvo que alguien diga después que fue otro (vale lo último que se diga)
+        // quién lo limpió: quien lo marcó (o a quien puso: «Ya lo ha limpiado Jose»), salvo que alguien diga después
+        // que fue otro (vale lo último que se diga)
         const n = intentos.length + 1;
-        let quien = h.autor;
+        let quien = actor(h);
         let corregido: { por: MiembroId; ts: number } | undefined;
         for (const c of (correcciones.get(`${w}|${m.id}|${n}`) ?? []).slice().sort((a, b) => a.ts - b.ts)) {
           if (c.ts < h.ts) continue;
@@ -139,15 +146,19 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         intentos.push(intento);
       }
 
-      // quién se encarga de su piso esta semana: el último que dijo «Lo limpio yo» (si no lo ha dejado después)
+      // quién se encarga de su piso esta semana: el último que dijo «Lo limpio yo» (o al que pusieron: «Lo limpia
+      // Jose»), si no lo ha dejado después
       let cubre: MiembroId | undefined;
       let cubiertaEn: number | undefined;
+      let cubiertaPor: MiembroId | undefined;
       for (const c of (cubiertas.get(`${w}|${m.id}`) ?? []).slice().sort((a, b) => a.ts - b.ts)) {
+        const q = actor(c);
         if (c.datos?.deja) {
-          if (c.autor === cubre) { cubre = undefined; cubiertaEn = undefined; }
-        } else if (c.autor !== cubre) {
-          cubre = c.autor;
+          if (q === cubre) { cubre = undefined; cubiertaEn = undefined; cubiertaPor = undefined; }
+        } else if (q !== cubre) {
+          cubre = q;
           cubiertaEn = c.ts;
+          cubiertaPor = c.autor;
         }
       }
 
@@ -178,9 +189,10 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         empezada: empezadas.get(`${w}|${m.id}`),
         cubre,
         cubiertaEn,
+        cubiertaPor,
         // los que ayudan ahora (si ya está hecho, los que ayudaron)
         ayudan: estado === 'pendiente' || estado === 'suspendida' ? ayudanEn(ahora).filter((x) => x !== cubre) : (ult?.ayudaron ?? []),
-        ayudas: unidos(delPiso).filter((x) => x.quien !== cubre),
+        ayudas: unidos(delPiso, actor).filter((x) => x.quien !== cubre),
         lista: deLaLista,
         marcadas: marcadasDe(cosas.get(`${w}|${m.id}`) ?? [], deLaLista, intentos, estado),
         retrasoDias,
@@ -194,14 +206,16 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
   return tareas;
 }
 
-/** Los que siguen echando una mano y desde cuándo (su último «Le echo una mano» sin un «Ya no ayudo» después). */
-function unidos(evs: Evento[]): { quien: MiembroId; ts: number }[] {
-  const r = new Map<MiembroId, number>();
+/** Los que siguen echando una mano, desde cuándo y quién lo dijo (su último «Le echo una mano» sin un «Ya no ayudo»
+ *  después). */
+function unidos(evs: Evento[], actor: (e: Evento) => MiembroId): { quien: MiembroId; ts: number; por: MiembroId }[] {
+  const r = new Map<MiembroId, { ts: number; por: MiembroId }>();
   for (const a of evs) {
-    if (a.datos?.deja) r.delete(a.autor);
-    else if (!r.has(a.autor)) r.set(a.autor, a.ts);
+    const q = actor(a);
+    if (a.datos?.deja) r.delete(q);
+    else if (!r.has(q)) r.set(q, { ts: a.ts, por: a.autor });
   }
-  return [...r.entries()].map(([quien, ts]) => ({ quien, ts }));
+  return [...r.entries()].map(([quien, x]) => ({ quien, ...x }));
 }
 
 /** De quién es el piso de un evento de limpieza: el suyo o, si lleva `de` (lo hace por otro), el de ese otro. */

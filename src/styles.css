@@ -1355,6 +1355,20 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .marcar-cosa.hecha .marcar-caja { background: #1a9150; border-color: #1a9150; }
 .marcar-cosa.hecha span:last-child { color: var(--texto-2); text-decoration: line-through; }
 .marcar-cosa:disabled { cursor: default; opacity: 1; }
+/* «Tu parte»: tus cuartos debajo de la lista de tu piso; la caja los marca en verde y el resto los enseña en la casa
+   (Javi, 14 de noviembre) */
+.tu-parte-fila { display: flex; align-items: center; gap: 2px; }
+.tu-parte-marca { width: auto; flex: none; padding: 8px 10px 8px 2px; }
+.tu-parte-ver { appearance: none; border: 0; background: none; font: inherit; color: inherit; flex: 1; min-width: 0; min-height: 54px; display: flex; align-items: center; gap: 10px; padding: 6px 6px; margin: 3px 0; text-align: left; cursor: pointer; border-radius: 14px; transition: background 0.15s; }
+.tu-parte-ver:disabled { cursor: default; }
+.tu-parte-ver b { display: block; font-size: 0.95rem; }
+.tu-parte-ver small { display: block; font-size: 0.78rem; font-weight: 650; color: var(--texto-2); margin-top: 1px; }
+.tu-parte-ver.hecha b { color: var(--texto-2); text-decoration: line-through; }
+.tu-parte-ver.hecha small { color: var(--verde); }
+.tu-parte-icono { width: 34px; height: 34px; border-radius: 11px; background: var(--papel-2); color: var(--texto-2); display: grid; place-items: center; flex: none; }
+.tu-parte-mapa { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 0.75rem; font-weight: 800; color: var(--azul); padding: 5px 10px; border-radius: 999px; background: color-mix(in srgb, var(--azul) 12%, var(--papel)); }
+.tu-parte-fila.mirando .tu-parte-ver { background: color-mix(in srgb, var(--azul) 9%, var(--papel)); }
+.tu-parte-fila.mirando .tu-parte-mapa { background: var(--azul); color: #ffffff; }
 /* «Mi parte» sin cuartos dibujados (Jose, de momento): la casa, apagada, y un aviso */
 .juego.sin-parte .casa3d-juego { opacity: 0.22; }
 .juego-sin-parte {
@@ -1445,10 +1459,22 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .cuadro { display: flex; flex-direction: column; gap: 8px; }
 .cuadro-cabeza { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
 .cuadro-cabeza p { margin: 0; font-size: 0.82rem; color: var(--texto-2); line-height: 1.3; }
-.cuadro-yo { --t: 52px; position: relative; width: var(--t); height: var(--t); flex: none; border-radius: 50%; box-shadow: 0 0 0 3px var(--c), 0 6px 14px -8px rgba(14, 42, 71, 0.8); background: color-mix(in srgb, var(--c) 16%, #ffffff); display: grid; place-items: center; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
-.cuadro-yo img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
-.cuadro-yo.cogida { opacity: 0.35; }
-.cuadro-yo::after { content: '✥'; position: absolute; right: -5px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%; background: #13233a; color: #ffffff; font-size: 0.7rem; display: grid; place-items: center; }
+.cuadro-banco { display: flex; gap: 10px; flex: none; }
+/* a cualquiera se le coge y se le suelta en una fila (Javi, 14 de noviembre: «coger a un personaje y moverlo») */
+.cuadro-mueve, .cuadro-persona.mueve { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.cuadro-mueve { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.cuadro-mueve .cuadro-cara { --t: 46px; box-shadow: 0 0 0 3px var(--c), 0 6px 14px -8px rgba(14, 42, 71, 0.8); }
+.cuadro-mueve .cuadro-cara::after { content: '✥'; position: absolute; right: -6px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: #13233a; color: #ffffff; font-size: 0.62rem; display: grid; place-items: center; }
+.cuadro-mueve em { font-style: normal; font-size: 0.7rem; font-weight: 800; color: var(--texto-2); }
+.cuadro-mueve.cogida, .cuadro-persona.cogida { opacity: 0.35; }
+.cuadro-mueve img, .cuadro-persona img { pointer-events: none; -webkit-user-drag: none; }
+.cuadro-fila:focus-visible, .cuadro-mueve:focus-visible, .cuadro-persona.mueve:focus-visible { outline: 2.5px solid var(--azul); outline-offset: 2px; }
+/* «¿Quién?» en las hojas del cuadro: a quién se refiere lo que haces */
+.elige-quien { display: flex; gap: 8px; }
+.elige-cara { appearance: none; border: 0; font: inherit; color: var(--texto); background: var(--papel-2); border-radius: 14px; padding: 9px 6px 7px; flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; outline: 2.5px solid transparent; outline-offset: -2.5px; }
+.elige-cara b { font-size: 0.8rem; }
+.elige-cara .cuadro-cara { --t: 36px; }
+.elige-cara[aria-checked='true'] { background: color-mix(in srgb, var(--c) 18%, var(--papel)); outline-color: var(--c); }
 .cuadro-fila { appearance: none; border: 0; font: inherit; color: var(--texto); text-align: left; width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 12px; min-height: 66px; border-radius: 16px; background: var(--papel-2); cursor: pointer; transition: background 0.15s, outline-color 0.15s; }
 .cuadro-fila.suelta { outline: 2.5px dashed var(--verde); outline-offset: -2px; background: color-mix(in srgb, var(--verde) 12%, var(--papel)); }
 .cuadro-tarea { width: 110px; flex: none; }

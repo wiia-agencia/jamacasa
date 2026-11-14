@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { avisosDeEvento, avisosDelReloj } from '../src/core/avisos';
 import { semanaInicial } from '../src/core/calendario';
-import { calcularEspacio, textoEspacio } from '../src/core/espacio';
+import { calcularEspacio, espacioAnulados, hechaEstaSemana, textoEspacio } from '../src/core/espacio';
 import { derivar } from '../src/core/estado';
 import { HORA, inicioSemana } from '../src/core/tiempo';
 import type { Config, Evento } from '../src/core/tipos';
@@ -84,5 +84,27 @@ describe('Tu espacio', () => {
     expect(reloj(s + 1, 4, 19, hecho)).toEqual([]);
     // y su espacio no cuenta para nada más
     expect(derivar(config, hecho, dia(s + 1, 5)).noticias.length).toBe(derivar(config, [], dia(s + 1, 5)).noticias.length);
+  });
+
+  it('«Tu parte» se marca en verde esta semana y se desmarca: quita la última vez que se marcó', () => {
+    const cosa = ev('espacio_cosa', 'a', dia(s, 0, 9), { cosa: 'habitacion1', nombre: 'Tu habitación', cada: 7 });
+    const lunes = ev('espacio_hecho', 'a', dia(s, 0, 20), { cosa: 'habitacion1' });
+    const jueves = ev('espacio_hecho', 'a', dia(s, 3, 20), { cosa: 'habitacion1' });
+    const desmarca = ev('espacio_deshecho', 'a', dia(s, 3, 21), { cosa: 'habitacion1' });
+    const hab = (l: Evento[], ahora: number) => calcularEspacio(l, ahora).a[0];
+    expect(hab([cosa, lunes, jueves], dia(s, 3, 22)).ultima).toBe(jueves.ts);
+    // desmarcar el del jueves deja el del lunes (sigue en verde: es de esta semana)
+    const una = hab([cosa, lunes, jueves, desmarca], dia(s, 3, 22));
+    expect(una.ultima).toBe(lunes.ts);
+    expect(hechaEstaSemana(una, dia(s, 3, 22))).toBe(true);
+    // el lunes siguiente vuelve a salir sin marcar
+    expect(hechaEstaSemana(hab([cosa, lunes], dia(s + 1, 0, 10)), dia(s + 1, 0, 10))).toBe(false);
+    // desmarcar otra vez: como si nunca se hubiera hecho
+    const otra = ev('espacio_deshecho', 'a', dia(s, 3, 22), { cosa: 'habitacion1' });
+    expect(hab([cosa, lunes, jueves, desmarca, otra], dia(s, 3, 23)).ultima).toBeNull();
+    expect([...espacioAnulados([cosa, lunes, jueves, desmarca, otra])].sort()).toEqual([jueves.id, lunes.id].sort());
+    // lo de otro no se toca
+    const deBea = ev('espacio_deshecho', 'b', dia(s, 3, 22), { cosa: 'habitacion1' });
+    expect(hab([cosa, lunes, deBea], dia(s, 3, 23)).ultima).toBe(lunes.ts);
   });
 });

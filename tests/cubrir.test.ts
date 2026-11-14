@@ -183,11 +183,15 @@ describe('«Me la quedo yo»: la basura de otro', () => {
     expect(e2.apuntes.filter((x) => x.clase === 'sacada').map((x) => x.miembro)).toEqual([tocaba]);
   });
 
-  it('se la puede devolver a quien le tocaba, pero no pasársela a otro', () => {
+  it('se la puede devolver a quien le tocaba o pasársela a otro (desde el cuadro), siempre desde ahora', () => {
     const devuelve = ev('basura_cubierta', yo, dia(3, 9), { semana: s, quien: tocaba });
     expect(derivar(config, [queda, devuelve], dia(3, 10)).basura).toBe(tocaba);
     const pasa = ev('basura_cubierta', yo, dia(3, 9), { semana: s, quien: tercero });
-    expect(derivar(config, [queda, pasa], dia(3, 10)).basura).toBe(yo);
+    expect(derivar(config, [queda, pasa], dia(3, 10)).basura).toBe(tercero);
+    // a otro no se le puede echar encima lo de antes: aunque diga «desde el lunes», es desde ahora
+    const desdeLunes = ev('basura_cubierta', yo, dia(3, 9), { semana: s, quien: tercero, desde: inicioSemana(s) });
+    const sem = derivar(config, [desdeLunes], dia(3, 10)).semanasBasura.find((x) => x.semana === s)!;
+    expect(sem.tramos.map((t) => [t.quien, t.desde])).toEqual([[tocaba, -Infinity], [tercero, dia(3, 9)]]);
     // ni quedársela después de que acabe su semana
     const tardia = ev('basura_cubierta', tercero, finSemana(s) + HORA, { semana: s, quien: tercero });
     expect(derivar(config, [tardia], finSemana(s) + 2 * HORA).semanasBasura.find((x) => x.semana === s)!.responsable).toBe(tocaba);
@@ -274,6 +278,91 @@ describe('«Le echo una mano» y «Esta la saqué yo»', () => {
     expect(r).toMatchObject([{ para: tocaba, titulo: expect.stringContaining('ha sacado tu basura'), texto: expect.stringContaining('Ya no te cae la queja') }]);
     // la que saca quien la tiene no es «de otro»
     expect(derivar(config, [ev('basura_sacada', tocaba, dia(2, 9))], dia(2, 10)).semanasBasura.find((x) => x.semana === s)!.ajenas).toHaveLength(0);
+  });
+});
+
+describe('Poner a otro desde el cuadro (Javi, 14 de noviembre: «coger a un personaje y moverlo al piso que quiera»)', () => {
+  const z = () => zonaDe(config, s, 'a')!.nombre.toLowerCase();
+
+  it('«Lo limpia Bea» (lo dice Cris): se encarga Bea, lo dijo Cris y les llega a Bea y a Ana', () => {
+    const pone = ev('zona_cubierta', 'c', dia(1, 10), { semana: s, de: 'a', quien: 'b' });
+    const e = derivar(config, [pone], dia(1, 11));
+    const t = tareaDe(e, s, 'a')!;
+    expect(t).toMatchObject({ cubre: 'b', cubiertaPor: 'c' });
+    expect(e.noticias.find((x) => x.id.endsWith('-cu'))).toMatchObject({ quien: 'c', texto: `Cris dice que Bea se encarga del ${z()} de Ana esta semana.` });
+    const r = avisosDeEvento(config, [pone], pone.id);
+    expect(r.map((x) => x.para).sort()).toEqual(['a', 'b']);
+    expect(r.find((x) => x.para === 'b')!.titulo).toBe('🤝 Cris dice que te encargas del piso de Ana');
+    expect(r.find((x) => x.para === 'a')!.titulo).toBe('🤝 Cris dice que Bea se encarga de tu piso esta semana');
+    // y lo puede quitar cualquiera: «Bea ya no lo limpia»
+    const quita = ev('zona_cubierta', 'c', dia(1, 12), { semana: s, de: 'a', quien: 'b', deja: true });
+    expect(tareaDe(derivar(config, [pone, quita], dia(1, 13)), s, 'a')!.cubre).toBeUndefined();
+    expect(avisosDeEvento(config, [pone, quita], quita.id).map((x) => x.para).sort()).toEqual(['a', 'b']);
+    // la dueña lo recupera: a Bea le llega que vuelve a encargarse ella
+    const recupera = ev('zona_cubierta', 'a', dia(1, 12), { semana: s, de: 'a', quien: 'b', deja: true });
+    expect(avisosDeEvento(config, [pone, recupera], recupera.id)).toMatchObject([{ para: 'b', titulo: '🤝 Ana vuelve a encargarse de su piso' }]);
+    // a nadie se le pone en su propio piso
+    const propio = ev('zona_cubierta', 'c', dia(1, 14), { semana: s, de: 'a', quien: 'a' });
+    expect(tareaDe(derivar(config, [propio], dia(1, 15)), s, 'a')!.cubre).toBeUndefined();
+  });
+
+  it('«Bea le echa una mano» (lo dice Cris): ayuda Bea, sin poner nota, y se lo dice a Bea y a Ana', () => {
+    const pone = ev('zona_ayuda', 'c', dia(1, 10), { semana: s, de: 'a', quien: 'b' });
+    const hecho = ev('zona_hecha', 'a', dia(1, 12), { semana: s });
+    const e = derivar(config, [pone, hecho], dia(1, 13));
+    const t = tareaDe(e, s, 'a')!;
+    expect(t.ayudas).toEqual([{ quien: 'b', ts: dia(1, 10), por: 'c' }]);
+    expect(t.intentos[0]).toMatchObject({ quien: 'a', ayudaron: ['b'], jueces: ['c'] });
+    expect(e.noticias.find((x) => x.id.endsWith('-ay'))!.texto).toBe(`Cris dice que Bea le echa una mano a Ana con el ${z()}.`);
+    const r = avisosDeEvento(config, [pone], pone.id);
+    expect(r.map((x) => x.para).sort()).toEqual(['a', 'b']);
+    expect(r.find((x) => x.para === 'b')!.titulo).toBe('🤝 Cris dice que le echas una mano a Ana');
+  });
+
+  it('«Ya lo ha limpiado Bea» (lo apunta Cris): la nota es de Bea, le ponen nota Ana y Cris', () => {
+    const cubre = ev('zona_cubierta', 'c', dia(1, 10), { semana: s, de: 'a', quien: 'b' });
+    const hecho = ev('zona_hecha', 'c', dia(1, 12), { semana: s, de: 'a', quien: 'b' });
+    const e = derivar(config, [cubre, hecho], dia(1, 13));
+    const i = tareaDe(e, s, 'a')!.intentos[0];
+    expect(i).toMatchObject({ quien: 'b', jueces: ['a', 'c'] });
+    expect(paraPuntuar(e, 'c')).toHaveLength(1);
+    expect(e.noticias.find((x) => x.id === `${hecho.id}-h`)!.texto).toBe(`Bea ha terminado el ${z()} de Ana. Lo apunta Cris.`);
+    const r = avisosDeEvento(config, [cubre, hecho], hecho.id);
+    expect(r.map((x) => x.para).sort()).toEqual(['a', 'b']); // a Cris no: lo ha apuntado él
+    expect(r.find((x) => x.para === 'a')).toMatchObject({ titulo: `🧹 Bea ha terminado tu ${z()}`, texto: expect.stringContaining('Lo apunta Cris.') });
+    expect(r.find((x) => x.para === 'b')!.titulo).toBe(`✅ Cris ha marcado como hecho el ${z()} de Ana`);
+  });
+
+  it('«La ha sacado Cris» (lo apunta Ana): +1 para Cris, vacía el aviso y les llega a los dos', () => {
+    const tocaba = basuraDe(config, s)!;
+    const [otro1, otro2] = config.miembros.map((m) => m.id).filter((m) => m !== tocaba);
+    const nombre = (m: MiembroId) => config.miembros.find((x) => x.id === m)!.nombre;
+    const aviso = ev('basura_llena', otro1, dia(2, 8));
+    const apunta = ev('basura_sacada', otro1, dia(2, 9), { quien: otro2 });
+    const e = derivar(config, [aviso, apunta], dia(2, 10));
+    const sem = e.semanasBasura.find((x) => x.semana === s)!;
+    expect(sem.avisos[0]).toMatchObject({ estado: 'resuelto', responsable: otro2 });
+    expect(e.apuntes.filter((x) => x.clase === 'sacada').map((x) => x.miembro)).toEqual([otro2]);
+    expect(e.noticias.find((x) => x.id === `${apunta.id}-sa`)!.texto).toBe(`${nombre(otro2)} ha sacado la basura de ${nombre(tocaba)}. Lo apunta ${nombre(otro1)}.`);
+    const r = avisosDeEvento(config, [aviso, apunta], apunta.id);
+    expect(r.map((x) => x.para).sort()).toEqual([tocaba, otro2].sort());
+    expect(r.find((x) => x.para === tocaba)!.titulo).toBe(`🗑️ ${nombre(otro2)} ha sacado tu basura`);
+    // la de alguien que no es de la casa no cuenta
+    const rara = ev('basura_sacada', otro1, dia(2, 9), { quien: 'zz' });
+    expect(derivar(config, [aviso, rara], dia(2, 10)).semanasBasura.find((x) => x.semana === s)!.avisos[0].estado).toBe('abierto');
+  });
+
+  it('pasarle la basura a otro: le llega a él y a quien la tenía', () => {
+    const tocaba = basuraDe(config, s)!;
+    const [otro1, otro2] = config.miembros.map((m) => m.id).filter((m) => m !== tocaba);
+    const pasa = ev('basura_cubierta', otro1, dia(2, 9), { semana: s, quien: otro2 });
+    const e = derivar(config, [pasa], dia(2, 10));
+    expect(e.basura).toBe(otro2);
+    const nombre = (m: MiembroId) => config.miembros.find((x) => x.id === m)!.nombre;
+    expect(e.noticias.find((x) => x.id === `${pasa.id}-bc`)!.texto).toBe(`${nombre(otro1)} le pasa la basura de ${nombre(tocaba)} a ${nombre(otro2)}.`);
+    const r = avisosDeEvento(config, [pasa], pasa.id);
+    expect(r.map((x) => x.para).sort()).toEqual([tocaba, otro2].sort());
+    expect(r.find((x) => x.para === otro2)!.titulo).toBe(`🗑️ ${nombre(otro1)} te pasa la basura`);
   });
 });
 

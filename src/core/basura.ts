@@ -55,12 +55,18 @@ export function quejasDe(s: SemanaBasura, m: MiembroId): number {
   return s.avisos.filter((a) => a.estado === 'queja' && a.responsable === m).length;
 }
 
+/** Quién sacó la basura: quien lo apunta o, si lleva `quien` (desde el cuadro: «La ha sacado Jose»), ese. */
+export function sacadaPor(e: Evento): MiembroId {
+  return typeof e.datos?.quien === 'string' && e.datos.quien ? e.datos.quien : e.autor;
+}
+
 export function calcularBasura(config: Config, normas: Normas, eventos: Evento[], ahora: number): SemanaBasura[] {
   const s = semanaInicial(config);
   const wAhora = semana(ahora);
   const esMiembro = (m: unknown): m is MiembroId => typeof m === 'string' && config.miembros.some((x) => x.id === m);
   const pulsaciones = eventos.filter((e) => e.tipo === 'basura_llena').sort((a, b) => a.ts - b.ts);
-  const sacadas = eventos.filter((e) => e.tipo === 'basura_sacada').sort((a, b) => a.ts - b.ts);
+  // las que dicen que la sacó alguien que no es de la casa no cuentan
+  const sacadas = eventos.filter((e) => e.tipo === 'basura_sacada' && (e.datos?.quien === undefined || esMiembro(e.datos.quien))).sort((a, b) => a.ts - b.ts);
   const cambios = eventos.filter((e) => e.tipo === 'basura_cubierta').sort((a, b) => a.ts - b.ts);
   const r: SemanaBasura[] = [];
 
@@ -69,16 +75,15 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
     if (!tocaba) continue;
     const fin = finSemana(w);
     // «Me la quedo yo» (te la quedas tú, desde ahora o desde el día de esta semana que digas: Javi, 14 de noviembre,
-    // «que se pueda marcar desde cuándo, por si acaso») o «Devolvérsela» (quien la tiene se la devuelve a quien le
-    // tocaba), siempre antes de que acabe su semana. Lo último que se dice manda desde su «desde» en adelante.
+    // «que se pueda marcar desde cuándo, por si acaso») o pasársela a otro: devolvérsela a quien le tocaba o, desde el
+    // cuadro, a cualquiera («poder añadir a quien yo quiera»). A otro, solo desde ahora: lo de antes (avisos y quejas)
+    // no se le echa encima. Siempre antes de que acabe su semana; lo último que se dice manda desde su «desde».
     const tramos: TramoBasura[] = [{ desde: -Infinity, quien: tocaba }];
     for (const c of cambios) {
       if (Number(c.datos?.semana) !== w || c.ts > fin || !esMiembro(c.datos?.quien)) continue;
       const quien: MiembroId = c.datos.quien;
       const actual = responsableEn({ tramos }, c.ts);
       const toma = quien === c.autor;
-      const devuelve = !toma && c.autor === actual && quien === tocaba;
-      if (!toma && !devuelve) continue;
       const pedido = toma && Number.isFinite(Number(c.datos?.desde)) ? Number(c.datos.desde) : c.ts;
       const desde = Math.max(inicioSemana(w), Math.min(c.ts, pedido));
       if (quien === actual && desde >= c.ts) continue; // ya la tiene: nada que cambiar
@@ -88,8 +93,8 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
     const en = (ts: number) => responsableEn({ tramos }, ts);
 
     // la que saca quien la tiene en ese momento y la que saca otro por él («Esta la saqué yo»): las dos la vacían
-    const validas = sacadas.filter((x) => x.autor === en(x.ts));
-    const ajenas = sacadas.filter((x) => x.autor !== en(x.ts) && semana(x.ts) === w);
+    const validas = sacadas.filter((x) => sacadaPor(x) === en(x.ts));
+    const ajenas = sacadas.filter((x) => sacadaPor(x) !== en(x.ts) && semana(x.ts) === w);
     const vacian = sacadas; // cualquiera que la saque dentro del plazo resuelve el aviso
     const avisos: AvisoBasura[] = [];
     for (const p of pulsaciones) {
@@ -104,7 +109,7 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
       let estado: EstadoAviso = 'abierto';
       let resueltoEn: number | undefined;
       let responsable = en(Math.min(ahora, limite));
-      if (sacada && sacada.ts <= limite) { estado = 'resuelto'; resueltoEn = sacada.ts; responsable = sacada.autor; }
+      if (sacada && sacada.ts <= limite) { estado = 'resuelto'; resueltoEn = sacada.ts; responsable = sacadaPor(sacada); }
       else if (ahora > limite) { estado = 'queja'; resueltoEn = limite; responsable = en(limite); }
       avisos.push({ id: p.id, semana: w, responsable, pulsaciones: [p], desde: p.ts, limite, estado, resueltoEn });
     }

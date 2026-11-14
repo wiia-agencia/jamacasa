@@ -6,7 +6,7 @@
 import { basuraDe, zonaDe } from './calendario';
 import { resumen } from './chat';
 import { alquilerPendiente, euros } from './cuentas';
-import { desdeAntes, responsableEn } from './basura';
+import { desdeAntes, responsableEn, sacadaPor } from './basura';
 import { derivar, tareaDe } from './estado';
 import type { Intento, Tarea } from './limpieza';
 import { nota } from './noticias';
@@ -79,6 +79,10 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
   const nombre = nombres(config);
   const yo = nombre(e.autor);
   const w = semana(e.ts);
+  // a quién se refiere: a quien lo apunta o, si lleva `quien` (desde el cuadro se puede poner a cualquiera), a ese
+  const actor: MiembroId = config.miembros.some((x) => x.id === e.datos?.quien) ? e.datos.quien : e.autor;
+  const porOtro = actor !== e.autor;
+  const dice = porOtro ? `${yo} dice que ` : '';
 
   switch (e.tipo) {
     case 'basura_llena': {
@@ -110,30 +114,51 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
       const i = t?.intentos[t.intentos.length - 1];
       if (!t || !i || i.hecho.id !== e.id) return []; // marcado de más: no cuenta
       const hecho = i.n > 1 ? 'ha repasado' : 'ha terminado';
-      return i.sinVotar.map((j) => {
-        const piso = de === e.autor ? `el ${t.zona.nombre}` : j === de ? `tu ${t.zona.nombre.toLowerCase()}` : `el ${t.zona.nombre} de ${nombre(de)}`;
-        return { para: j, titulo: `🧹 ${yo} ${hecho} ${piso}`, texto: `Ponle nota: tienes ${n.horasRevision} horas.`, pantalla: 'hoy' as const, etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` };
+      // si lo apunta otro desde el cuadro («Ya lo ha limpiado Jose»), sale quien lo limpió y quién lo apunta
+      const z = t.zona.nombre.toLowerCase();
+      const r: Aviso[] = i.sinVotar.map((j) => {
+        const piso = de === i.quien ? `el ${t.zona.nombre}` : j === de ? `tu ${z}` : `el ${t.zona.nombre} de ${nombre(de)}`;
+        return { para: j, titulo: `🧹 ${nombre(i.quien)} ${hecho} ${piso}`, texto: `${porOtro ? `Lo apunta ${yo}. ` : ''}Ponle nota: tienes ${n.horasRevision} horas.`, pantalla: 'hoy' as const, etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` };
       });
+      if (porOtro && i.quien === actor) {
+        r.push({ para: actor, titulo: `✅ ${yo} ha marcado como hecho ${de === actor ? `tu ${z}` : `el ${z} de ${nombre(de)}`}`, texto: 'Dice que lo limpiaste tú: la nota es para ti.', pantalla: 'limpieza', etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` });
+      }
+      return r.filter((x) => x.para !== e.autor);
     }
     case 'zona_cubierta': {
-      // «Lo limpio yo»: se lo dice al dueño del piso y al otro (si lo deja, solo al dueño)
+      // «Lo limpio yo» (o «Lo limpia Jose», desde el cuadro): se lo dice al dueño del piso, al otro y, si lo dice
+      // otro, al que se encarga; si lo deja, al dueño (y al que lo deja, si lo dice otro)
       const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
-      if (!t || t.miembro === e.autor) return [];
+      if (!t || t.miembro === actor) return [];
       const z = t.zona.nombre.toLowerCase();
+      const Q = porOtro ? nombre(actor) : yo;
+      const etiqueta = `cubierta-${t.semana}-${t.miembro}`;
       if (e.datos?.deja) {
         if (t.cubre !== undefined || t.primerHecho !== undefined) return [];
-        return [{ para: t.miembro, titulo: `🤝 ${yo} ya no se encarga de tu piso`, texto: `El ${z} vuelve a ser cosa tuya esta semana.`, pantalla: 'limpieza', etiqueta: `cubierta-${t.semana}-${t.miembro}` }];
+        const r: Aviso[] = [{ para: t.miembro, titulo: `🤝 ${dice}${Q} ya no se encarga de tu piso`, texto: `El ${z} vuelve a ser cosa tuya esta semana.`, pantalla: 'limpieza', etiqueta }];
+        if (porOtro) {
+          r.push(
+            e.autor === t.miembro
+              ? { para: actor, titulo: `🤝 ${yo} vuelve a encargarse de su piso`, texto: `El ${z}: ya no te toca a ti.`, pantalla: 'limpieza', etiqueta }
+              : { para: actor, titulo: `🤝 ${yo} dice que ya no te encargas del piso de ${nombre(t.miembro)}`, texto: `El ${z} vuelve a ser cosa de ${nombre(t.miembro)}.`, pantalla: 'limpieza', etiqueta },
+          );
+        }
+        return r.filter((x) => x.para !== e.autor);
       }
-      if (t.cubre !== e.autor || t.cubiertaEn !== e.ts) return [];
+      if (t.cubre !== actor || t.cubiertaEn !== e.ts) return [];
       return config.miembros
         .filter((x) => x.id !== e.autor)
-        .map((x) => ({
-          para: x.id,
-          titulo: x.id === t.miembro ? `🤝 ${yo} se encarga de tu piso esta semana` : `🤝 ${yo} se encarga del piso de ${nombre(t.miembro)}`,
-          texto: `El ${z}. Cuando lo marque, le pones nota.`,
-          pantalla: 'limpieza' as const,
-          etiqueta: `cubierta-${t.semana}-${t.miembro}`,
-        }));
+        .map((x) =>
+          x.id === actor
+            ? { para: x.id, titulo: `🤝 ${yo} dice que te encargas del piso de ${nombre(t.miembro)}`, texto: `El ${z}, esta semana: la nota es para ti.`, pantalla: 'limpieza' as const, etiqueta }
+            : {
+                para: x.id,
+                titulo: x.id === t.miembro ? `🤝 ${dice}${Q} se encarga de tu piso esta semana` : `🤝 ${dice}${Q} se encarga del piso de ${nombre(t.miembro)}`,
+                texto: `El ${z}. Cuando lo marque, le pones nota.`,
+                pantalla: 'limpieza' as const,
+                etiqueta,
+              },
+        );
     }
     case 'zona_hecha_por': {
       // «Lo limpió Jose»: a los otros dos (al que lo limpió, que la nota es suya; a los demás, quién fue)
@@ -156,23 +181,36 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
         });
     }
     case 'zona_ayuda': {
-      // «Le echo una mano»: a quien lo está limpiando (y al dueño, si lo limpia otro); al dejarlo, nada
+      // «Le echo una mano» (o «Josu le echa una mano», desde el cuadro): a quien lo está limpiando (y al dueño, si lo
+      // limpia otro; y al que ayuda, si lo dice otro); al dejarlo, nada
       if (e.datos?.deja) return [];
       const t = tareaDe(estado, Number(e.datos?.semana), e.datos?.de);
-      if (!t || !t.ayudan.includes(e.autor)) return [];
+      if (!t || !t.ayudan.includes(actor)) return [];
       const con = t.cubre ?? t.miembro;
       const z = t.zona.nombre.toLowerCase();
-      const r: Aviso[] = [{ para: con, titulo: `🤝 ${yo} te echa una mano con el ${z}`, texto: `Lo que marque cuenta en tu lista. Si se aprueba, ${pts(n.puntosAyuda)} para él.`, pantalla: 'limpieza', etiqueta: `ayuda-${t.semana}-${t.miembro}-${e.autor}` }];
-      if (con !== t.miembro) r.push({ para: t.miembro, titulo: `🤝 ${yo} le echa una mano a ${nombre(con)} con tu piso`, texto: `El ${z}.`, pantalla: 'limpieza', etiqueta: `ayuda-${t.semana}-${t.miembro}-${e.autor}` });
+      const Q = porOtro ? nombre(actor) : yo;
+      const etiqueta = `ayuda-${t.semana}-${t.miembro}-${actor}`;
+      const r: Aviso[] = [{ para: con, titulo: `🤝 ${dice}${Q} te echa una mano con el ${z}`, texto: `Lo que marque cuenta en tu lista. Si se aprueba, ${pts(n.puntosAyuda)} para él.`, pantalla: 'limpieza', etiqueta }];
+      if (con !== t.miembro) r.push({ para: t.miembro, titulo: `🤝 ${dice}${Q} le echa una mano a ${nombre(con)} con tu piso`, texto: `El ${z}.`, pantalla: 'limpieza', etiqueta });
+      if (porOtro) r.push({ para: actor, titulo: `🤝 ${yo} dice que le echas una mano a ${nombre(con)}`, texto: `Con el ${z}${con === t.miembro ? '' : ` de ${nombre(t.miembro)}`}. Si se aprueba, ${pts(n.puntosAyuda)} para ti.`, pantalla: 'limpieza', etiqueta });
       return r.filter((x) => x.para !== e.autor);
     }
     case 'basura_sacada': {
-      // «Esta la saqué yo»: si la saca otro, se lo dice a quien la tiene
+      // «Esta la saqué yo»: si la saca otro, se lo dice a quien la tiene. Si lo apunta otro desde el cuadro («La ha
+      // sacado Jose»), también a quien la sacó
+      const q = sacadaPor(e);
+      const deOtro = q !== e.autor;
       const s = estado.semanasBasura.find((x) => x.ajenas.some((a) => a.id === e.id));
-      if (!s) return [];
+      if (!s) {
+        const suya = deOtro ? estado.semanasBasura.find((x) => x.sacadas.some((a) => a.id === e.id)) : undefined;
+        return suya ? [{ para: q, titulo: `🗑️ ${yo} ha apuntado que sacaste la basura`, texto: 'Ya consta: si estaba avisada, se acaba el aviso.', pantalla: 'hoy', etiqueta: `basura-${suya.semana}` }] : [];
+      }
       const quien = responsableEn(s, e.ts);
       const resolvio = s.avisos.some((a) => a.resueltoEn === e.ts && a.estado === 'resuelto');
-      return [{ para: quien, titulo: `🗑️ ${yo} ha sacado tu basura`, texto: `${resolvio ? 'Ya no te cae la queja. ' : ''}${pts(n.puntosSacarAjena)} para él.`, pantalla: 'hoy', etiqueta: `basura-${s.semana}` }];
+      const gana = estado.apuntes.some((a) => a.clase === 'sacada' && a.ts === e.ts && a.miembro === q);
+      const r: Aviso[] = [{ para: quien, titulo: `🗑️ ${deOtro ? nombre(q) : yo} ha sacado tu basura`, texto: `${deOtro ? `Lo apunta ${yo}. ` : ''}${resolvio ? 'Ya no te cae la queja. ' : ''}${gana ? `${pts(n.puntosSacarAjena)} para él.` : ''}`.trim(), pantalla: 'hoy', etiqueta: `basura-${s.semana}` }];
+      if (deOtro) r.push({ para: q, titulo: `🗑️ ${yo} ha apuntado que sacaste la basura de ${nombre(quien)}`, texto: gana ? `${pts(n.puntosSacarAjena)} para ti.` : 'Ya consta.', pantalla: 'hoy', etiqueta: `basura-${s.semana}` });
+      return r.filter((x) => x.para !== e.autor && x.texto);
     }
     case 'basura_cubierta': {
       // «Me la quedo yo» (o «Te la devuelvo»): se lo dice a los otros dos
@@ -192,7 +230,15 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
             etiqueta: `basura-${s.semana}`,
           }));
       }
-      return [{ para: tr.quien, titulo: `🗑️ ${yo} te devuelve la basura`, texto: 'Esta semana vuelve a ser tuya: sácala cada vez que se llene.', pantalla: 'hoy', etiqueta: `basura-${s.semana}` }];
+      // se la pasa a otro: se la devuelve a quien le tocaba o, desde el cuadro, a cualquiera (desde ahora)
+      const etiqueta = `basura-${s.semana}`;
+      const r: Aviso[] = [
+        e.autor === antes && tr.quien === s.tocaba
+          ? { para: tr.quien, titulo: `🗑️ ${yo} te devuelve la basura`, texto: 'Esta semana vuelve a ser tuya: sácala cada vez que se llene.', pantalla: 'hoy', etiqueta }
+          : { para: tr.quien, titulo: `🗑️ ${yo} te pasa la basura`, texto: 'Desde ahora es tuya: si se llena, te avisan a ti.', pantalla: 'hoy', etiqueta },
+      ];
+      if (antes !== e.autor && antes !== tr.quien) r.push({ para: antes, titulo: `🗑️ ${yo} le pasa tu basura a ${nombre(tr.quien)}`, texto: 'Desde ahora ya no te toca: los avisos le llegan a él.', pantalla: 'hoy', etiqueta });
+      return r;
     }
     case 'puntuacion': {
       const d = e.datos ?? {};

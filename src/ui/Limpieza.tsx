@@ -2,12 +2,12 @@ import { ArrowLeft, Bath, BedDouble, Check, ChevronDown, ChevronRight, Clock3, D
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as PEvento, type ReactNode } from 'react';
 import { bocadillos, fichaDe, marcaDe, resumenDe, type Bocadillo } from '../core/bocadillos';
 import { escenaCasa } from '../core/escena';
-import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, textoEspacio } from '../core/espacio';
+import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, hechaEstaSemana, type CosaEspacio } from '../core/espacio';
 import { avisosBasuraAbiertos, basuraTocaba, rotacionFutura, tareaDe } from '../core/estado';
 import { enMarcha, type Tarea } from '../core/limpieza';
 import { luzDe } from '../core/luz';
 import { nota } from '../core/noticias';
-import { parteDe, type CuartoParte } from '../core/parte';
+import { esDeTipo, parteDe, type CuartoParte } from '../core/parte';
 import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, nombreDia, rangoSemana } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
 import { Casa3D, type BurbujaCasa, type ParteCasa } from './Casa3D';
@@ -82,25 +82,41 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   // tu cara abre un desplegable escondido: las zonas comunes o «Mi parte», que solo ves tú (Javi, 10 de noviembre)
   const [menuCara, setMenuCara] = useState(false);
   const [enParte, setEnParte] = useState(false);
+  // el cuarto que miras en la casa en 3D (al tocarlo en «Tu parte», debajo de la lista de tu piso)
+  const [cuarto, setCuarto] = useState<string | null>(null);
   const [caras, setCaras] = useState<Record<string, string>>({});
   const [cielo, setCielo] = useState('');
   const [altoCajon, setAltoCajon] = useState(0);
 
-  // «Mi parte»: tus cuartos (config de la casa) y cómo está cada uno (lo tuyo de «Tu espacio»)
+  // «Mi parte»: tus cuartos (config de la casa) y cómo está cada uno (lo tuyo de «Tu parte»)
   const cuartos = useMemo(() => parteDe(config, estado.espacio[yo] ?? [], yo), [config, estado.espacio, yo]);
+  // lo de tus cuartos que esta semana va en la lista de tu piso (el pasillo de arriba, si te toca arriba): se marca ahí
+  const extras = mia ? (mia.zona.extras ?? []).filter((x) => x.para.includes(yo)) : [];
+  const enLista = extras.map((x) => x.id);
+  const clavePiso = mia ? `${mia.marcadas.join('|')}#${mia.estado}` : '';
   const parte: ParteCasa | null = useMemo(
-    () =>
-      enParte && cuartos.length
-        ? { cuartos: cuartos.map((c) => c.id), dias: Object.fromEntries(cuartos.map((c) => [c.id, c.dias])), brillo: Object.fromEntries(cuartos.map((c) => [c.id, c.brillo])) }
-        : null,
-    [enParte, cuartos],
+    () => {
+      if (!enParte || !cuartos.length) return null;
+      // si lo de la lista del piso ya está hecho (marcado, o el piso entero), ese cuarto sale limpio
+      const limpio = (id: string) => extras.some((x) => x.id === id && (mia!.marcadas.includes(x.nombre) || mia!.estado === 'esperando' || mia!.estado === 'aprobada'));
+      return {
+        cuartos: cuartos.map((c) => c.id),
+        dias: Object.fromEntries(cuartos.map((c) => [c.id, limpio(c.id) ? 0 : c.dias])),
+        brillo: Object.fromEntries(cuartos.map((c) => [c.id, limpio(c.id) ? Math.max(c.brillo, 1) : c.brillo])),
+        foco: cuarto,
+      };
+    },
+    [enParte, cuartos, cuarto, clavePiso], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const verComunes = () => { setEnParte(false); setFoco(null); setMenuCara(false); };
+  const verComunes = () => { setEnParte(false); setCuarto(null); setFoco(null); setMenuCara(false); };
   const verParte = () => {
-    setEnParte(true); setFoco(null); setMenuCara(false); setMenuBasura(false);
-    // tus cuartos arriba y, en el cajón, lo tuyo (cuánto lleva cada uno y «Hecho»)
+    setEnParte(true); setCuarto(null); setFoco(null); setMenuCara(false); setMenuBasura(false); setPestana('lista');
+    // tus cuartos arriba y, en el cajón, «Tu parte» (debajo de la lista de tu piso)
     setAbierto(true);
+    setTimeout(() => document.getElementById('tu-parte')?.closest('section')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 120);
   };
+  // tocar un cuarto en «Tu parte»: la casa en 3D lo enseña, de cerca
+  const verCuarto = (id: string) => { setEnParte(true); setCuarto(id); setFoco(null); setMenuCara(false); setMenuBasura(false); };
 
   // la luz de la hora de verdad (se recalcula cada minuto)
   const minuto = Math.floor(estado.ahora / 60_000);
@@ -134,12 +150,12 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   useEffect(() => {
     if (cuboEse) setAbierto(true);
   }, [cuboEse]);
-  const verSuPiso = (m: MiembroId) => { setMenuCara(false); setMenuBasura(false); setEnParte(false); setFoco(m); setAbierto(true); };
+  const verSuPiso = (m: MiembroId) => { setMenuCara(false); setMenuBasura(false); setEnParte(false); setCuarto(null); setFoco(m); setAbierto(true); };
   // las hojas del cuadro piden ir a la lista de un piso (el tuyo o el de otro)
   useEffect(() => {
     const ir = (e: Event) => {
       const m = (e as CustomEvent<MiembroId>).detail;
-      if (m === yo) { setMenuCara(false); setMenuBasura(false); setEnParte(false); setFoco(null); setPestana('lista'); setAbierto(true); }
+      if (m === yo) { setMenuCara(false); setMenuBasura(false); setEnParte(false); setCuarto(null); setFoco(null); setPestana('lista'); setAbierto(true); }
       else verSuPiso(m);
     };
     window.addEventListener('jamacasa-ver-piso', ir);
@@ -167,7 +183,8 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
   );
 
   // lo que tapan la cabecera y el cajón (o la ficha): la casa se encuadra en lo que queda y los bocadillos no se meten debajo
-  const abajo = viendoOtro && !cuboEse ? 175 : abierto ? Math.max(altoCajon, 300) : ASOMA_CAJON + (enParte ? 28 : 44);
+  // (mirando tus cuartos, también el botón «← La casa», que va encima del cajón)
+  const abajo = (viendoOtro && !cuboEse ? 175 : abierto ? Math.max(altoCajon, 300) : ASOMA_CAJON + 44) + (enParte && !viendoOtro ? 52 : 0);
   const margenes = useMemo(() => ({ arriba: ALTO_CABECERA, abajo }), [abajo]);
 
   const ordenCaras = [yo, ...config.miembros.map((m) => m.id).filter((id) => id !== yo)];
@@ -188,8 +205,8 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         <div className="juego-semana">
           {enParte ? (
             <>
-              <h1>Mi parte</h1>
-              <p className="fila" style={{ gap: 5 }}><Lock size={14} aria-hidden="true" /> Solo la ves tú</p>
+              <h1>{(cuarto && cuartos.find((c) => c.id === cuarto)?.nombre) || 'Mi parte'}</h1>
+              <p className="fila" style={{ gap: 5 }}><Lock size={14} aria-hidden="true" /> Solo lo ves tú</p>
             </>
           ) : (
             <>
@@ -216,7 +233,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
                 onClick={() => {
                   setMenuBasura(false);
                   if (tu) { setMenuCara(!menuCara); return; }
-                  setMenuCara(false); setEnParte(false); setFoco(id);
+                  setMenuCara(false); setEnParte(false); setCuarto(null); setFoco(id);
                   const suyo = tareaDe(estado, w, id);
                   setAbierto(Boolean(suyo && conEl(suyo)));
                 }}
@@ -268,30 +285,28 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         </Cajon>
       )}
 
-      {!viendoOtro && enParte && (
-        <Cajon abierto={abierto} setAbierto={setAbierto} alMedir={setAltoCajon} resumen={<ResumenParte />}>
-          <TuEspacio cuartos={cuartos} />
-        </Cajon>
-      )}
-      {!viendoOtro && !enParte && (
+      {!viendoOtro && (
         <Cajon
           abierto={abierto}
           setAbierto={setAbierto}
           alMedir={setAltoCajon}
           resumen={<ResumenCajon t={mia} />}
+          // mirando tus cuartos: para volver a la casa de los tres
+          encima={enParte ? <button type="button" className="juego-ficha-volver" onClick={verComunes}><ArrowLeft size={14} strokeWidth={3} aria-hidden="true" /> La casa</button> : undefined}
           pestanas={[
             { id: 'lista', etiqueta: <ResumenCajon t={mia} corto /> },
             { id: 'semana', etiqueta: <span className="pestana-semana"><b>La semana</b></span> },
           ]}
           pestana={pestana}
-          alPestana={(p) => setPestana(p as 'lista' | 'semana')}
+          alPestana={(p) => { setPestana(p as 'lista' | 'semana'); if (p === 'semana' && enParte) { setEnParte(false); setCuarto(null); } }}
         >
           {pestana === 'lista' ? (
             <>
               {/* el piso de otro del que te encargas (o en el que ayudas), lo primero: si no, queda debajo de tu lista */}
               {otrasQueLimpio.map((t) => <TambienLimpias key={t.miembro} t={t} ver={() => verSuPiso(t.miembro)} />)}
-              {mia ? <LoQueSeLimpia t={mia} empezar={empezar} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
-              <TuEspacio />
+              {mia ? <LoQueSeLimpia t={mia} empezar={empezar} alMarcar={() => { if (enParte) { setEnParte(false); setCuarto(null); } }} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
+              {/* debajo de la lista de tu piso, lo tuyo: se marca en verde y, al tocar un cuarto, sale en la casa */}
+              <TuParte ver={cuartos.length ? verCuarto : undefined} foco={enParte ? cuarto : null} enLista={enLista} />
             </>
           ) : (
             <Secciones caras={caras} />
@@ -330,19 +345,6 @@ function MenuCara({ enParte, cuartos, comunes, parte, cerrar }: { enParte: boole
   );
 }
 
-/** Lo que se ve del cajón cerrado en «Mi parte»: «Tu espacio» y lo que ya toca. */
-function ResumenParte() {
-  const { estado, yo } = useCasa();
-  const cosas = estado.espacio[yo] ?? [];
-  const tocan = cosas.filter((c) => c.toca).length;
-  return (
-    <>
-      <h2>Tu espacio</h2>
-      <span className={`cuenta ${tocan ? 'mal' : ''}`}>{cosas.length === 0 ? 'Sin apuntar' : tocan ? (tocan === 1 ? '1 toca' : `${tocan} tocan`) : 'Al día'}</span>
-    </>
-  );
-}
-
 /** Lo que se ve del cajón cerrado: «Lo que se limpia · 2 de 6» o cómo está tu piso (o el de otro que limpias tú). */
 function ResumenCajon({ t, corto = false }: { t: Tarea | undefined; corto?: boolean }) {
   const { yo, config } = useCasa();
@@ -369,8 +371,11 @@ function ResumenCajon({ t, corto = false }: { t: Tarea | undefined; corto?: bool
 /** El cajón de abajo: cerrado asoma lo que se limpia; se abre tocándolo o subiéndolo con el dedo. */
 function Cajon({ abierto, setAbierto, alMedir, resumen, encima, pestanas, pestana, alPestana, children }: { abierto: boolean; setAbierto: (a: boolean) => void; alMedir: (h: number) => void; resumen: ReactNode; encima?: ReactNode; pestanas?: { id: string; etiqueta: ReactNode }[]; pestana?: string; alPestana?: (id: string) => void; children: ReactNode }) {
   const caja = useRef<HTMLDivElement>(null);
+  const dentro = useRef<HTMLDivElement>(null);
   const arrastre = useRef<{ y: number; dy: number; t: number; pestana: string | null } | null>(null);
   const [dy, setDy] = useState(0);
+  // al cambiar de pestaña, lo de dentro empieza por arriba
+  useEffect(() => { if (dentro.current) dentro.current.scrollTop = 0; }, [pestana]);
   useEffect(() => {
     const el = caja.current;
     if (!el) return;
@@ -438,13 +443,13 @@ function Cajon({ abierto, setAbierto, alMedir, resumen, encima, pestanas, pestan
           </button>
         )}
       </div>
-      <div className="cajon-dentro pila">{children}</div>
+      <div ref={dentro} className="cajon-dentro pila">{children}</div>
     </section>
   );
 }
 
 /** Tu lista de esta semana: se marca cosa a cosa (y al marcar la primera, empiezas a limpiar). */
-function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promise<void> }) {
+function LoQueSeLimpia({ t, empezar, alMarcar }: { t: Tarea; empezar: (t: Tarea) => Promise<void>; alMarcar?: () => void }) {
   const { abrir, acciones, estado, yo, config, avisar } = useCasa();
   const [ocupada, setOcupada] = useState<string | null>(null);
   // el piso de otro del que te encargas tú (o en el que echas una mano): lo que marques va a su piso (con `de`)
@@ -458,6 +463,7 @@ function LoQueSeLimpia({ t, empezar }: { t: Tarea; empezar: (t: Tarea) => Promis
   const fin = finSemana(t.semana);
   const marcar = async (cosa: string) => {
     if (!marcable || ocupada) return;
+    alMarcar?.(); // mirando tus cuartos, la casa vuelve a tu piso para que se vea lo que limpias
     setOcupada(cosa);
     try {
       if (!empezada && t.estado === 'pendiente') await acciones.empezar(t.semana);
@@ -665,7 +671,7 @@ function ListaLimpieza() {
         )}
       </header>
       {estado.empezado && <TuPisoAhora />}
-      <TuEspacio />
+      <TuParte />
       <Secciones />
     </div>
   );
@@ -800,120 +806,122 @@ function iconoEspacio(nombre: string) {
   return <Sparkles size={18} />;
 }
 
-/** «Tu espacio»: lo tuyo, que no sale en la casa de los tres. Solo lo ves tú y no da puntos: te dice cuánto llevas
- *  sin limpiarlo y te avisa cuando toca. En «Mi parte» (con tus cuartos), ofrece apuntar los que faltan: lo que
- *  apuntas ahí es lo que enseña la casa en cada cuarto. */
-function TuEspacio({ cuartos }: { cuartos?: CuartoParte[] }) {
-  const { estado, yo, acciones, avisar } = useCasa();
+/** «Tu parte»: tus cuartos (los de la config de la casa: tu habitación, tu baño, el pasillo) y lo demás tuyo de «Tu
+ *  espacio», debajo de la lista de tu piso. Se marca en verde como lo del piso (vale para esta semana: el lunes vuelve a
+ *  salir sin marcar) y, al tocar un cuarto, la casa en 3D lo enseña (Javi, 14 de noviembre: «que le dé a mi
+ *  habitación, se cargue en el mapa… un apartado de tu habitación que yo pueda marcar en verde»). Solo lo ves tú y no
+ *  da puntos: te dice cuánto llevas sin limpiarlo y te avisa cuando toca. `enLista`: los cuartos que esta semana ya van
+ *  en la lista de tu piso (el pasillo de arriba), que no se repiten aquí. */
+function TuParte({ ver, foco = null, enLista = [] }: { ver?: (cuarto: string) => void; foco?: string | null; enLista?: string[] }) {
+  const { estado, config, yo, acciones } = useCasa();
   const cosas = estado.espacio[yo] ?? [];
+  const todos = parteDe(config, cosas, yo);
+  const cuartos = todos.filter((c) => !enLista.includes(c.id));
+  const deCuarto = new Set(todos.map((c) => c.cosa?.id).filter((x): x is string => Boolean(x)));
+  const sueltas = cosas.filter((c) => !deCuarto.has(c.id)); // lo demás que has apuntado (Jose, su piso)
+  const [ocupada, setOcupada] = useState<string | null>(null);
   const [cambiando, setCambiando] = useState(false);
   const [otra, setOtra] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  // en «Mi parte», los cuartos sin apuntar se apuntan con su propio nombre de cuarto (así se juntan seguro)
-  const faltan = (cuartos ?? []).filter((c, i, a) => !c.cosa && a.findIndex((d) => d.nombre === c.nombre && !d.cosa) === i);
-  const sugeridas = SUGERENCIAS_ESPACIO.filter(
-    (s) => !cosas.some((c) => c.nombre.toLowerCase() === s.toLowerCase()) && !faltan.some((c) => c.nombre.toLowerCase() === s.toLowerCase()),
-  );
-  const hacer = async (f: () => Promise<void>, texto?: string) => {
-    if (ocupado) return;
-    setOcupado(true);
-    try {
-      await f();
-      if (texto) avisar(texto);
-    } finally {
-      setOcupado(false);
-    }
+  const hecha = (c: CosaEspacio | null) => Boolean(c && hechaEstaSemana(c, estado.ahora));
+  const linea = (c: CosaEspacio | null) => {
+    if (!c || c.ultima === null) return 'Sin marcar todavía';
+    if (hechaEstaSemana(c, estado.ahora)) return c.dias === 0 ? 'Limpia: hoy' : c.dias === 1 ? 'Limpia: ayer' : `Limpia: el ${nombreDia(c.ultima)}`;
+    return `Hace ${c.dias} ${c.dias === 1 ? 'día' : 'días'}${c.toca ? ' · ya toca' : ''}`;
   };
-  const anadir = (nombre: string) => hacer(() => acciones.espacioCosa(`c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, nombre, CADA_ESPACIO));
+  const hacer = async (k: string, f: () => Promise<void>) => {
+    if (ocupada) return;
+    setOcupada(k);
+    try { await f(); } finally { setOcupada(null); }
+  };
+  // marcar (o desmarcar) en verde; un cuarto que aún no estaba apuntado se apunta con su propio nombre de cuarto
+  const marcar = (k: string, cosa: CosaEspacio | null, cuarto?: { id: string; nombre: string }) =>
+    hacer(k, async () => {
+      if (cosa && hecha(cosa)) { await acciones.espacioDeshecho(cosa.id); return; }
+      if (!cosa && cuarto) await acciones.espacioCosa(cuarto.id, cuarto.nombre, CADA_ESPACIO);
+      await acciones.espacioHecho(cosa?.id ?? cuarto!.id);
+    });
+  const anadir = (nombre: string) => hacer('nueva', () => acciones.espacioCosa(`c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, nombre, CADA_ESPACIO));
+  const sugeridas = SUGERENCIAS_ESPACIO.filter(
+    (x) => !cosas.some((c) => c.nombre.toLowerCase() === x.toLowerCase()) && !todos.some((c) => esDeTipo(c.tipo, x)),
+  );
 
-  const cuerpo = (
-    <>
-      {cosas.length > 0 ? (
-        <div className="caja">
-          <div className="lista">
-            {cosas.map((c) => (
-              <div key={c.id} className="item">
-                <span className="avatar" style={{ background: 'var(--papel-2)', color: 'var(--texto-2)' }} aria-hidden="true">{iconoEspacio(c.nombre)}</span>
-                <span className="crece">
-                  <span className="negrita" style={{ display: 'block' }}>{c.nombre}</span>
-                  <span className={c.toca ? 'peq mal negrita' : 'peq suave'}>{textoEspacio(c)}</span>
-                </span>
-                {cambiando ? (
-                  <button type="button" className="boton mini peligro" disabled={ocupado} onClick={() => hacer(() => acciones.espacioQuitar(c.id))}>
-                    Quitar
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className={c.toca ? 'boton mini' : 'boton mini claro'}
-                    disabled={ocupado}
-                    onClick={() => hacer(() => acciones.espacioHecho(c.id), `${c.nombre}: hecho. Te aviso dentro de ${c.cada === 7 ? 'una semana' : `${c.cada} días`}.`)}
-                  >
-                    Hecho
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : faltan.length === 0 ? (
-        <p className="peq suave">Apunta lo tuyo (tu habitación, tu baño…): te dice cuánto llevas sin limpiarlo y te avisa cuando toca. Los otros dos no lo ven.</p>
-      ) : null}
-      {faltan.length > 0 && (
-        <div className="pila-s">
-          <p className="peq suave" style={{ margin: 0 }}>
-            {cosas.length === 0 ? 'Apunta tus cuartos: la casa enseña cuánto lleva cada uno sin limpiarse y te avisa cuando toca. Los otros dos no lo ven.' : 'Apunta lo que falta y se verá en tu parte de la casa:'}
-          </p>
+  const fila = (k: string, nombre: string, cosa: CosaEspacio | null, cuarto?: string) => {
+    const si = hecha(cosa);
+    const verlo = cuarto && ver ? () => ver(cuarto) : undefined;
+    return (
+      <li key={k} className={`tu-parte-fila ${cuarto && foco === cuarto ? 'mirando' : ''}`}>
+        {cambiando && cosa && !cuarto ? (
+          <button type="button" className="boton mini peligro" disabled={ocupada !== null} onClick={() => hacer(k, () => acciones.espacioQuitar(cosa.id))}>Quitar</button>
+        ) : (
+          <button
+            type="button"
+            className={`marcar-cosa tu-parte-marca ${si ? 'hecha' : ''}`}
+            aria-pressed={si}
+            aria-label={`${nombre}: ${si ? 'desmarcar' : 'marcar como limpia'}`}
+            disabled={ocupada === k}
+            onClick={() => { verlo?.(); marcar(k, cosa, cuarto ? { id: cuarto, nombre } : undefined); }}
+          >
+            <span className="marcar-caja" aria-hidden="true">{si && <Check size={15} strokeWidth={3} />}</span>
+          </button>
+        )}
+        <button type="button" className={`tu-parte-ver ${si ? 'hecha' : ''}`} disabled={!verlo} onClick={verlo}>
+          <span className="tu-parte-icono" aria-hidden="true">{iconoEspacio(nombre)}</span>
+          <span className="crece">
+            <b>{nombre}</b>
+            <small className={!si && cosa?.toca ? 'mal' : ''}>{linea(cosa)}</small>
+          </span>
+          {verlo && <span className="tu-parte-mapa" aria-hidden="true"><House size={14} strokeWidth={2.6} /> {foco === cuarto ? 'Viéndolo' : 'Ver'}</span>}
+        </button>
+      </li>
+    );
+  };
+
+  const vacio = cuartos.length === 0 && sueltas.length === 0;
+  return (
+    <Seccion titulo="Tu parte" extra={<span className="mini tenue fila" style={{ gap: 5 }}><Lock size={13} aria-hidden="true" />Solo lo ves tú</span>}>
+      <div id="tu-parte" className="pila-s">
+        {!vacio && (
+          <ul className="marcar tu-parte" aria-label="Tu parte: lo que limpias tú solo">
+            {cuartos.map((c) => fila(c.id, c.nombre, c.cosa, c.id))}
+            {sueltas.map((c) => fila(c.id, c.nombre, c))}
+          </ul>
+        )}
+        {vacio && <p className="peq suave">Apunta lo tuyo (tu habitación, tu baño…): se marca en verde como lo de tu piso, te dice cuánto llevas sin limpiarlo y te avisa cuando toca. Los otros dos no lo ven.</p>}
+        {(vacio || cambiando) && (
           <div className="opciones">
-            {faltan.map((c) => (
-              <button key={c.id} type="button" className="opcion" disabled={ocupado} onClick={() => hacer(() => acciones.espacioCosa(c.id, c.nombre, CADA_ESPACIO))}>
-                <Plus size={15} aria-hidden="true" /> {c.nombre}
+            {sugeridas.map((x) => (
+              <button key={x} type="button" className="opcion" disabled={ocupada !== null} onClick={() => anadir(x)}>
+                <Plus size={15} aria-hidden="true" /> {x}
               </button>
             ))}
+            {otra === null && (
+              <button type="button" className="opcion" onClick={() => setOtra('')}>
+                <Plus size={15} aria-hidden="true" /> Otra cosa
+              </button>
+            )}
           </div>
-        </div>
-      )}
-      {((cosas.length === 0 && faltan.length === 0) || cambiando) && (
-        <div className="opciones">
-          {sugeridas.map((s) => (
-            <button key={s} type="button" className="opcion" disabled={ocupado} onClick={() => anadir(s)}>
-              <Plus size={15} aria-hidden="true" /> {s}
-            </button>
-          ))}
-          {otra === null && (
-            <button type="button" className="opcion" onClick={() => setOtra('')}>
-              <Plus size={15} aria-hidden="true" /> Otra cosa
-            </button>
-          )}
-        </div>
-      )}
-      {otra !== null && (
-        <form
-          className="fila"
-          onSubmit={(ev) => {
-            ev.preventDefault();
-            const n = otra.trim();
-            if (!n) return;
-            anadir(n);
-            setOtra(null);
-          }}
-        >
-          <input className="entrada crece" value={otra} onChange={(ev) => setOtra(ev.target.value)} placeholder="Por ejemplo, el armario" maxLength={40} autoFocus aria-label="Qué quieres apuntar" />
-          <button type="submit" className="boton mini" disabled={!otra.trim() || ocupado}>Añadir</button>
-        </form>
-      )}
-      {cosas.length > 0 && (
-        <button type="button" className="enlace" style={{ alignSelf: 'flex-start' }} onClick={() => { setCambiando(!cambiando); setOtra(null); }}>
-          {cambiando ? 'Listo' : 'Añadir o quitar cosas'}
-        </button>
-      )}
-    </>
-  );
-  // en «Mi parte» ya dice arriba que solo lo ves tú y el cajón se llama «Tu espacio»
-  if (cuartos) return <section className="pila-s" aria-label="Tu espacio">{cuerpo}</section>;
-  return (
-    <Seccion titulo="Tu espacio" extra={<span className="mini tenue fila" style={{ gap: 5 }}><Lock size={13} aria-hidden="true" />Solo lo ves tú</span>}>
-      {cuerpo}
+        )}
+        {otra !== null && (
+          <form
+            className="fila"
+            onSubmit={(ev) => {
+              ev.preventDefault();
+              const n = otra.trim();
+              if (!n) return;
+              anadir(n);
+              setOtra(null);
+            }}
+          >
+            <input className="entrada crece" value={otra} onChange={(ev) => setOtra(ev.target.value)} placeholder="Por ejemplo, el armario" maxLength={40} autoFocus aria-label="Qué quieres apuntar" />
+            <button type="submit" className="boton mini" disabled={!otra.trim() || ocupada !== null}>Añadir</button>
+          </form>
+        )}
+        {!vacio && (
+          <button type="button" className="enlace" style={{ alignSelf: 'flex-start' }} onClick={() => { setCambiando(!cambiando); setOtra(null); }}>
+            {cambiando ? 'Listo' : 'Añadir o quitar cosas'}
+          </button>
+        )}
+      </div>
     </Seccion>
   );
 }

@@ -15,7 +15,7 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
   switch (hoja.tipo) {
     case 'hecho': return <HojaHecho tarea={hoja.tarea} />;
     case 'cubrir': return <HojaCubrir tarea={hoja.tarea} />;
-    case 'ponerme': return hoja.fila === 'basura' ? <PonermeBasura /> : <PonermePiso de={hoja.fila} />;
+    case 'ponerme': return hoja.fila === 'basura' ? <PonermeBasura key={`b-${hoja.quien ?? ''}`} quien={hoja.quien} /> : <PonermePiso key={`${hoja.fila}-${hoja.quien ?? ''}`} de={hoja.fila} quien={hoja.quien} />;
     case 'puntuar': return <HojaPuntuar tarea={hoja.tarea} intento={hoja.intento} />;
     case 'basura': return <HojaBasura />;
     case 'tuyo': return <HojaTuyo />;

@@ -1,9 +1,9 @@
 import { hash32 } from './azar';
-import { desdeAntes, responsableEn, type AvisoTuyo, type SemanaBasura } from './basura';
+import { desdeAntes, responsableEn, sacadaPor, type AvisoTuyo, type SemanaBasura } from './basura';
 import { euros, type Cuentas } from './cuentas';
 import type { Tarea } from './limpieza';
 import { nombreDia, nombreMes } from './tiempo';
-import type { Config, MiembroId, Normas } from './tipos';
+import type { Config, Evento, MiembroId, Normas } from './tipos';
 
 export interface Noticia {
   id: string;
@@ -27,12 +27,16 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
     const zona = t.zona.nombre.toLowerCase();
     if (t.empezada !== undefined) r.push({ id: `${t.semana}-${t.miembro}-em`, ts: t.empezada, quien: t.miembro, texto: `${X} ha empezado a limpiar el ${zona}.` });
     if (t.cubre !== undefined && t.cubiertaEn !== undefined) {
-      r.push({ id: `${t.semana}-${t.miembro}-cu`, ts: t.cubiertaEn, quien: t.cubre, texto: `${n(t.cubre)} se encarga del ${zona} de ${X} esta semana.` });
+      // si lo dijo otro desde el cuadro («Lo limpia Jose»), la noticia es de quien lo dijo
+      const por = t.cubiertaPor ?? t.cubre;
+      const dice = por !== t.cubre ? `${n(por)} dice que ` : '';
+      r.push({ id: `${t.semana}-${t.miembro}-cu`, ts: t.cubiertaEn, quien: por, texto: `${dice}${n(t.cubre)} se encarga del ${zona} de ${X} esta semana.` });
     }
-    // «Le echo una mano»
+    // «Le echo una mano» (o «Josu le echa una mano», desde el cuadro)
     for (const a of t.ayudas) {
       const con = t.cubre ?? t.miembro;
-      r.push({ id: `${t.semana}-${t.miembro}-${a.quien}-ay`, ts: a.ts, quien: a.quien, texto: `${n(a.quien)} le echa una mano a ${n(con)} con el ${zona}${con === t.miembro ? '' : ` de ${X}`}.` });
+      const dice = a.por !== a.quien ? `${n(a.por)} dice que ` : '';
+      r.push({ id: `${t.semana}-${t.miembro}-${a.quien}-ay`, ts: a.ts, quien: a.por, texto: `${dice}${n(a.quien)} le echa una mano a ${n(con)} con el ${zona}${con === t.miembro ? '' : ` de ${X}`}.` });
     }
     for (const i of t.intentos) {
       // si lo limpió otro, la noticia es de quien lo limpió y se dice de quién era el piso
@@ -40,7 +44,9 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
       const suyo = i.quien === t.miembro;
       const elPiso = suyo ? `el ${zona}` : `el ${zona} de ${X}`;
       const elDe = suyo ? `el ${zona} de ${X}` : `el ${zona} que limpió ${Q}`;
-      r.push({ id: `${i.hecho.id}-h`, ts: i.hecho.ts, quien: i.quien, texto: i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`, fotos: i.hecho.datos?.fotos });
+      // si lo apuntó otro desde el cuadro («Ya lo ha limpiado Jose»), se dice quién
+      const apunta = i.hecho.autor !== i.quien && !i.corregido ? ` Lo apunta ${n(i.hecho.autor)}.` : '';
+      r.push({ id: `${i.hecho.id}-h`, ts: i.hecho.ts, quien: i.quien, texto: (i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`) + apunta, fotos: i.hecho.datos?.fotos });
       if (i.corregido) {
         r.push({ id: `${t.semana}-${t.miembro}-${i.n}-hp`, ts: i.corregido.ts, quien: i.corregido.por, texto: `${n(i.corregido.por)} dice que el ${zona} de ${X} lo limpió ${Q}.` });
       }
@@ -83,14 +89,17 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
   }
 
   for (const s of basura) {
-    // «Me la quedo yo» y «Te la devuelvo»
+    // «Me la quedo yo», «Te la devuelvo» y pasársela a otro desde el cuadro
     for (const tr of s.tramos) {
       const c = tr.evento;
       if (!c) continue;
       const cuando = desdeAntes(tr) ? `desde el ${nombreDia(tr.desde)}` : 'de esta semana';
+      const antes = responsableEn(s, tr.desde - 1); // quien la tenía justo antes
       const texto = c.autor === tr.quien
         ? `${n(tr.quien)} se queda la basura ${cuando}${tr.quien === s.tocaba ? '' : ` (le tocaba a ${n(s.tocaba)})`}.`
-        : `${n(c.autor)} le devuelve la basura a ${n(tr.quien)}.`;
+        : c.autor === antes
+          ? tr.quien === s.tocaba ? `${n(c.autor)} le devuelve la basura a ${n(tr.quien)}.` : `${n(c.autor)} le pasa la basura a ${n(tr.quien)}.`
+          : `${n(c.autor)} le pasa la basura de ${n(antes)} a ${n(tr.quien)}.`;
       r.push({ id: `${c.id}-bc`, ts: c.ts, quien: c.autor, texto });
     }
     for (const a of s.avisos) {
@@ -112,9 +121,11 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
         });
       }
     }
-    for (const x of s.sacadas) r.push({ id: `${x.id}-s`, ts: x.ts, quien: x.autor, texto: `${n(x.autor)} ha sacado la basura.` });
+    // quien la sacó (si lo apuntó otro desde el cuadro, «La ha sacado Jose», se dice quién)
+    const apunta = (x: Evento) => (sacadaPor(x) !== x.autor ? ` Lo apunta ${n(x.autor)}.` : '');
+    for (const x of s.sacadas) r.push({ id: `${x.id}-s`, ts: x.ts, quien: sacadaPor(x), texto: `${n(sacadaPor(x))} ha sacado la basura.${apunta(x)}` });
     // «Esta la saqué yo»
-    for (const x of s.ajenas) r.push({ id: `${x.id}-sa`, ts: x.ts, quien: x.autor, texto: `${n(x.autor)} ha sacado la basura de ${n(responsableEn(s, x.ts))}.` });
+    for (const x of s.ajenas) r.push({ id: `${x.id}-sa`, ts: x.ts, quien: sacadaPor(x), texto: `${n(sacadaPor(x))} ha sacado la basura de ${n(responsableEn(s, x.ts))}.${apunta(x)}` });
   }
 
   for (const a of tuyos) {

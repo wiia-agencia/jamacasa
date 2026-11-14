@@ -3,7 +3,7 @@ import { DIA_NIVEL, DIAS_DE_NIVEL, nivelDeDias } from './suciedad.js';
 import { construirCasa, construirParte, construirRuina, liberar } from './casa.js';
 import { crearMonigote } from './monigotes.js';
 import { ESTILOS } from './estilos.js';
-import { PERSONAS, PISOS, TURNOS, ESCENAS, ESTADOS, ALTURA, ORDEN_PERSONAS, PIEDRA_SUBE, GARAJE, VISTAS_JUEGO, ponerTurnos } from './datos.js';
+import { PERSONAS, PISOS, TURNOS, ESCENAS, ESTADOS, ALTURA, ORDEN_PERSONAS, PIEDRA_SUBE, GARAJE, VISTAS_JUEGO, CUARTOS, ponerTurnos } from './datos.js';
 import { CX, CZ } from './geometria.js';
 
 const GRIS = new THREE.Color('#8b8f98');
@@ -162,8 +162,53 @@ export function crearVisor(contenedor, opciones = {}) {
     return casa.garaje ? [...casa.plantas, casa.garaje] : casa.plantas;
   }
 
+  // el cuarto que miras en «Mi parte» (al tocarlo en «Tu parte»): un marco blando de tu color en su suelo
+  let marco = null;
+  function texturaMarco(w, h, color) {
+    const esc = 64, W = Math.ceil(w * esc), H = Math.ceil(h * esc);
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    // por dentro de las paredes (que tapan el borde del cuarto): un velo, el marco de tu color y un filo blanco para que
+    // se vea también en un suelo de tu mismo color
+    const m = 0.32 * esc, r = 0.35 * esc;
+    const borde = () => { g.beginPath(); if (g.roundRect) g.roundRect(m, m, W - 2 * m, H - 2 * m, r); else g.rect(m, m, W - 2 * m, H - 2 * m); };
+    borde();
+    g.globalAlpha = 0.18; g.fillStyle = color; g.fill();
+    g.globalAlpha = 1;
+    g.strokeStyle = color; g.lineWidth = 0.16 * esc;
+    g.shadowColor = color; g.shadowBlur = 0.4 * esc;
+    borde(); g.stroke(); g.stroke();
+    g.shadowBlur = 0; g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 0.045 * esc;
+    borde(); g.stroke();
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  function quitarMarco() {
+    if (!marco) return;
+    marco.parent?.remove(marco);
+    marco.geometry.dispose(); marco.material.map?.dispose(); marco.material.dispose();
+    marco = null;
+  }
+  function ponerMarco() {
+    quitarMarco();
+    const id = st.parte && st.parte.foco, c = id && CUARTOS[id];
+    if (!juego || !casa || !casa.parte || !c || !st.parte.cuartos.includes(id)) return;
+    const [x0, y0, x1, y1] = c.zona;
+    marco = new THREE.Mesh(
+      new THREE.PlaneGeometry(x1 - x0, y1 - y0),
+      new THREE.MeshBasicMaterial({ map: texturaMarco(x1 - x0, y1 - y0, (PERSONAS[st.verComo] || {}).color || '#ffffff'), transparent: true, depthWrite: false }),
+    );
+    marco.rotation.x = -Math.PI / 2;
+    marco.position.set((x0 + x1) / 2 - CX, (x0 < 11 ? PIEDRA_SUBE : 0) + 0.035, (y0 + y1) / 2 - CZ);
+    marco.renderOrder = 2;
+    casa.parte.grupo.add(marco);
+  }
+
   // «Mi parte»: tus cuartos, que se construyen solo cuando hacen falta (y otra vez si cambian)
   function ponerParte() {
+    quitarMarco();
     if (!casa) return;
     if (casa.parte) {
       for (const m of Object.values(monigotes)) if (m.raiz.parent === casa.parte.grupo) casa.parte.grupo.remove(m.raiz);
@@ -175,6 +220,7 @@ export function crearVisor(contenedor, opciones = {}) {
     casa.parte.escala = casa.parte.escalaObj = 1;
     escena.add(casa.parte.grupo);
     colocar(casa.parte);
+    ponerMarco();
     ultimoAz = null; // para que sus paredes de delante salgan cortadas
   }
 
@@ -183,7 +229,8 @@ export function crearVisor(contenedor, opciones = {}) {
       for (const p of plantasConGaraje()) { escena.remove(p.grupo); liberar(p.grupo); }
       escena.remove(casa.tejado.grupo); liberar(casa.tejado.grupo);
       if (casa.jardin) { escena.remove(casa.jardin.grupo); liberar(casa.jardin.grupo); }
-      if (casa.parte) { escena.remove(casa.parte.grupo); liberar(casa.parte.grupo); }
+      quitarMarco();
+      if (casa.parte) { escena.remove(casa.parte.grupo); liberar(casa.parte.grupo); casa.parte = null; }
       for (const m of Object.values(monigotes)) { m.raiz.parent?.remove(m.raiz); m.liberar(); }
     }
     const E = ESTILOS[st.estilo];
@@ -476,9 +523,10 @@ export function crearVisor(contenedor, opciones = {}) {
       const cfg = (esc.personas && esc.personas[id]) || {};
       let planta, sitio, pose, texto = '';
       if (enParte && id === st.verComo) {
-        // en «Mi parte», tú en tu cuarto (los otros dos se quedan en sus pisos, que no se ven)
+        // en «Mi parte», tú en tu cuarto (el que miras, si tocaste uno; los otros dos se quedan en sus pisos)
         planta = casa.parte;
-        sitio = planta.def.sitios.pie;
+        const f = st.parte && st.parte.foco;
+        sitio = f && CUARTOS[f] && st.parte.cuartos.includes(f) ? CUARTOS[f].sitio : planta.def.sitios.pie;
         pose = 'pie';
       } else if (st.extra === id && casa.garaje) {
         planta = casa.garaje;
@@ -602,6 +650,12 @@ export function crearVisor(contenedor, opciones = {}) {
   }
   function puntosJuego() {
     if (casa.parte) {
+      // el cuarto que miras, de cerca; si no, todos tus cuartos
+      const f = st.parte && st.parte.foco, c = f && CUARTOS[f] && st.parte.cuartos.includes(f) ? CUARTOS[f] : null;
+      if (c) {
+        const v = VISTAS_JUEGO.cuarto, [x0, y0, x1, y1] = c.zona, b = posY[2] + (x0 < 11 ? PIEDRA_SUBE : 0);
+        return ['cuarto-' + f, prisma([], { xs: [x0, x1], ys: [y0, y1] }, b + v.h[0], b + v.h[1]), v.margen];
+      }
       const v = VISTAS_JUEGO.parte, b = posY[2];
       return ['parte', prisma([], casa.parte.huella, b + v.h[0], b + v.h[1]), v.margen];
     }
@@ -989,12 +1043,14 @@ export function crearVisor(contenedor, opciones = {}) {
     // «Mi parte»: { cuartos: ['habitacion1', …], dias: { habitacion1: 3, … } } o null para volver a la casa de los tres
     setParte(parte) {
       const nueva = juego && parte && Array.isArray(parte.cuartos) && parte.cuartos.length
-        ? { cuartos: parte.cuartos.slice(), dias: { ...(parte.dias || {}) }, brillo: { ...(parte.brillo || {}) } }
+        ? { cuartos: parte.cuartos.slice(), dias: { ...(parte.dias || {}) }, brillo: { ...(parte.brillo || {}) }, foco: parte.foco || null }
         : null;
       const antes = st.parte ? st.parte.cuartos.join(',') : '';
-      const cambia = !st.parte !== !nueva;
+      const focoAntes = st.parte ? st.parte.foco : null;
+      const cambia = !st.parte !== !nueva || (nueva && nueva.foco !== focoAntes);
       st.parte = nueva;
       if ((nueva ? nueva.cuartos.join(',') : '') !== antes) ponerParte();
+      else if (nueva && nueva.foco !== focoAntes) ponerMarco();
       if (cambia) { st.zoom = 1; st.pan.set(0, 0); }
       aplicar();
     },

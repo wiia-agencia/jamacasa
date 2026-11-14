@@ -4,7 +4,9 @@
 //  · espacio_cosa { cosa, nombre, cada }: apunta una cosa o le cambia el nombre o cada cuánto (días)
 //  · espacio_cosa_quitada { cosa }: la quita
 //  · espacio_hecho { cosa }: la acabas de limpiar
-import { diaLocal } from './tiempo';
+//  · espacio_deshecho { cosa }: la desmarcas (quita la última vez que la marcaste como hecha). En «Tu parte», debajo
+//    de la lista de tu piso, se marca en verde como lo del piso y se desmarca igual (Javi, 14 de noviembre)
+import { diaLocal, inicioSemana, semana } from './tiempo';
 import type { Evento, MiembroId } from './tipos';
 
 export interface CosaEspacio {
@@ -24,9 +26,33 @@ export const SUGERENCIAS_ESPACIO = ['Tu habitación', 'Tu baño', 'Tu piso'];
 /** Cada cuánto, si no se dice otra cosa: cada semana. */
 export const CADA_ESPACIO = 7;
 
+/** Los «Hecho» de «Tu espacio» que se desmarcaron después (cada espacio_deshecho quita el último que quede). */
+export function espacioAnulados(eventos: Evento[], ahora = Infinity): Set<string> {
+  const vivos = new Map<string, string[]>(); // dueño|cosa → sus «Hecho», en orden
+  const r = new Set<string>();
+  for (const e of [...eventos].sort((a, b) => a.ts - b.ts)) {
+    if (e.ts > ahora || (e.tipo !== 'espacio_hecho' && e.tipo !== 'espacio_deshecho' && e.tipo !== 'espacio_cosa_quitada')) continue;
+    const k = `${e.autor}|${e.datos?.cosa}`;
+    if (e.tipo === 'espacio_cosa_quitada') { vivos.delete(k); continue; }
+    const l = vivos.get(k) ?? vivos.set(k, []).get(k)!;
+    if (e.tipo === 'espacio_hecho') l.push(e.id);
+    else {
+      const id = l.pop();
+      if (id) r.add(id);
+    }
+  }
+  return r;
+}
+
+/** ¿La marcaste como hecha esta semana? (en «Tu parte» sale en verde, como lo de la lista del piso) */
+export function hechaEstaSemana(c: CosaEspacio, ahora: number): boolean {
+  return c.ultima !== null && c.ultima >= inicioSemana(semana(ahora));
+}
+
 export function calcularEspacio(eventos: Evento[], ahora: number): Record<MiembroId, CosaEspacio[]> {
   type Bruta = { m: MiembroId; id: string; nombre: string; cada: number; creada: number; ultima: number | null };
   const cosas = new Map<string, Bruta>();
+  const anulados = espacioAnulados(eventos, ahora);
   for (const e of [...eventos].sort((a, b) => a.ts - b.ts)) {
     if (e.ts > ahora || !e.tipo.startsWith('espacio_')) continue;
     const id = e.datos?.cosa;
@@ -40,7 +66,7 @@ export function calcularEspacio(eventos: Evento[], ahora: number): Record<Miembr
       else cosas.set(k, { m: e.autor, id, nombre, cada, creada: e.ts, ultima: null });
     } else if (e.tipo === 'espacio_cosa_quitada') {
       cosas.delete(k);
-    } else if (e.tipo === 'espacio_hecho') {
+    } else if (e.tipo === 'espacio_hecho' && !anulados.has(e.id)) {
       const ya = cosas.get(k);
       if (ya) ya.ultima = e.ts;
     }

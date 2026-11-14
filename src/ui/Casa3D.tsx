@@ -31,6 +31,8 @@ export interface ParteCasa {
   cuartos: string[];
   dias: Record<string, number | null>;
   brillo: Record<string, number>;
+  /** El cuarto que se mira (al tocarlo en «Tu parte»): se ve de cerca, con un marco de tu color y tú dentro */
+  foco?: string | null;
 }
 
 export interface JuegoCasa {

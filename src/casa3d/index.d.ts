@@ -13,7 +13,7 @@ export interface Visor {
   // pantalla de juego (Limpieza)
   setFoco(nivel: number | null): void;
   setCerca(cerca: boolean): void;
-  setParte(parte: { cuartos: string[]; dias: Record<string, number | null>; brillo: Record<string, number> } | null): void;
+  setParte(parte: { cuartos: string[]; dias: Record<string, number | null>; brillo: Record<string, number>; foco?: string | null } | null): void;
   setBurbujas(lista: { id: string; titulo: string; sub?: string; tono: string; alTocar?: () => void }[]): void;
   setLuz(luz: import('../core/luz').Luz | null): void;
   setMargenes(m: { arriba?: number; abajo?: number }): void;

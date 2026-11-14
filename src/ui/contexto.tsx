@@ -13,7 +13,7 @@ export type Pantalla = 'hoy' | 'limpieza' | 'cuentas' | 'juego' | 'chat';
 export type Hoja =
   | { tipo: 'hecho'; tarea: Tarea }
   | { tipo: 'cubrir'; tarea: Tarea }
-  | { tipo: 'ponerme'; fila: MiembroId | 'basura' } // el cuadro de la semana: lo que puedes hacer en esa fila
+  | { tipo: 'ponerme'; fila: MiembroId | 'basura'; quien?: MiembroId } // el cuadro de la semana: lo que se puede hacer en esa fila (tú o a quien arrastras)
   | { tipo: 'puntuar'; tarea: Tarea; intento: Intento }
   | { tipo: 'basura' }
   | { tipo: 'tuyo' }
@@ -31,21 +31,25 @@ export interface Acciones {
   empezar(semana: number): Promise<void>;
   /** «Lo que se limpia»: marcar (o desmarcar) una cosa de la lista de tu piso (o del de `de`, si lo limpias tú) */
   marcarCosa(semana: number, cosa: string, hecha: boolean, de?: MiembroId): Promise<void>;
-  marcarHecho(semana: number, fotos: string[], nota?: string, de?: MiembroId): Promise<void>;
-  /** «Lo limpio yo»: te encargas del piso de otro esta semana (o lo dejas) */
-  cubrir(semana: number, de: MiembroId): Promise<void>;
-  dejarDeCubrir(semana: number, de: MiembroId): Promise<void>;
-  /** «Le echo una mano» con el piso de otro (o «Ya no ayudo») */
-  ayudar(semana: number, de: MiembroId): Promise<void>;
+  /** Marcar tu piso como hecho (o el de `de`); con `quien`, desde el cuadro: «Ya lo ha limpiado Jose» */
+  marcarHecho(semana: number, fotos: string[], nota?: string, de?: MiembroId, quien?: MiembroId): Promise<void>;
+  /** «Lo limpio yo»: te encargas del piso de otro esta semana (o lo dejas); con `quien`, se lo pones a otro */
+  cubrir(semana: number, de: MiembroId, quien?: MiembroId): Promise<void>;
+  dejarDeCubrir(semana: number, de: MiembroId, quien?: MiembroId): Promise<void>;
+  /** «Le echo una mano» con el piso de otro (o «Ya no ayudo»); con `quien`, lo dices de otro */
+  ayudar(semana: number, de: MiembroId, quien?: MiembroId): Promise<void>;
   /** «Lo limpió Jose»: quién limpió de verdad un piso que ya está marcado (a otro, nunca a ti) */
   corregirQuien(semana: number, de: MiembroId, intento: number, quien: MiembroId): Promise<void>;
-  dejarDeAyudar(semana: number, de: MiembroId): Promise<void>;
+  dejarDeAyudar(semana: number, de: MiembroId, quien?: MiembroId): Promise<void>;
   /** «Me la quedo yo»: la basura de esta semana pasa a ser tuya desde ahora (o se la devuelves a quien le tocaba) */
   quedarmeBasura(semana: number, desde?: number): Promise<void>;
   devolverBasura(semana: number, a: MiembroId): Promise<void>;
+  /** Pasarle la basura a otro desde ahora (desde el cuadro) */
+  pasarBasura(semana: number, a: MiembroId): Promise<void>;
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string): Promise<void>;
   basuraLlena(fotos: string[]): Promise<void>;
-  basuraSacada(): Promise<void>;
+  /** «Ya la saqué» (o «Esta la saqué yo»); con `quien`, desde el cuadro: «La ha sacado Jose» */
+  basuraSacada(quien?: MiembroId): Promise<void>;
   estoEsTuyo(para: MiembroId, fotos: string[], que?: string): Promise<void>;
   recogido(aviso: string): Promise<void>;
   gasto(d: DatosGasto): Promise<void>;
@@ -59,6 +63,8 @@ export interface Acciones {
   espacioCosa(cosa: string, nombre: string, cada: number): Promise<void>;
   espacioQuitar(cosa: string): Promise<void>;
   espacioHecho(cosa: string): Promise<void>;
+  /** Desmarcarla (quita la última vez que la marcaste como hecha) */
+  espacioDeshecho(cosa: string): Promise<void>;
 }
 
 export interface Ctx {

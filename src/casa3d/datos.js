@@ -332,6 +332,8 @@ export const VISTAS_JUEGO = {
   todos: { h: [0, 2.6], margen: 1.04 },
   piso: { h: [0, 2.6], margen: 1.06 },
   parte: { h: [0, 2.6], margen: 1.12 },
+  // un cuarto de «Mi parte», al tocarlo en «Tu parte»: de cerca
+  cuarto: { h: [0, 2.6], margen: 1.15 },
 };
 
 // ---------- «Mi parte» ----------

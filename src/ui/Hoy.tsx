@@ -420,11 +420,15 @@ function PorPuntuar() {
     <Seccion titulo="Te toca puntuar">
       <div className="caja">
         <div className="lista">
+          {/* se puntúa a quien lo limpió: si el piso de Josu lo limpió Jose, sale Jose («Jose: piso del medio de Josu») */}
           {lista.map(({ tarea, intento }) => (
             <div key={`${tarea.semana}-${tarea.miembro}`} className="item">
-              <Avatar id={tarea.miembro} />
+              <Avatar id={intento.quien} />
               <div className="crece">
-                <p className="negrita"><Nombre id={tarea.miembro} />: {tarea.zona.nombre.toLowerCase()}</p>
+                <p className="negrita">
+                  <Nombre id={intento.quien} />: {tarea.zona.nombre.toLowerCase()}
+                  {intento.quien !== tarea.miembro && <> de <Nombre id={tarea.miembro} /></>}
+                </p>
                 <p className="peq suave">Se cierra en {duracion(intento.fin - estado.ahora)}</p>
               </div>
               <button type="button" className="boton mini" onClick={() => abrir({ tipo: 'puntuar', tarea, intento })}>

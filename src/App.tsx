@@ -233,20 +233,22 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     () => ({
       empezar: (semana) => apuntar('zona_empezada', { semana }),
       marcarCosa: (semana, cosa, hecha, de) => apuntar('zona_cosa', de ? { semana, cosa, hecha, de } : { semana, cosa, hecha }),
-      async marcarHecho(semana, fotos, nota, de) {
-        await apuntar('zona_hecha', de ? { semana, fotos, nota, de } : { semana, fotos, nota });
+      async marcarHecho(semana, fotos, nota, de, quien) {
+        await apuntar('zona_hecha', { semana, fotos, nota, ...(de ? { de } : {}), ...(quien && quien !== yo ? { quien } : {}) });
         try { confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: ['#f6c14f', '#ec6b67', '#fa8f59'] }); } catch { /* nada */ }
       },
       puntuar: (t, i, nota, faltan, fotos, comentario) => apuntar('puntuacion', { semana: t.semana, de: t.miembro, intento: i.n, nota, faltan, fotos, comentario }),
       basuraLlena: (fotos) => apuntar('basura_llena', { fotos }),
-      basuraSacada: () => apuntar('basura_sacada', {}),
-      cubrir: (semana, de) => apuntar('zona_cubierta', { semana, de }),
-      dejarDeCubrir: (semana, de) => apuntar('zona_cubierta', { semana, de, deja: true }),
-      ayudar: (semana, de) => apuntar('zona_ayuda', { semana, de }),
+      // con `quien` (desde el cuadro), lo que se dice es de otro: «Lo limpia Jose», «Josu le echa una mano»…
+      basuraSacada: (quien) => apuntar('basura_sacada', quien && quien !== yo ? { quien } : {}),
+      cubrir: (semana, de, quien) => apuntar('zona_cubierta', { semana, de, ...(quien && quien !== yo ? { quien } : {}) }),
+      dejarDeCubrir: (semana, de, quien) => apuntar('zona_cubierta', { semana, de, ...(quien && quien !== yo ? { quien } : {}), deja: true }),
+      ayudar: (semana, de, quien) => apuntar('zona_ayuda', { semana, de, ...(quien && quien !== yo ? { quien } : {}) }),
       corregirQuien: (semana, de, intento, quien) => apuntar('zona_hecha_por', { semana, de, intento, quien }),
-      dejarDeAyudar: (semana, de) => apuntar('zona_ayuda', { semana, de, deja: true }),
+      dejarDeAyudar: (semana, de, quien) => apuntar('zona_ayuda', { semana, de, ...(quien && quien !== yo ? { quien } : {}), deja: true }),
       quedarmeBasura: (semana, desde) => apuntar('basura_cubierta', desde !== undefined ? { semana, quien: yo, desde } : { semana, quien: yo }),
       devolverBasura: (semana, a) => apuntar('basura_cubierta', { semana, quien: a }),
+      pasarBasura: (semana, a) => apuntar('basura_cubierta', { semana, quien: a }),
       estoEsTuyo: (para, fotos, que) => apuntar('esto_es_tuyo', { para, fotos, que }),
       recogido: (aviso) => apuntar('recogido', { aviso }),
       gasto: (d) => apuntar('gasto', d),
@@ -259,6 +261,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       espacioCosa: (cosa, nombre, cada) => apuntar('espacio_cosa', { cosa, nombre, cada }),
       espacioQuitar: (cosa) => apuntar('espacio_cosa_quitada', { cosa }),
       espacioHecho: (cosa) => apuntar('espacio_hecho', { cosa }),
+      espacioDeshecho: (cosa) => apuntar('espacio_deshecho', { cosa }),
     }),
     [apuntar, yo],
   );

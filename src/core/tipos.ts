@@ -90,7 +90,7 @@ export type TipoEvento =
   | 'puntuacion'
   | 'basura_llena'
   | 'basura_sacada'
-  | 'basura_cubierta' // «Me la quedo yo»: desde ahora la basura de esta semana es tuya (o se la devuelves a quien le tocaba)
+  | 'basura_cubierta' // «Me la quedo yo»: desde ahora la basura de esta semana es tuya (o se la devuelves, o se la pasas a otro)
   | 'esto_es_tuyo'
   | 'recogido'
   | 'gasto'
@@ -103,7 +103,8 @@ export type TipoEvento =
   | 'mensaje_borrado' // su autor lo borra: queda «Mensaje borrado» en su sitio
   | 'espacio_cosa' // «Tu espacio»: apuntas una cosa tuya (tu habitación, tu baño…) o le cambias el nombre o cada cuánto
   | 'espacio_cosa_quitada' // la quitas de tu espacio
-  | 'espacio_hecho'; // la acabas de limpiar (solo lo ves tú: la base de datos no se lo da a los otros dos)
+  | 'espacio_hecho' // la acabas de limpiar (solo lo ves tú: la base de datos no se lo da a los otros dos)
+  | 'espacio_deshecho'; // lo desmarcas: quita la última vez que lo marcaste como hecho
 
 export interface Evento {
   id: string;
@@ -117,13 +118,19 @@ export interface Evento {
 export interface DatosZonaEmpezada { semana: number }
 /** `de`: el dueño del piso, si lo marcas por otro (te encargas tú de su piso) */
 export interface DatosZonaCosa { semana: number; cosa: string; hecha: boolean; de?: MiembroId }
-export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string; de?: MiembroId }
-export interface DatosZonaCubierta { semana: number; de: MiembroId; deja?: boolean }
-export interface DatosZonaAyuda { semana: number; de: MiembroId; deja?: boolean }
+/** `quien`, cuando lo apunta otro desde el cuadro («Ya lo ha limpiado Jose»): quién lo limpió */
+export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string; de?: MiembroId; quien?: MiembroId }
+/** `quien`, cuando lo dice otro desde el cuadro («Lo limpia Jose»): quién se encarga (o, con `deja`, quién lo deja) */
+export interface DatosZonaCubierta { semana: number; de: MiembroId; quien?: MiembroId; deja?: boolean }
+/** `quien`, cuando lo dice otro desde el cuadro («Josu le echa una mano»): quién ayuda (o, con `deja`, quién lo deja) */
+export interface DatosZonaAyuda { semana: number; de: MiembroId; quien?: MiembroId; deja?: boolean }
 export interface DatosZonaHechaPor { semana: number; de: MiembroId; intento: number; quien: MiembroId }
-/** `quien`: quién tiene la basura desde ahora (tú, o quien le tocaba si se la devuelves); `desde`: si te la quedas
- *  desde antes (el comienzo de un día de esa semana; el lunes, toda la semana) */
+/** `quien`: quién tiene la basura desde ahora (tú, quien le tocaba si se la devuelves u otro, desde el cuadro);
+ *  `desde`: si te la quedas tú desde antes (el comienzo de un día de esa semana; el lunes, toda la semana). A otro
+ *  solo se le pasa desde ahora: lo de antes (avisos y quejas) no se le puede echar encima */
 export interface DatosBasuraCubierta { semana: number; quien: MiembroId; desde?: number }
+/** `quien`, cuando lo apunta otro desde el cuadro («La ha sacado Jose»): quién la sacó */
+export interface DatosBasuraSacada { quien?: MiembroId }
 export interface DatosPuntuacion {
   semana: number;
   de: MiembroId;

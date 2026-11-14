@@ -2,7 +2,7 @@
 // Como todo se apunta y nada se borra (los eventos), basta con volver a calcular el estado con los eventos de
 // hasta ese día: es la misma cuenta de siempre, pero «parando el reloj» al final de ese día.
 import { avisosBasuraAbiertos, derivar, paraPuntuar, type Estado } from './estado';
-import type { CosaEspacio } from './espacio';
+import { espacioAnulados, type CosaEspacio } from './espacio';
 import { calcularMedallas, type MedallaGanada } from './juego';
 import { enMarcha } from './limpieza';
 import type { Noticia } from './noticias';
@@ -136,20 +136,23 @@ export function marcasDelMes(config: Config, eventos: Evento[], mesId: string, e
   const de = (ts: number) => r.get(diaLocal(ts));
   const anadir = <T,>(lista: T[], x: T) => { if (!lista.includes(x)) lista.push(x); };
   const nombres = new Map<string, string>(); // las cosas de «Tu espacio», por su id
+  const anulados = espacioAnulados(eventos, ahora); // los «Hecho» que se desmarcaron
   for (const ev of [...eventos].sort((a, b) => a.ts - b.ts)) {
     if (ev.ts > ahora) continue;
     if (yo && ev.autor === yo && ev.tipo === 'espacio_cosa') nombres.set(String(ev.datos?.cosa), String(ev.datos?.nombre ?? ''));
     const k = de(ev.ts);
     if (!k) continue;
-    if (ev.tipo === 'zona_hecha') anadir(k.limpiaron, ev.autor);
-    else if (ev.tipo === 'pago' || ev.tipo === 'gasto') anadir(k.pagaron, ev.autor);
+    if (ev.tipo === 'pago' || ev.tipo === 'gasto') anadir(k.pagaron, ev.autor);
     else if (ev.tipo === 'basura_sacada') k.basuraSacada = true;
     else if (ev.tipo === 'mensaje') k.mensajes++;
-    else if (ev.tipo === 'espacio_hecho' && yo && ev.autor === yo) anadir(k.espacio, nombres.get(String(ev.datos?.cosa)) || 'Tu espacio');
+    else if (ev.tipo === 'espacio_hecho' && yo && ev.autor === yo && !anulados.has(ev.id)) anadir(k.espacio, nombres.get(String(ev.datos?.cosa)) || 'Tu espacio');
   }
   // las notas se resuelven solas (cuando votan todos o se acaba el plazo): salen del estado de ahora
   for (const t of e.tareas) {
     for (const i of t.intentos) {
+      // quién limpió: quien lo hizo de verdad (aunque lo apuntara otro o se dijera después que fue otro)
+      const h = de(i.hecho.ts);
+      if (h) anadir(h.limpiaron, i.quien);
       if (!i.resuelto || i.resueltoEn === undefined) continue;
       const k = de(i.resueltoEn);
       if (k) anadir(i.aprobado ? k.aprobados : k.suspensos, i.quien); // de quien lo limpió (si fue el piso de otro, también)

@@ -1,4 +1,4 @@
-import { quejasDe, responsableEn, type AvisoTuyo, type SemanaBasura } from './basura';
+import { quejasDe, responsableEn, sacadaPor, type AvisoTuyo, type SemanaBasura } from './basura';
 import type { Cuentas } from './cuentas';
 import { limpiadoPor, lohizoOtro, redondear1, type Tarea } from './limpieza';
 import { diaLocal, diaSemana, finSemana, hora, mes, mesDeSemana, partes } from './tiempo';
@@ -60,10 +60,11 @@ export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[],
     // «Esta la saqué yo»: +1 al que saca la basura de otro, como mucho una vez al día cada uno
     const contadas = new Set<string>();
     for (const x of s.ajenas) {
-      const k = `${x.autor}|${diaLocal(x.ts)}`;
+      const quien = sacadaPor(x); // quien la sacó (si lo apuntó otro desde el cuadro, a quien puso)
+      const k = `${quien}|${diaLocal(x.ts)}`;
       if (contadas.has(k)) continue;
       contadas.add(k);
-      r.push({ miembro: x.autor, puntos: normas.puntosSacarAjena, motivo: `Sacaste la basura de ${nombre(responsableEn(s, x.ts))}`, ts: x.ts, mes: m, clase: 'sacada' });
+      r.push({ miembro: quien, puntos: normas.puntosSacarAjena, motivo: `Sacaste la basura de ${nombre(responsableEn(s, x.ts))}`, ts: x.ts, mes: m, clase: 'sacada' });
     }
     if (s.cerrada && quejasDe(s, s.responsable) === 0) {
       const motivo = s.responsable === s.tocaba ? 'Semana de basura sin quejas' : `Semana de basura de ${nombre(s.tocaba)} sin quejas`;
