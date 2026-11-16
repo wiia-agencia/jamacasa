@@ -180,7 +180,9 @@ export function Juego() {
         <div className="caja">
           <div className="lista peq">
             <Norma texto="Nota para aprobar" valor={`${n.notaMinima} o más`} />
-            <Norma texto="Plazo para puntuar" valor={`${n.horasRevision} h; si nadie puntúa, un ${n.notaAutomatica}`} />
+            <Norma texto="Tu nota" valor="Te la pones al acabar y cuenta como una más" />
+            <Norma texto="Plazo para puntuar" valor={`${n.horasRevision} h; el que no vota cuenta como tu nota (sin nota, un ${n.notaAutomatica})`} />
+            <Norma texto="Para bajarte de tu nota" valor="Hay que decir el fallo" />
             <Norma texto="Piso aprobado" valor="Tu nota media en puntos" />
             <Norma texto="Puntuar a tiempo" valor={<Puntos valor={n.puntosRevisar} />} />
             <Norma texto="Semana de basura sin quejas" valor={<Puntos valor={n.puntosBasuraSemana} />} />

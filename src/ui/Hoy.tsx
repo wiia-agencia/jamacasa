@@ -185,13 +185,25 @@ export function EstadoTarea({ t, compacto = false }: { t: Tarea; compacto?: bool
   }
 
   if (t.estado === 'esperando') {
+    // la nota que se puso el que lo limpió: si los otros no dicen nada, se queda esa (Javi, 16 de noviembre)
+    const tuyo = i.quien === yo;
+    const suya = i.propia?.nota ?? estado.normas.notaAutomatica;
     return (
       <div className="pila-s">
         <p className="estado-linea">
           <CheckCircle2 size={17} /> {i.n > 1 ? 'Repasado' : 'Hecho'} {cuando(i.hecho.ts, ahora)}. Esperando nota.
         </p>
         <Jueces t={t} i={i} />
-        {!compacto && <p className="tenue peq">Se cierra en {duracion(i.fin - ahora)}. Si nadie puntúa, se aprueba con un {estado.normas.notaAutomatica}.</p>}
+        {!compacto && (
+          <p className="tenue peq">
+            Se cierra en {duracion(i.fin - ahora)}. Si nadie dice nada, se queda {tuyo ? 'tu nota' : 'su nota'}: un {nota(suya)}.
+          </p>
+        )}
+        {tuyo && (
+          <button type="button" className="enlace" style={{ alignSelf: 'flex-start' }} onClick={() => abrir({ tipo: 'puntuar', tarea: t, intento: i, propia: true })}>
+            {i.propia ? 'Cambiar mi nota' : 'Ponerme nota'}
+          </button>
+        )}
       </div>
     );
   }
@@ -201,11 +213,11 @@ export function EstadoTarea({ t, compacto = false }: { t: Tarea; compacto?: bool
       <div className="fila" style={{ alignItems: 'flex-start' }}>
         <div className="crece pila-s">
           <p className="estado-linea">
-            <CheckCircle2 size={17} /> Aprobado{i.auto ? ' sin notas' : ''}. <Puntos valor={i.media!} /> puntos
+            <CheckCircle2 size={17} /> Aprobado{i.auto ? ': nadie puso pegas' : ''}. <Puntos valor={i.media!} /> puntos
           </p>
-          {!i.auto && <Jueces t={t} i={i} />}
+          <Jueces t={t} i={i} />
         </div>
-        <Placa valor={i.media!} auto={i.auto} />
+        <Placa valor={i.media!} />
       </div>
     );
   }
@@ -249,18 +261,29 @@ export function EstadoTarea({ t, compacto = false }: { t: Tarea; compacto?: bool
 }
 
 export function Jueces({ t, i }: { t: Tarea; i: Intento }) {
-  const { config } = useCasa();
-  // los que no lo limpiaron (si lo limpió otro, también el dueño)
+  const { config, yo, estado } = useCasa();
+  // los que no lo limpiaron (si lo limpió otro, también el dueño); delante, la nota que se puso el que lo limpió
   const jueces = config.miembros.filter((m) => i.jueces.includes(m.id));
+  const quien = config.miembros.find((m) => m.id === i.quien);
+  const relleno = i.propia?.nota ?? estado.normas.notaAutomatica; // lo que cuenta el que no vota
   return (
     <div className="jueces">
+      {quien && i.propia && (
+        <span className="juez propia" title="La nota que se puso">
+          <Avatar id={quien.id} tam="s" />
+          <span>{quien.id === yo ? 'Tu nota' : `${quien.nombre} se pone`}</span>
+          <span className="cifra" aria-label={`nota ${nota(i.propia.nota)}`}>{nota(i.propia.nota)}</span>
+        </span>
+      )}
       {jueces.map((j) => {
         const v = i.votos.find((x) => x.autor === j.id);
+        // cerrado sin su voto: cuenta como la nota que se puso (o la máxima)
+        const calla = !v && i.resuelto;
         return (
-          <span key={j.id} className={`juez ${v ? '' : 'espera'}`}>
+          <span key={j.id} className={`juez ${v ? '' : calla ? 'calla' : 'espera'}`}>
             <Avatar id={j.id} tam="s" />
             <span>{j.nombre}</span>
-            <span className="cifra" aria-label={v ? `nota ${v.nota}` : 'sin nota todavía'}>{v ? v.nota : '…'}</span>
+            <span className="cifra" aria-label={v ? `nota ${v.nota}` : calla ? `no votó: cuenta como un ${nota(relleno)}` : 'sin nota todavía'}>{v ? v.nota : calla ? nota(relleno) : '…'}</span>
           </span>
         );
       })}

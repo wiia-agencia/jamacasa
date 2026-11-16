@@ -24,7 +24,7 @@ export const corto = (z: Zona | null | undefined) => {
 
 export function ChapaEstado({ t }: { t: Tarea }) {
   const i = t.intentos[t.intentos.length - 1];
-  if (t.estado === 'aprobada') return <Placa valor={i.media!} peq auto={i.auto} />;
+  if (t.estado === 'aprobada') return <Placa valor={i.media!} peq />;
   if (t.estado === 'suspendida') return <Placa valor={i.media!} peq suspensa />;
   if (t.estado === 'esperando') return <span className="chapa">Esperando nota</span>;
   if (!t.enCurso) return <span className="chapa mal">{t.sinHacer ? 'Sin hacer' : 'Tarde'}</span>;
@@ -358,7 +358,7 @@ function ResumenCajon({ t, corto = false }: { t: Tarea | undefined; corto?: bool
   const deOtro = t.miembro !== yo ? miembro(config, t.miembro).nombre : null;
   const i = t.intentos[t.intentos.length - 1];
   let derecha: ReactNode = <span className="cuenta">{t.lista.length ? `${t.marcadas.length} de ${t.lista.length}` : ''}</span>;
-  if (t.estado === 'aprobada') derecha = <Placa valor={i.media!} peq auto={i.auto} />;
+  if (t.estado === 'aprobada') derecha = <Placa valor={i.media!} peq />;
   else if (t.estado === 'esperando') derecha = <span className="cuenta">Esperando nota</span>;
   return (
     <>

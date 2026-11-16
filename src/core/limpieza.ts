@@ -26,13 +26,24 @@ export interface Intento {
   corregido?: { por: MiembroId; ts: number };
   jueces: MiembroId[];
   fin: number; // cuándo se cierra el plazo para puntuar
+  /** La nota que se pone el que lo limpió (al marcarlo, o la última que se cambió antes de cerrarse) y lo que dice que
+   *  le faltó (Javi, 16 de noviembre: «el propio que limpia el piso tenga que darse una propia puntuación») */
+  propia?: NotaPropia;
   votos: Voto[]; // el voto que cuenta de cada juez
   sinVotar: MiembroId[]; // jueces que no han votado (o no votaron a tiempo)
   resuelto: boolean;
   resueltoEn?: number;
   media?: number;
-  auto?: boolean; // nadie votó: aprobado con la nota automática
+  auto?: boolean; // nadie votó: se queda la nota propia (o, si no se la puso, la máxima)
   aprobado?: boolean;
+}
+
+/** La nota que se pone uno mismo al limpiar: del 0 al 10, lo que le faltó y lo que cuenta. */
+export interface NotaPropia {
+  nota: number;
+  faltan: string[];
+  comentario?: string;
+  ts: number;
 }
 
 export type EstadoTarea = 'pendiente' | 'esperando' | 'aprobada' | 'suspendida';
@@ -270,8 +281,10 @@ export function progreso(t: Tarea): { hechas: number; total: number } {
 
 function resolverIntento(h: Evento, n: number, quien: MiembroId, ayudaron: MiembroId[], jueces: MiembroId[], votosEv: Evento[], normas: Normas, ahora: number): Intento {
   const fin = h.ts + normas.horasRevision * HORA;
+  const enPlazo = (v: Evento) => v.ts >= h.ts && v.ts <= fin;
+  // los votos de los jueces (la nota que se pone el que lo limpió va aparte)
   const validos = votosEv
-    .filter((v) => jueces.includes(v.autor) && v.ts >= h.ts && v.ts <= fin)
+    .filter((v) => !v.datos?.propia && jueces.includes(v.autor) && enPlazo(v))
     .sort((a, b) => a.ts - b.ts);
 
   // Momento en que votó el último juez por primera vez
@@ -280,7 +293,7 @@ function resolverIntento(h: Evento, n: number, quien: MiembroId, ayudaron: Miemb
   const completos = jueces.every((j) => primerVoto.has(j));
 
   let resueltoEn: number | undefined;
-  if (!jueces.length) resueltoEn = h.ts; // lo limpiasteis los tres: no queda nadie para poner nota (va la automática)
+  if (!jueces.length) resueltoEn = h.ts; // lo limpiasteis los tres: no queda nadie para poner nota (se queda la tuya)
   else if (completos) resueltoEn = Math.max(...jueces.map((j) => primerVoto.get(j)!));
   else if (ahora >= fin) resueltoEn = fin;
 
@@ -297,7 +310,7 @@ function resolverIntento(h: Evento, n: number, quien: MiembroId, ayudaron: Miemb
     return {
       evento: v.id,
       autor: v.autor,
-      nota: Math.max(0, Math.min(10, Number(d.nota) || 0)),
+      nota: limitarNota(d.nota),
       faltan: d.faltan ?? [],
       fotos: d.fotos ?? [],
       comentario: d.comentario,
@@ -308,19 +321,32 @@ function resolverIntento(h: Evento, n: number, quien: MiembroId, ayudaron: Miemb
   // Marca si el voto que cuenta fue también el primero (el punto por revisar va al primero)
   for (const v of vs) v.primero = primeros.has(v.evento);
 
+  // Su nota: la que se puso al marcarlo (si lo marcó él) o la última que se cambió antes de cerrarse
+  let propia: NotaPropia | undefined;
+  if (h.autor === quien && h.datos?.notaPropia !== undefined && Number.isFinite(Number(h.datos.notaPropia))) {
+    propia = { nota: limitarNota(h.datos.notaPropia), faltan: h.datos.faltan ?? [], comentario: h.datos.nota, ts: h.ts };
+  }
+  for (const v of [...votosEv].sort((a, b) => a.ts - b.ts)) {
+    if (!v.datos?.propia || v.autor !== quien || !enPlazo(v) || v.ts > corte) continue;
+    const d = v.datos as DatosPuntuacion;
+    propia = { nota: limitarNota(d.nota), faltan: d.faltan ?? [], comentario: d.comentario, ts: v.ts };
+  }
+
   const sinVotar = jueces.filter((j) => !ultimo.has(j));
-  const intento: Intento = { n, hecho: h, quien, ayudaron, jueces, fin, votos: vs, sinVotar, resuelto: resueltoEn !== undefined, resueltoEn };
+  const intento: Intento = { n, hecho: h, quien, ayudaron, jueces, fin, propia, votos: vs, sinVotar, resuelto: resueltoEn !== undefined, resueltoEn };
   if (intento.resuelto) {
-    if (vs.length > 0) {
-      intento.media = redondear1(vs.reduce((a, v) => a + v.nota, 0) / vs.length);
-    } else {
-      intento.media = normas.notaAutomatica;
-      intento.auto = true;
-    }
+    // «Quien calla, te da la razón» (Javi, 16 de noviembre): su nota cuenta como una más y el que no vota cuenta como
+    // su nota; si no se la puso, como la máxima («si nadie dice nada, te llevas la puntuación máxima»)
+    const relleno = propia?.nota ?? normas.notaAutomatica;
+    const notas = [...(propia ? [propia.nota] : []), ...jueces.map((j) => ultimo.has(j) ? limitarNota((ultimo.get(j)!.datos as DatosPuntuacion).nota) : relleno)];
+    intento.media = notas.length ? redondear1(notas.reduce((a, x) => a + x, 0) / notas.length) : normas.notaAutomatica;
+    intento.auto = vs.length === 0;
     intento.aprobado = intento.media >= normas.notaMinima;
   }
   return intento;
 }
+
+const limitarNota = (x: unknown) => Math.max(0, Math.min(10, Number(x) || 0));
 
 /** Intentos abiertos que un miembro tiene que puntuar. */
 export function porPuntuar(tareas: Tarea[], m: MiembroId): { tarea: Tarea; intento: Intento }[] {

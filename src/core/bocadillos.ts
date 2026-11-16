@@ -3,10 +3,16 @@
 // tocar la cara de otro. Reglas puras: la pantalla solo lo pinta.
 import { diasSinLimpiar, pisoDe } from './escena';
 import { tareaDe, type Estado } from './estado';
-import { enMarcha, progreso, type Tarea } from './limpieza';
+import { enMarcha, progreso, type Intento, type Tarea } from './limpieza';
 import { nota } from './noticias';
 import { cuando, nombreDia } from './tiempo';
 import type { Config, MiembroId } from './tipos';
+
+/** Debajo de «Esperando nota ★» del que lo limpió: la nota que se puso y de quién falta el voto. */
+function suNota(config: Config, i: Intento): string | undefined {
+  const partes = [i.propia ? `Te pusiste un ${nota(i.propia.nota)}` : '', i.sinVotar.length ? `De ${y(i.sinVotar.map((j) => nombre(config, j)))}` : ''];
+  return partes.filter(Boolean).join(' · ') || undefined;
+}
 
 /** Color del bocadillo: el tuyo (naranja), de otro (blanco), aprobado (verde), suspenso o tarde (rojo), esperando (oro). */
 export type Tono = 'yo' | 'blanco' | 'verde' | 'rojo' | 'oro';
@@ -76,8 +82,8 @@ export function bocadilloDe(config: Config, e: Estado, m: MiembroId, yo: Miembro
     const lo = ult.quien === yo ? 'Lo limpiaste tú' : `Lo limpió ${q}`;
     if (t.estado === 'esperando') {
       const faltan = ult.sinVotar;
-      if (ult.quien === yo) return { miembro: m, titulo: 'Esperando nota ★', sub: faltan.length ? `De ${y(faltan.map((j) => nombre(config, j)))}` : undefined, tono: 'yo', accion: 'tarea' };
-      if (faltan.includes(yo)) return { miembro: m, titulo: `${q} espera tu nota ★`, sub: mio ? 'Ha limpiado tu piso' : undefined, tono: 'blanco', accion: 'puntuar' };
+      if (ult.quien === yo) return { miembro: m, titulo: 'Esperando nota ★', sub: suNota(config, ult), tono: 'yo', accion: 'tarea' };
+      if (faltan.includes(yo)) return { miembro: m, titulo: `${q} espera tu nota ★`, sub: ult.propia ? `Se pone un ${nota(ult.propia.nota)}` : mio ? 'Ha limpiado tu piso' : undefined, tono: 'blanco', accion: 'puntuar' };
       return { miembro: m, titulo: 'Esperando nota', sub: lo, tono: 'blanco', accion: 'tarea' };
     }
     if (t.estado === 'aprobada') return { miembro: m, titulo: `Aprobado ✓ ${nota(t.nota!)}`, sub: lo, tono: 'verde', accion: 'tarea' };
@@ -100,8 +106,8 @@ export function bocadilloDe(config: Config, e: Estado, m: MiembroId, yo: Miembro
     }
     case 'esperando': {
       const faltan = ult.sinVotar;
-      if (mio) return { miembro: m, titulo: 'Esperando nota ★', sub: faltan.length ? `De ${y(faltan.map((j) => nombre(config, j)))}` : undefined, tono: 'yo', accion: 'tarea' };
-      if (faltan.includes(yo)) return { miembro: m, titulo: `${nombre(config, m)} espera tu nota ★`, tono: 'blanco', accion: 'puntuar' };
+      if (mio) return { miembro: m, titulo: 'Esperando nota ★', sub: suNota(config, ult), tono: 'yo', accion: 'tarea' };
+      if (faltan.includes(yo)) return { miembro: m, titulo: `${nombre(config, m)} espera tu nota ★`, sub: ult.propia ? `Se pone un ${nota(ult.propia.nota)}` : undefined, tono: 'blanco', accion: 'puntuar' };
       return { miembro: m, titulo: 'Esperando nota', sub: faltan.length ? `De ${y(faltan.map((j) => nombre(config, j)))}` : undefined, tono: 'blanco', accion: 'tarea' };
     }
     case 'aprobada':

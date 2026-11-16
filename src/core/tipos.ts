@@ -118,8 +118,9 @@ export interface Evento {
 export interface DatosZonaEmpezada { semana: number }
 /** `de`: el dueño del piso, si lo marcas por otro (te encargas tú de su piso) */
 export interface DatosZonaCosa { semana: number; cosa: string; hecha: boolean; de?: MiembroId }
-/** `quien`, cuando lo apunta otro desde el cuadro («Ya lo ha limpiado Jose»): quién lo limpió */
-export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string; de?: MiembroId; quien?: MiembroId }
+/** `quien`, cuando lo apunta otro desde el cuadro («Ya lo ha limpiado Jose»): quién lo limpió. `notaPropia` y
+ *  `faltan`: la nota que se pone el que lo limpió y lo que le faltó (`nota` es lo que cuenta, en texto) */
+export interface DatosZonaHecha { semana: number; fotos?: string[]; nota?: string; de?: MiembroId; quien?: MiembroId; notaPropia?: number; faltan?: string[] }
 /** `quien`, cuando lo dice otro desde el cuadro («Lo limpia Jose»): quién se encarga (o, con `deja`, quién lo deja) */
 export interface DatosZonaCubierta { semana: number; de: MiembroId; quien?: MiembroId; deja?: boolean }
 /** `quien`, cuando lo dice otro desde el cuadro («Josu le echa una mano»): quién ayuda (o, con `deja`, quién lo deja) */
@@ -131,6 +132,7 @@ export interface DatosZonaHechaPor { semana: number; de: MiembroId; intento: num
 export interface DatosBasuraCubierta { semana: number; quien: MiembroId; desde?: number }
 /** `quien`, cuando lo apunta otro desde el cuadro («La ha sacado Jose»): quién la sacó */
 export interface DatosBasuraSacada { quien?: MiembroId }
+/** El voto de un juez o, con `propia`, la nota que se cambia el que lo limpió («Ya lo hice: me subo la nota») */
 export interface DatosPuntuacion {
   semana: number;
   de: MiembroId;
@@ -139,6 +141,7 @@ export interface DatosPuntuacion {
   faltan?: string[];
   fotos?: string[];
   comentario?: string;
+  propia?: boolean;
 }
 export interface DatosBasuraLlena { fotos?: string[] }
 export interface DatosEstoEsTuyo { para: MiembroId; fotos?: string[]; que?: string }

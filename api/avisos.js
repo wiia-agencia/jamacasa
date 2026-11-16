@@ -6651,7 +6651,7 @@ function duracion(ms) {
 // src/core/calendario.ts
 const NORMAS_BASE = {
 	notaMinima: 5,
-	notaAutomatica: 7,
+	notaAutomatica: 10,
 	horasRevision: 48,
 	horasBasura: 12,
 	horasEstoEsTuyo: 12,
@@ -7281,7 +7281,8 @@ function marcadasDe(evs, lista, intentos, estado) {
 }
 function resolverIntento(h, n, quien, ayudaron, jueces, votosEv, normas, ahora) {
 	const fin = h.ts + normas.horasRevision * HORA;
-	const validos = votosEv.filter((v) => jueces.includes(v.autor) && v.ts >= h.ts && v.ts <= fin).sort((a, b) => a.ts - b.ts);
+	const enPlazo = (v) => v.ts >= h.ts && v.ts <= fin;
+	const validos = votosEv.filter((v) => !v.datos?.propia && jueces.includes(v.autor) && enPlazo(v)).sort((a, b) => a.ts - b.ts);
 	const primerVoto = /* @__PURE__ */ new Map();
 	for (const v of validos) if (!primerVoto.has(v.autor)) primerVoto.set(v.autor, v.ts);
 	const completos = jueces.every((j) => primerVoto.has(j));
@@ -7302,7 +7303,7 @@ function resolverIntento(h, n, quien, ayudaron, jueces, votosEv, normas, ahora) 
 		return {
 			evento: v.id,
 			autor: v.autor,
-			nota: Math.max(0, Math.min(10, Number(d.nota) || 0)),
+			nota: limitarNota(d.nota),
 			faltan: d.faltan ?? [],
 			fotos: d.fotos ?? [],
 			comentario: d.comentario,
@@ -7311,6 +7312,24 @@ function resolverIntento(h, n, quien, ayudaron, jueces, votosEv, normas, ahora) 
 		};
 	});
 	for (const v of vs) v.primero = primeros.has(v.evento);
+	let propia;
+	if (h.autor === quien && h.datos?.notaPropia !== void 0 && Number.isFinite(Number(h.datos.notaPropia))) propia = {
+		nota: limitarNota(h.datos.notaPropia),
+		faltan: h.datos.faltan ?? [],
+		comentario: h.datos.nota,
+		ts: h.ts
+	};
+	for (const v of [...votosEv].sort((a, b) => a.ts - b.ts)) {
+		if (!v.datos?.propia || v.autor !== quien || !enPlazo(v) || v.ts > corte) continue;
+		const d = v.datos;
+		propia = {
+			nota: limitarNota(d.nota),
+			faltan: d.faltan ?? [],
+			comentario: d.comentario,
+			ts: v.ts
+		};
+	}
+	const sinVotar = jueces.filter((j) => !ultimo.has(j));
 	const intento = {
 		n,
 		hecho: h,
@@ -7318,21 +7337,22 @@ function resolverIntento(h, n, quien, ayudaron, jueces, votosEv, normas, ahora) 
 		ayudaron,
 		jueces,
 		fin,
+		propia,
 		votos: vs,
-		sinVotar: jueces.filter((j) => !ultimo.has(j)),
+		sinVotar,
 		resuelto: resueltoEn !== void 0,
 		resueltoEn
 	};
 	if (intento.resuelto) {
-		if (vs.length > 0) intento.media = redondear1(vs.reduce((a, v) => a + v.nota, 0) / vs.length);
-		else {
-			intento.media = normas.notaAutomatica;
-			intento.auto = true;
-		}
+		const relleno = propia?.nota ?? normas.notaAutomatica;
+		const notas = [...propia ? [propia.nota] : [], ...jueces.map((j) => ultimo.has(j) ? limitarNota(ultimo.get(j).datos.nota) : relleno)];
+		intento.media = notas.length ? redondear1(notas.reduce((a, x) => a + x, 0) / notas.length) : normas.notaAutomatica;
+		intento.auto = vs.length === 0;
 		intento.aprobado = intento.media >= normas.notaMinima;
 	}
 	return intento;
 }
+const limitarNota = (x) => Math.max(0, Math.min(10, Number(x) || 0));
 // src/core/juego.ts
 function calcularApuntes(config, normas, tareas, basura, tuyos, ahora) {
 	const nombre = (id) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
@@ -7663,12 +7683,19 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 			const elPiso = suyo ? `el ${zona}` : `el ${zona} de ${X}`;
 			const elDe = suyo ? `el ${zona} de ${X}` : `el ${zona} que limpió ${Q}`;
 			const apunta = i.hecho.autor !== i.quien && !i.corregido ? ` Lo apunta ${n(i.hecho.autor)}.` : "";
+			const puesta = i.hecho.autor === i.quien && i.hecho.datos?.notaPropia !== void 0 ? ` Se pone un ${nota(Number(i.hecho.datos.notaPropia))}.` : "";
 			r.push({
 				id: `${i.hecho.id}-h`,
 				ts: i.hecho.ts,
 				quien: i.quien,
-				texto: (i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`) + apunta,
+				texto: (i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`) + apunta + puesta,
 				fotos: i.hecho.datos?.fotos
+			});
+			if (i.propia && i.propia.ts !== i.hecho.ts) r.push({
+				id: `${i.hecho.id}-pr`,
+				ts: i.propia.ts,
+				quien: i.quien,
+				texto: `${Q} se cambia la nota: ahora un ${nota(i.propia.nota)} (${zona}${suyo ? "" : ` de ${X}`}).${i.propia.comentario ? ` «${i.propia.comentario}»` : ""}`
 			});
 			if (i.corregido) r.push({
 				id: `${t.semana}-${t.miembro}-${i.n}-hp`,
@@ -7679,7 +7706,7 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 			if (!i.resuelto) continue;
 			const id = `${i.hecho.id}-r`;
 			if (i.aprobado) {
-				const texto = i.auto ? `Nadie puntuó a tiempo ${elDe}: aprobado con un ${nota(i.media)}.` : i.media === 10 ? `${Q} saca un 10 en ${elPiso}. Quirófano.` : `${Q} aprueba ${elPiso} con un ${nota(i.media)}.`;
+				const texto = i.auto ? `Nadie le puso pegas al ${elDe.slice(3)}: se queda con un ${nota(i.media)}.` : i.media === 10 ? `${Q} saca un 10 en ${elPiso}. Quirófano.` : `${Q} aprueba ${elPiso} con un ${nota(i.media)}.`;
 				r.push({
 					id,
 					ts: i.resueltoEn,
@@ -7866,7 +7893,7 @@ function resultado(t, i, n, nombre) {
 	if (i.aprobado) return {
 		para: i.quien,
 		titulo: `✅ ${piso}: aprobado con un ${nota(i.media)}`,
-		texto: i.auto ? "Nadie te puso nota a tiempo: va con la nota automática." : `Suma ${nota(i.media)} puntos.`,
+		texto: i.auto ? i.propia ? "Nadie te puso pegas: se queda tu nota." : "Nadie te puso pegas: te llevas la máxima." : `Suma ${nota(i.media)} puntos.`,
 		pantalla: "limpieza",
 		etiqueta
 	};
@@ -7946,12 +7973,13 @@ function avisosDeEvento(config, eventos, id) {
 			if (!t || !i || i.hecho.id !== e.id) return [];
 			const hecho = i.n > 1 ? "ha repasado" : "ha terminado";
 			const z = t.zona.nombre.toLowerCase();
+			const suNota = i.propia ? `Se pone un ${nota(i.propia.nota)}${i.propia.comentario ? `: «${i.propia.comentario}»` : ""}. Si no dices nada, se queda su nota (tienes ${n.horasRevision} horas).` : `Ponle nota: tienes ${n.horasRevision} horas. Si no dices nada, se lleva un ${nota(n.notaAutomatica)}.`;
 			const r = i.sinVotar.map((j) => {
 				const piso = de === i.quien ? `el ${t.zona.nombre}` : j === de ? `tu ${z}` : `el ${t.zona.nombre} de ${nombre(de)}`;
 				return {
 					para: j,
 					titulo: `🧹 ${nombre(i.quien)} ${hecho} ${piso}`,
-					texto: `${porOtro ? `Lo apunta ${yo}. ` : ""}Ponle nota: tienes ${n.horasRevision} horas.`,
+					texto: `${porOtro ? `Lo apunta ${yo}. ` : ""}${suNota}`,
 					pantalla: "hoy",
 					etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}`
 				};
@@ -8130,7 +8158,19 @@ function avisosDeEvento(config, eventos, id) {
 			const d = e.datos ?? {};
 			const t = tareaDe(estado, Number(d.semana), d.de);
 			const i = t?.intentos.find((x) => x.n === d.intento);
-			if (!t || !i || !i.resuelto || i.resueltoEn !== e.ts) return [];
+			if (!t || !i) return [];
+			if (d.propia) {
+				if (i.resuelto || i.propia?.ts !== e.ts || e.autor !== i.quien) return [];
+				const piso = i.quien === t.miembro ? `el ${t.zona.nombre}` : `el ${t.zona.nombre} de ${nombre(t.miembro)}`;
+				return i.sinVotar.map((j) => ({
+					para: j,
+					titulo: `✏️ ${yo} se cambia la nota: un ${nota(i.propia.nota)}`,
+					texto: `${mayus(piso)}.${i.propia.comentario ? ` «${i.propia.comentario}».` : ""} Si no dices nada, se queda esta.`,
+					pantalla: "hoy",
+					etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}`
+				}));
+			}
+			if (!i.resuelto || i.resueltoEn !== e.ts) return [];
 			return resultados(t, i, n, nombre);
 		}
 		case "gasto": {
@@ -8292,10 +8332,11 @@ function avisosDelReloj(config, eventos, desde, hasta, ahora = hasta) {
 	for (const t of estado.tareas) for (const i of t.intentos) {
 		if (!i.resuelto && en(i.fin - 216e5)) for (const j of i.sinVotar) {
 			const que = i.quien === t.miembro ? `El ${t.zona.nombre} de ${nombre(t.miembro)}` : j === t.miembro ? `Tu ${t.zona.nombre.toLowerCase()}, que limpió ${nombre(i.quien)}` : `El ${t.zona.nombre} de ${nombre(t.miembro)}, que limpió ${nombre(i.quien)}`;
+			const calla = `Si no dices nada, cuenta como ${i.propia ? `su nota, un ${nota(i.propia.nota)}` : `un ${nota(n.notaAutomatica)}`}.`;
 			r.push({
 				para: j,
 				titulo: `⏰ Te quedan ${duracion(i.fin - ahora)} para puntuar`,
-				texto: `${que}. Puntuar a tiempo da ${pts(n.puntosRevisar)}.`,
+				texto: `${que}. ${calla} Puntuar a tiempo da ${pts(n.puntosRevisar)}.`,
 				pantalla: "hoy",
 				etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}`
 			});

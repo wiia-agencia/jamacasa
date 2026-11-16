@@ -101,7 +101,7 @@ describe('marcar y puntuar', () => {
     expect(e.puntosMes['2026-10'].b).toBe(1);
     expect(e.medallas.a.pole).toBe(1);
   });
-  it('si solo vota uno, cuenta su nota al cerrar el plazo; si no vota nadie, un 7', () => {
+  it('quien calla, te da la razón: sin nota propia, el que no vota cuenta como un 10; si no vota nadie, un 10', () => {
     const h1 = ev('zona_hecha', 'a', lunes + 10 * HORA, { semana: s });
     const v = ev('puntuacion', 'b', lunes + 12 * HORA, { semana: s, de: 'a', intento: 1, nota: 6 });
     const h2 = ev('zona_hecha', 'b', lunes + 11 * HORA, { semana: s });
@@ -109,11 +109,46 @@ describe('marcar y puntuar', () => {
     expect(tareaDe(antes, s, 'a')!.estado).toBe('esperando');
     expect(paraPuntuar(antes, 'c').map((x) => x.tarea.miembro).sort()).toEqual(['a', 'b']);
     const despues = derivar(config, [h1, v, h2], lunes + 60 * HORA);
-    expect(tareaDe(despues, s, 'a')!.nota).toBe(6);
+    expect(tareaDe(despues, s, 'a')!.nota).toBe(8); // el 6 de b y el 10 de c, que no dijo nada
     const tb = tareaDe(despues, s, 'b')!;
-    expect(tb.nota).toBe(7);
+    expect(tb.nota).toBe(10);
     expect(tb.intentos[0].auto).toBe(true);
     expect(despues.medallas.c.fantasma).toBe(2);
+  });
+  it('nota propia (Javi, 16 de noviembre): cuenta como una más y el que calla cuenta como ella', () => {
+    // a se pone un 8 («no fregué») y nadie vota: un 8
+    const h = ev('zona_hecha', 'a', lunes + 10 * HORA, { semana: s, notaPropia: 8, faltan: ['Suelo fregado'], nota: 'No fregué, lo friego luego' });
+    const solo = tareaDe(derivar(config, [h], lunes + 60 * HORA), s, 'a')!;
+    expect(solo.intentos[0].propia).toMatchObject({ nota: 8, faltan: ['Suelo fregado'], comentario: 'No fregué, lo friego luego' });
+    expect(solo.nota).toBe(8);
+    expect(solo.intentos[0].auto).toBe(true);
+    // a se pone un 10, b le pone un 6 y c no vota: (10 + 6 + 10) / 3
+    const h10 = ev('zona_hecha', 'a', lunes + 10 * HORA, { semana: s, notaPropia: 10 });
+    const v6 = ev('puntuacion', 'b', lunes + 12 * HORA, { semana: s, de: 'a', intento: 1, nota: 6, faltan: ['Microondas'] });
+    expect(tareaDe(derivar(config, [h10, v6], lunes + 60 * HORA), s, 'a')!.nota).toBe(8.7);
+    // y si los dos le ponen un 6: (10 + 6 + 6) / 3, al votar el segundo
+    const v6c = ev('puntuacion', 'c', lunes + 13 * HORA, { semana: s, de: 'a', intento: 1, nota: 6 });
+    const dos = tareaDe(derivar(config, [h10, v6, v6c], lunes + 14 * HORA), s, 'a')!;
+    expect(dos.estado).toBe('aprobada');
+    expect(dos.nota).toBe(7.3);
+  });
+  it('la nota propia se puede cambiar antes de cerrarse («ya lo fregué») y no cuenta como voto de juez', () => {
+    const h = ev('zona_hecha', 'a', lunes + 10 * HORA, { semana: s, notaPropia: 8 });
+    const cambia = ev('puntuacion', 'a', lunes + 20 * HORA, { semana: s, de: 'a', intento: 1, nota: 10, propia: true, comentario: 'Ya fregué' });
+    const e = derivar(config, [h, cambia], lunes + 30 * HORA);
+    const i = tareaDe(e, s, 'a')!.intentos[0];
+    expect(i.propia).toMatchObject({ nota: 10, comentario: 'Ya fregué' });
+    expect(i.votos).toEqual([]);
+    expect(i.sinVotar.sort()).toEqual(['b', 'c']);
+    expect(tareaDe(derivar(config, [h, cambia], lunes + 60 * HORA), s, 'a')!.nota).toBe(10);
+    // después de cerrarse ya no vale
+    const tarde = ev('puntuacion', 'a', lunes + 70 * HORA, { semana: s, de: 'a', intento: 1, nota: 2, propia: true });
+    expect(tareaDe(derivar(config, [h, tarde], lunes + 80 * HORA), s, 'a')!.nota).toBe(8);
+    // la de otro marcada «como propia» no cuenta (ni como juez)
+    const ajena = ev('puntuacion', 'b', lunes + 12 * HORA, { semana: s, de: 'a', intento: 1, nota: 1, propia: true });
+    const conAjena = tareaDe(derivar(config, [h, ajena], lunes + 60 * HORA), s, 'a')!;
+    expect(conAjena.nota).toBe(8);
+    expect(conAjena.intentos[0].votos).toEqual([]);
   });
   it('por debajo de 5 se suspende, resta y hay que repetir', () => {
     const h1 = ev('zona_hecha', 'c', lunes + 10 * HORA, { semana: s });

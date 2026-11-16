@@ -45,7 +45,7 @@ function resultado(t: Tarea, i: Intento, n: Normas, nombre: (m: MiembroId) => st
     return {
       para: i.quien,
       titulo: `✅ ${piso}: aprobado con un ${nota(i.media!)}`,
-      texto: i.auto ? 'Nadie te puso nota a tiempo: va con la nota automática.' : `Suma ${nota(i.media!)} puntos.`,
+      texto: i.auto ? (i.propia ? 'Nadie te puso pegas: se queda tu nota.' : 'Nadie te puso pegas: te llevas la máxima.') : `Suma ${nota(i.media!)} puntos.`,
       pantalla: 'limpieza',
       etiqueta,
     };
@@ -116,9 +116,13 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
       const hecho = i.n > 1 ? 'ha repasado' : 'ha terminado';
       // si lo apunta otro desde el cuadro («Ya lo ha limpiado Jose»), sale quien lo limpió y quién lo apunta
       const z = t.zona.nombre.toLowerCase();
+      // con su nota (Javi, 16 de noviembre): si no le dices nada, se queda la suya
+      const suNota = i.propia
+        ? `Se pone un ${nota(i.propia.nota)}${i.propia.comentario ? `: «${i.propia.comentario}»` : ''}. Si no dices nada, se queda su nota (tienes ${n.horasRevision} horas).`
+        : `Ponle nota: tienes ${n.horasRevision} horas. Si no dices nada, se lleva un ${nota(n.notaAutomatica)}.`;
       const r: Aviso[] = i.sinVotar.map((j) => {
         const piso = de === i.quien ? `el ${t.zona.nombre}` : j === de ? `tu ${z}` : `el ${t.zona.nombre} de ${nombre(de)}`;
-        return { para: j, titulo: `🧹 ${nombre(i.quien)} ${hecho} ${piso}`, texto: `${porOtro ? `Lo apunta ${yo}. ` : ''}Ponle nota: tienes ${n.horasRevision} horas.`, pantalla: 'hoy' as const, etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` };
+        return { para: j, titulo: `🧹 ${nombre(i.quien)} ${hecho} ${piso}`, texto: `${porOtro ? `Lo apunta ${yo}. ` : ''}${suNota}`, pantalla: 'hoy' as const, etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` };
       });
       if (porOtro && i.quien === actor) {
         r.push({ para: actor, titulo: `✅ ${yo} ha marcado como hecho ${de === actor ? `tu ${z}` : `el ${z} de ${nombre(de)}`}`, texto: 'Dice que lo limpiaste tú: la nota es para ti.', pantalla: 'limpieza', etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` });
@@ -244,8 +248,21 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
       const d = e.datos ?? {};
       const t = tareaDe(estado, Number(d.semana), d.de);
       const i = t?.intentos.find((x) => x.n === d.intento);
+      if (!t || !i) return [];
+      // el que lo limpió se cambia la nota («ya lo fregué»): a los que aún no han votado
+      if (d.propia) {
+        if (i.resuelto || i.propia?.ts !== e.ts || e.autor !== i.quien) return [];
+        const piso = i.quien === t.miembro ? `el ${t.zona.nombre}` : `el ${t.zona.nombre} de ${nombre(t.miembro)}`;
+        return i.sinVotar.map((j) => ({
+          para: j,
+          titulo: `✏️ ${yo} se cambia la nota: un ${nota(i.propia!.nota)}`,
+          texto: `${mayus(piso)}.${i.propia!.comentario ? ` «${i.propia!.comentario}».` : ''} Si no dices nada, se queda esta.`,
+          pantalla: 'hoy' as const,
+          etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}`,
+        }));
+      }
       // Solo cuando con este voto queda resuelto (el otro ya había votado)
-      if (!t || !i || !i.resuelto || i.resueltoEn !== e.ts) return [];
+      if (!i.resuelto || i.resueltoEn !== e.ts) return [];
       return resultados(t, i, n, nombre);
     }
     case 'gasto': {
@@ -365,7 +382,9 @@ export function avisosDelReloj(config: Config, eventos: Evento[], desde: number,
       if (!i.resuelto && en(i.fin - 6 * HORA)) {
         for (const j of i.sinVotar) {
           const que = i.quien === t.miembro ? `El ${t.zona.nombre} de ${nombre(t.miembro)}` : j === t.miembro ? `Tu ${t.zona.nombre.toLowerCase()}, que limpió ${nombre(i.quien)}` : `El ${t.zona.nombre} de ${nombre(t.miembro)}, que limpió ${nombre(i.quien)}`;
-          r.push({ para: j, titulo: `⏰ Te quedan ${duracion(i.fin - ahora)} para puntuar`, texto: `${que}. Puntuar a tiempo da ${pts(n.puntosRevisar)}.`, pantalla: 'hoy', etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` });
+          // si no vota, cuenta como la nota que se puso (o la máxima)
+          const calla = `Si no dices nada, cuenta como ${i.propia ? `su nota, un ${nota(i.propia.nota)}` : `un ${nota(n.notaAutomatica)}`}.`;
+          r.push({ para: j, titulo: `⏰ Te quedan ${duracion(i.fin - ahora)} para puntuar`, texto: `${que}. ${calla} Puntuar a tiempo da ${pts(n.puntosRevisar)}.`, pantalla: 'hoy', etiqueta: `puntuar-${t.semana}-${t.miembro}-${i.n}` });
         }
       }
       // Con todas las notas, el resultado sale al votar (avisosDeEvento); si no, al cerrarse el plazo

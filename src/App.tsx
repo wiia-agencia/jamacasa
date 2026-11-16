@@ -233,11 +233,18 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     () => ({
       empezar: (semana) => apuntar('zona_empezada', { semana }),
       marcarCosa: (semana, cosa, hecha, de) => apuntar('zona_cosa', de ? { semana, cosa, hecha, de } : { semana, cosa, hecha }),
-      async marcarHecho(semana, fotos, nota, de, quien) {
-        await apuntar('zona_hecha', { semana, fotos, nota, ...(de ? { de } : {}), ...(quien && quien !== yo ? { quien } : {}) });
+      async marcarHecho(semana, fotos, nota, de, quien, propia) {
+        const porOtro = Boolean(quien && quien !== yo);
+        await apuntar('zona_hecha', {
+          semana, fotos, nota,
+          ...(de ? { de } : {}),
+          ...(porOtro ? { quien } : {}),
+          // tu nota y lo que te faltó (si lo marcas por otro, la nota se la pone él)
+          ...(propia && !porOtro ? { notaPropia: propia.nota, faltan: propia.faltan } : {}),
+        });
         try { confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: ['#f6c14f', '#ec6b67', '#fa8f59'] }); } catch { /* nada */ }
       },
-      puntuar: (t, i, nota, faltan, fotos, comentario) => apuntar('puntuacion', { semana: t.semana, de: t.miembro, intento: i.n, nota, faltan, fotos, comentario }),
+      puntuar: (t, i, nota, faltan, fotos, comentario, propia) => apuntar('puntuacion', { semana: t.semana, de: t.miembro, intento: i.n, nota, faltan, fotos, comentario, ...(propia ? { propia: true } : {}) }),
       basuraLlena: (fotos) => apuntar('basura_llena', { fotos }),
       // con `quien` (desde el cuadro), lo que se dice es de otro: «Lo limpia Jose», «Josu le echa una mano»…
       basuraSacada: (quien) => apuntar('basura_sacada', quien && quien !== yo ? { quien } : {}),

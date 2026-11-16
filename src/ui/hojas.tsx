@@ -9,14 +9,14 @@ import type { MiembroId, Zona } from '../core/tipos';
 import { claseColor, useCasa, type Hoja as TipoHoja } from './contexto';
 import { LoLimpioOtro, PonermeBasura, PonermePiso } from './Cuadro';
 import { EstadoTarea, Jueces } from './Hoy';
-import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, SelectorFotos } from './piezas';
+import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, Placa, SelectorFotos } from './piezas';
 
 export function Hojas({ hoja }: { hoja: TipoHoja }) {
   switch (hoja.tipo) {
     case 'hecho': return <HojaHecho tarea={hoja.tarea} />;
     case 'cubrir': return <HojaCubrir tarea={hoja.tarea} />;
     case 'ponerme': return hoja.fila === 'basura' ? <PonermeBasura key={`b-${hoja.quien ?? ''}`} quien={hoja.quien} /> : <PonermePiso key={`${hoja.fila}-${hoja.quien ?? ''}`} de={hoja.fila} quien={hoja.quien} />;
-    case 'puntuar': return <HojaPuntuar tarea={hoja.tarea} intento={hoja.intento} />;
+    case 'puntuar': return <HojaPuntuar tarea={hoja.tarea} intento={hoja.intento} propia={hoja.propia} />;
     case 'basura': return <HojaBasura />;
     case 'tuyo': return <HojaTuyo />;
     case 'gasto': return <HojaGasto />;
@@ -31,42 +31,95 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
   }
 }
 
+/** Del 0 al 10, en botones (los de menos del aprobado, en rojo). */
+function SelectorNota({ valor, cambiar, minima }: { valor: number | null; cambiar: (v: number) => void; minima: number }) {
+  return (
+    <div className="notas" role="radiogroup" aria-label="Nota del 0 al 10">
+      {Array.from({ length: 11 }, (_, k) => (
+        <button key={k} type="button" role="radio" aria-checked={valor === k} aria-pressed={valor === k} className={`nota-boton ${k < minima ? 'baja' : ''}`} onClick={() => cambiar(k)}>
+          {k}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Lo de la lista que falta (se toca para marcarlo o quitarlo). */
+function QueFalta({ lista, faltan, cambiar }: { lista: string[]; faltan: string[]; cambiar: (f: string[]) => void }) {
+  return (
+    <div className="opciones">
+      {lista.map((c) => (
+        <button key={c} type="button" className="opcion falta" aria-pressed={faltan.includes(c)} onClick={() => cambiar(faltan.includes(c) ? faltan.filter((x) => x !== c) : [...faltan, c])}>
+          {c}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const yJunto = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
+
+/** Marcar tu piso como hecho, con tu nota (Javi, 16 de noviembre: «el propio que limpia el piso tenga que darse una
+ *  propia puntuación… pues mira, esto no lo hice, chicos, o lo hago más tarde»): del 0 al 10, lo que te faltó (sale
+ *  marcado lo que no tachaste de la lista) y lo que quieras contar. Si los otros no dicen nada, se queda tu nota. */
 function HojaHecho({ tarea }: { tarea: Tarea }) {
   const { cerrar, acciones, avisar, config, yo, estado } = useCasa();
+  const vivo = estado.tareas.find((t) => t.semana === tarea.semana && t.miembro === tarea.miembro) ?? tarea;
+  // si fuiste tachando la lista, sale marcado lo que no tachaste (si no la usaste, no se da nada por hecho)
+  const usoLista = vivo.marcadas.length > 0;
+  const sinTachar = usoLista ? vivo.lista.filter((c) => !vivo.marcadas.includes(c)) : [];
+  // con la lista entera tachada, sale un 10 (lo bajas si quieres); si no, la eliges tú
+  const [valor, setValor] = useState<number | null>(usoLista && sinTachar.length === 0 ? 10 : null);
+  const [faltan, setFaltan] = useState<string[]>(sinTachar);
   const [fotos, setFotos] = useState<string[]>([]);
   const [texto, setTexto] = useState('');
-  const repaso = tarea.estado === 'suspendida';
-  // el piso de otro que limpias tú («Lo limpio yo»): se apunta a su nombre y te ponen nota los otros dos
-  const deOtro = tarea.miembro !== yo ? tarea.miembro : undefined;
-  const dueno = config.miembros.find((m) => m.id === tarea.miembro)?.nombre ?? '';
-  const jueces = config.miembros.filter((m) => m.id !== yo).map((m) => m.nombre).join(' y ');
-  const piso = deOtro ? `${tarea.zona.nombre} de ${dueno}` : tarea.zona.nombre;
+  const [error, setError] = useState('');
+  const repaso = vivo.estado === 'suspendida';
+  // el piso de otro que limpias tú («Lo limpio yo»): se apunta a su nombre y la nota es para ti
+  const deOtro = vivo.miembro !== yo ? vivo.miembro : undefined;
+  const dueno = config.miembros.find((m) => m.id === vivo.miembro)?.nombre ?? '';
+  // te ponen nota los que no lo han limpiado (ni te han echado una mano)
+  const jueces = yJunto(config.miembros.filter((m) => m.id !== yo && !vivo.ayudan.includes(m.id)).map((m) => m.nombre));
+  const piso = deOtro ? `${vivo.zona.nombre} de ${dueno}` : vivo.zona.nombre;
   return (
     <Hoja
       titulo={repaso ? `Repaso del ${piso.charAt(0).toLowerCase()}${piso.slice(1)}` : piso}
-      subtitulo={`Al marcarlo, ${jueces} tienen ${estado.normas.horasRevision} horas para ponerte nota.${deOtro ? ' La nota es para ti.' : ''}`}
+      subtitulo={jueces ? `Ponte tu nota. ${jueces} tienen ${estado.normas.horasRevision} horas para votar: si no dicen nada, se queda la tuya.` : 'Ponte tu nota: lo habéis limpiado entre todos, así que se queda la tuya.'}
       onCerrar={cerrar}
       pie={
         <BotonAccion
+          desactivado={valor === null}
           hacer={async () => {
-            await acciones.marcarHecho(tarea.semana, fotos, texto.trim() || undefined, deOtro);
+            if (valor === null) { setError('Ponte una nota del 0 al 10.'); return; }
+            await acciones.marcarHecho(vivo.semana, fotos, texto.trim() || undefined, deOtro, undefined, { nota: valor, faltan });
             cerrar();
-            avisar(repaso ? 'Marcado como repasado. A esperar la nota.' : `Marcado como hecho. Ahora te puntúan ${jueces}.`);
+            avisar(jueces ? `Marcado con un ${valor}. Si ${jueces} no dicen nada, se queda.` : `Marcado con un ${valor}.`);
           }}
         >
-          {repaso ? 'Marcar como repasado' : 'Marcar como hecho'}
+          {repaso ? 'Marcar como repasado' : 'Marcar como hecho'}{valor !== null ? ` · un ${valor}` : ''}
         </BotonAccion>
       }
     >
-      <div className="pila-s" style={{ gap: 20 }}>
+      <div className="pila-s" style={{ gap: 22 }}>
+        <div className="campo">
+          <span className="etiqueta">Tu nota: ¿cómo te ha quedado?</span>
+          <SelectorNota valor={valor} cambiar={(v) => { setValor(v); setError(''); }} minima={estado.normas.notaMinima} />
+        </div>
+        {vivo.lista.length > 0 && (
+          <div className="campo">
+            <span className="etiqueta">{sinTachar.length ? '¿Te faltó algo? Sale marcado lo que no tachaste' : '¿Te faltó algo? Tócalo'}</span>
+            <QueFalta lista={vivo.lista} faltan={faltan} cambiar={setFaltan} />
+          </div>
+        )}
+        <div className="campo">
+          <label htmlFor="nota-hecho">Cuéntales (si quieres)</label>
+          <textarea id="nota-hecho" className="entrada" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Por ejemplo: el suelo no lo fregué, lo friego esta tarde" />
+        </div>
         <div className="campo">
           <span className="etiqueta">Fotos de cómo ha quedado (si quieres)</span>
           <SelectorFotos fotos={fotos} cambiar={setFotos} />
         </div>
-        <div className="campo">
-          <label htmlFor="nota-hecho">Algo que contar (si quieres)</label>
-          <textarea id="nota-hecho" className="entrada" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Por ejemplo: la campana no la toqué, va en las tareas extra" />
-        </div>
+        {error && <p className="error" role="alert">{error}</p>}
       </div>
     </Hoja>
   );
@@ -117,87 +170,81 @@ function HojaCubrir({ tarea }: { tarea: Tarea }) {
   );
 }
 
-function HojaPuntuar({ tarea, intento }: { tarea: Tarea; intento: Intento }) {
+/** Ponerle nota al piso de otro o, con `propia`, cambiarte la tuya («ya lo fregué»). Arriba, la nota que se puso él:
+ *  si te parece bien, no hace falta votar (se queda la suya); para bajarle de ahí hay que decir el fallo (Javi, 16 de
+ *  noviembre: «si no quieren que te lleves la puntuación máxima, pues tienen que buscar fallos en tu piso»). */
+function HojaPuntuar({ tarea, intento, propia = false }: { tarea: Tarea; intento: Intento; propia?: boolean }) {
   const { cerrar, acciones, avisar, estado, config } = useCasa();
-  const [valor, setValor] = useState<number | null>(null);
-  const [faltan, setFaltan] = useState<string[]>([]);
+  const ya = propia ? intento.propia : undefined; // tu nota de antes
+  const [valor, setValor] = useState<number | null>(ya?.nota ?? null);
+  const [faltan, setFaltan] = useState<string[]>(ya?.faltan ?? []);
   const [fotos, setFotos] = useState<string[]>([]);
-  const [comentario, setComentario] = useState('');
+  const [comentario, setComentario] = useState(ya?.comentario ?? '');
   const [error, setError] = useState('');
   // se puntúa a quien lo limpió (si tu piso lo limpió otro, a él)
   const quien = config.miembros.find((m) => m.id === intento.quien)!.nombre;
   const minima = estado.normas.notaMinima;
+  const suya = intento.propia?.nota ?? estado.normas.notaAutomatica; // la que se queda si no dices nada
   const fotosHecho: string[] = intento.hecho.datos?.fotos ?? [];
   const notaHecho: string | undefined = intento.hecho.datos?.nota;
+  const lista = tarea.lista.length ? tarea.lista : tarea.zona.checklist;
 
   const enviar = async () => {
     if (valor === null) { setError('Elige una nota del 0 al 10.'); return; }
-    if (valor < minima && faltan.length === 0 && fotos.length === 0) {
-      setError(`Para poner menos de un ${minima}, marca qué falta o sube una foto.`);
-      return;
+    if (!propia) {
+      if (valor < minima && faltan.length === 0 && fotos.length === 0) {
+        setError(`Para poner menos de un ${minima}, marca qué falta o sube una foto.`);
+        return;
+      }
+      if (valor < suya && faltan.length === 0 && fotos.length === 0 && !comentario.trim()) {
+        setError(`Para ponerle menos de ${intento.propia ? 'lo que se puso' : 'un 10'} (un ${nota(suya)}), di qué falla: márcalo, sube una foto o cuéntalo.`);
+        return;
+      }
     }
-    await acciones.puntuar(tarea, intento, valor, faltan, fotos, comentario.trim() || undefined);
+    await acciones.puntuar(tarea, intento, valor, faltan, fotos, comentario.trim() || undefined, propia);
     cerrar();
-    avisar(`Nota enviada: un ${valor} para ${quien}.`);
+    avisar(propia ? `Tu nota: un ${valor}. Ya lo saben.` : `Nota enviada: un ${valor} para ${quien}.`);
   };
 
   return (
     <Hoja
-      titulo={`Puntuar a ${quien}`}
-      subtitulo={`${tarea.zona.nombre}, ${intento.n > 1 ? 'repasado' : 'hecho'} ${cuando(intento.hecho.ts, estado.ahora)}.`}
+      titulo={propia ? 'Tu nota' : `Puntuar a ${quien}`}
+      subtitulo={propia ? `${tarea.zona.nombre}. Si los otros no dicen nada, se queda esta.` : `${tarea.zona.nombre}, ${intento.n > 1 ? 'repasado' : 'hecho'} ${cuando(intento.hecho.ts, estado.ahora)}.`}
       onCerrar={cerrar}
-      pie={<BotonAccion hacer={enviar} desactivado={valor === null}>Enviar nota{valor !== null ? `: ${valor}` : ''}</BotonAccion>}
+      pie={<BotonAccion hacer={enviar} desactivado={valor === null}>{propia ? 'Cambiar mi nota' : 'Enviar nota'}{valor !== null ? `: ${valor}` : ''}</BotonAccion>}
     >
       <div className="pila-s" style={{ gap: 22 }}>
-        {(fotosHecho.length > 0 || notaHecho) && (
-          <div className="pila-s">
-            {fotosHecho.length > 0 && <div className="fotos">{fotosHecho.map((f) => <FotoRef key={f} ref_={f} />)}</div>}
-            {notaHecho && <p className="peq suave">«{notaHecho}»</p>}
-          </div>
-        )}
-        <div className="campo">
-          <span className="etiqueta">Tu nota</span>
-          <div className="notas" role="radiogroup" aria-label="Nota del 0 al 10">
-            {Array.from({ length: 11 }, (_, k) => (
-              <button
-                key={k}
-                type="button"
-                role="radio"
-                aria-checked={valor === k}
-                aria-pressed={valor === k}
-                className={`nota-boton ${k < minima ? 'baja' : ''}`}
-                onClick={() => { setValor(k); setError(''); }}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-        </div>
-        {tarea.zona.checklist.length > 0 && (
-          <div className="campo">
-            <span className="etiqueta">¿Falta algo? Toca lo que no está bien</span>
-            <div className="opciones">
-              {tarea.zona.checklist.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className="opcion falta"
-                  aria-pressed={faltan.includes(c)}
-                  onClick={() => { setFaltan(faltan.includes(c) ? faltan.filter((x) => x !== c) : [...faltan, c]); setError(''); }}
-                >
-                  {c}
-                </button>
-              ))}
+        {!propia && (
+          <div className="nota-propia">
+            <Placa valor={suya} peq />
+            <div className="crece">
+              <b>{intento.propia ? `${quien} se pone un ${nota(intento.propia.nota)}` : `${quien} no se ha puesto nota`}</b>
+              {intento.propia && intento.propia.faltan.length > 0 && <span>Dice que le faltó: {intento.propia.faltan.map((f) => f.toLowerCase()).join(' · ')}</span>}
+              {(intento.propia?.comentario ?? notaHecho) && <span className="suave">«{intento.propia?.comentario ?? notaHecho}»</span>}
+              <span className="tenue">Si te parece bien, no hace falta que votes: se queda {intento.propia ? 'su nota' : 'con un 10'}.</span>
             </div>
           </div>
         )}
+        {fotosHecho.length > 0 && <div className="fotos">{fotosHecho.map((f) => <FotoRef key={f} ref_={f} />)}</div>}
         <div className="campo">
-          <span className="etiqueta">Foto de lo que has visto {valor !== null && valor < minima ? '' : '(si quieres)'}</span>
-          <SelectorFotos fotos={fotos} cambiar={(f) => { setFotos(f); setError(''); }} max={3} />
+          <span className="etiqueta">{propia ? 'Tu nota: ¿cómo te ha quedado?' : 'Tu nota'}</span>
+          <SelectorNota valor={valor} cambiar={(v) => { setValor(v); setError(''); }} minima={minima} />
         </div>
+        {lista.length > 0 && (
+          <div className="campo">
+            <span className="etiqueta">{propia ? '¿Te faltó algo? Tócalo' : '¿Falta algo? Toca lo que no está bien'}</span>
+            <QueFalta lista={lista} faltan={faltan} cambiar={(f) => { setFaltan(f); setError(''); }} />
+          </div>
+        )}
+        {!propia && (
+          <div className="campo">
+            <span className="etiqueta">Foto de lo que has visto {valor !== null && valor < suya ? '' : '(si quieres)'}</span>
+            <SelectorFotos fotos={fotos} cambiar={(f) => { setFotos(f); setError(''); }} max={3} />
+          </div>
+        )}
         <div className="campo">
-          <label htmlFor="comentario">Comentario (si quieres)</label>
-          <textarea id="comentario" className="entrada" value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Te dejaste el espejo del baño" />
+          <label htmlFor="comentario">{propia ? 'Cuéntales (si quieres)' : 'Comentario (si quieres)'}</label>
+          <textarea id="comentario" className="entrada" value={comentario} onChange={(e) => { setComentario(e.target.value); setError(''); }} placeholder={propia ? 'Ya fregué el suelo' : 'Te dejaste el espejo del baño'} />
         </div>
         {error && <p className="error" role="alert">{error}</p>}
       </div>

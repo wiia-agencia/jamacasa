@@ -152,7 +152,7 @@ describe('avisos por la hora', () => {
     expect(para(rec)).toEqual(['c']);
     const cierre = avisosDelReloj(config, [h, v], fin - 0.5 * HORA, fin + 0.5 * HORA).filter((x) => x.etiqueta.startsWith('nota-'));
     expect(para(cierre)).toEqual(['a']);
-    expect(cierre[0].titulo).toContain('aprobado con un 7');
+    expect(cierre[0].titulo).toContain('aprobado con un 8,5'); // el 7 de b y el 10 de c, que no dijo nada
   });
 
   it('el alquiler: el día 10 a las 10, a quien no lo ha pagado', () => {

@@ -46,15 +46,21 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
       const elDe = suyo ? `el ${zona} de ${X}` : `el ${zona} que limpió ${Q}`;
       // si lo apuntó otro desde el cuadro («Ya lo ha limpiado Jose»), se dice quién
       const apunta = i.hecho.autor !== i.quien && !i.corregido ? ` Lo apunta ${n(i.hecho.autor)}.` : '';
-      r.push({ id: `${i.hecho.id}-h`, ts: i.hecho.ts, quien: i.quien, texto: (i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`) + apunta, fotos: i.hecho.datos?.fotos });
+      // la nota que se puso al marcarlo (Javi, 16 de noviembre) y, si se la cambió después, otra noticia
+      const puesta = i.hecho.autor === i.quien && i.hecho.datos?.notaPropia !== undefined ? ` Se pone un ${nota(Number(i.hecho.datos.notaPropia))}.` : '';
+      r.push({ id: `${i.hecho.id}-h`, ts: i.hecho.ts, quien: i.quien, texto: (i.n > 1 ? `${Q} ha repasado ${elPiso}.` : `${Q} ha terminado ${elPiso}.`) + apunta + puesta, fotos: i.hecho.datos?.fotos });
+      if (i.propia && i.propia.ts !== i.hecho.ts) {
+        r.push({ id: `${i.hecho.id}-pr`, ts: i.propia.ts, quien: i.quien, texto: `${Q} se cambia la nota: ahora un ${nota(i.propia.nota)} (${zona}${suyo ? '' : ` de ${X}`}).${i.propia.comentario ? ` «${i.propia.comentario}»` : ''}` });
+      }
       if (i.corregido) {
         r.push({ id: `${t.semana}-${t.miembro}-${i.n}-hp`, ts: i.corregido.ts, quien: i.corregido.por, texto: `${n(i.corregido.por)} dice que el ${zona} de ${X} lo limpió ${Q}.` });
       }
       if (!i.resuelto) continue;
       const id = `${i.hecho.id}-r`;
       if (i.aprobado) {
+        // nadie le puso pegas: se queda con su nota (o, si no se la puso, con la máxima)
         const texto = i.auto
-          ? `Nadie puntuó a tiempo ${elDe}: aprobado con un ${nota(i.media!)}.`
+          ? `Nadie le puso pegas al ${elDe.slice(3)}: se queda con un ${nota(i.media!)}.`
           : i.media === 10
             ? `${Q} saca un 10 en ${elPiso}. Quirófano.`
             : `${Q} aprueba ${elPiso} con un ${nota(i.media!)}.`;

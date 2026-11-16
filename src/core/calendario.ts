@@ -4,7 +4,9 @@ import type { Config, MiembroId, Normas, Zona } from './tipos';
 
 export const NORMAS_BASE: Normas = {
   notaMinima: 5,
-  notaAutomatica: 7,
+  // si nadie dice nada (ni se pone nota el que limpió), la máxima: «si tú limpias tu parte y nadie tiene nada malo que
+  // decir… te llevas la puntuación máxima» (Javi, 16 de noviembre; antes, un 7)
+  notaAutomatica: 10,
   horasRevision: 48,
   horasBasura: 12,
   horasEstoEsTuyo: 12,

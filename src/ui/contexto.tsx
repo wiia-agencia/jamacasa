@@ -14,7 +14,7 @@ export type Hoja =
   | { tipo: 'hecho'; tarea: Tarea }
   | { tipo: 'cubrir'; tarea: Tarea }
   | { tipo: 'ponerme'; fila: MiembroId | 'basura'; quien?: MiembroId } // el cuadro de la semana: lo que se puede hacer en esa fila (tú o a quien arrastras)
-  | { tipo: 'puntuar'; tarea: Tarea; intento: Intento }
+  | { tipo: 'puntuar'; tarea: Tarea; intento: Intento; propia?: boolean } // con `propia`, el que lo limpió se cambia su nota
   | { tipo: 'basura' }
   | { tipo: 'tuyo' }
   | { tipo: 'gasto' }
@@ -31,8 +31,9 @@ export interface Acciones {
   empezar(semana: number): Promise<void>;
   /** «Lo que se limpia»: marcar (o desmarcar) una cosa de la lista de tu piso (o del de `de`, si lo limpias tú) */
   marcarCosa(semana: number, cosa: string, hecha: boolean, de?: MiembroId): Promise<void>;
-  /** Marcar tu piso como hecho (o el de `de`); con `quien`, desde el cuadro: «Ya lo ha limpiado Jose» */
-  marcarHecho(semana: number, fotos: string[], nota?: string, de?: MiembroId, quien?: MiembroId): Promise<void>;
+  /** Marcar tu piso como hecho (o el de `de`) con tu nota y lo que te faltó; con `quien`, desde el cuadro: «Ya lo ha
+   *  limpiado Jose» (sin nota: se la pone él) */
+  marcarHecho(semana: number, fotos: string[], nota?: string, de?: MiembroId, quien?: MiembroId, propia?: { nota: number; faltan: string[] }): Promise<void>;
   /** «Lo limpio yo»: te encargas del piso de otro esta semana (o lo dejas); con `quien`, se lo pones a otro */
   cubrir(semana: number, de: MiembroId, quien?: MiembroId): Promise<void>;
   dejarDeCubrir(semana: number, de: MiembroId, quien?: MiembroId): Promise<void>;
@@ -46,7 +47,8 @@ export interface Acciones {
   devolverBasura(semana: number, a: MiembroId): Promise<void>;
   /** Pasarle la basura a otro desde ahora (desde el cuadro) */
   pasarBasura(semana: number, a: MiembroId): Promise<void>;
-  puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string): Promise<void>;
+  /** Votar el piso de otro o, con `propia`, cambiarte tu nota («ya lo fregué») */
+  puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string, propia?: boolean): Promise<void>;
   basuraLlena(fotos: string[]): Promise<void>;
   /** «Ya la saqué» (o «Esta la saqué yo»); con `quien`, desde el cuadro: «La ha sacado Jose» */
   basuraSacada(quien?: MiembroId): Promise<void>;
