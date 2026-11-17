@@ -1,12 +1,13 @@
 import { Bell, BellOff, CheckCircle2, Clock3, Info, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { euros } from '../core/cuentas';
-import { atrasadas, avisosBasuraAbiertos, basuraTocaba, paraPuntuar, puntosDelMes, tareaDe, tuyosAbiertos } from '../core/estado';
+import { atrasadas, paraPuntuar, puntosDelMes, tareaDe, tuyosAbiertos } from '../core/estado';
 import type { Intento, Tarea } from '../core/limpieza';
 import { nota } from '../core/noticias';
-import { cuando, duracion, fechaCorta, finSemana, haceRato, lunesDe, nombreMes, rangoSemana } from '../core/tiempo';
+import { cuando, duracion, fechaCorta, finSemana, lunesDe, nombreMes, rangoSemana } from '../core/tiempo';
 import { leer, guardar } from '../datos/guardado';
 import { miembro, useCasa } from './contexto';
+import { TarjetaBasura } from './Basura';
 import { ChapaEstado } from './Limpieza';
 import { PortadaHoy } from './PortadaHoy';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
@@ -313,7 +314,7 @@ function Atrasadas() {
 }
 
 function Atajos() {
-  const { estado, yo, abrir, acciones, avisar } = useCasa();
+  const { estado, abrir } = useCasa();
   if (!estado.empezado) {
     // Hasta el primer sorteo no hay nadie de basura ni cuenta nada: se dice, para que no parezcan botones de adorno
     return (
@@ -337,58 +338,10 @@ function Atajos() {
       </div>
     );
   }
-  const resp = estado.basura;
-  const tocaba = basuraTocaba(estado);
-  // los avisos abiertos de quien la tiene (si te la has quedado tú, los tuyos)
-  const aviso = resp ? avisosBasuraAbiertos(estado, resp)[0] : undefined;
   return (
     <div className="atajos">
-      {resp === yo ? (
-        <div className={`atajo ${aviso ? 'alerta' : ''}`}>
-          <span className="emoji" aria-hidden="true">🗑️</span>
-          <strong>{aviso ? 'La basura está llena' : 'Esta semana la basura es tuya'}</strong>
-          <span className="peq">
-            {aviso ? <>Avisó <Nombre id={aviso.pulsaciones[0].autor} />. Te quedan {duracion(aviso.limite - estado.ahora)}.</>
-              : tocaba && tocaba !== yo ? <>Te la has quedado tú: le tocaba a <Nombre id={tocaba} />.</>
-              : 'Sácala cada vez que se llene.'}
-          </span>
-          <button
-            type="button"
-            className="boton mini"
-            style={{ marginTop: 'auto' }}
-            onClick={async () => {
-              await acciones.basuraSacada();
-              avisar('Basura sacada. ¡Gracias!');
-            }}
-          >
-            Ya la saqué
-          </button>
-        </div>
-      ) : (
-        <div className="atajo">
-          <span className="emoji" aria-hidden="true">🗑️</span>
-          <strong>La basura es de {resp ? <Nombre id={resp} /> : 'nadie aún'}</strong>
-          <span className="peq">
-            {aviso ? <>Aviso enviado {haceRato(aviso.desde, estado.ahora)}. Le quedan {duracion(aviso.limite - estado.ahora)}.</> : '¿Está llena? Avísale.'}
-          </span>
-          <button type="button" className="boton mini" style={{ marginTop: 'auto' }} disabled={!resp || Boolean(aviso)} onClick={() => abrir({ tipo: 'basura' })}>
-            {aviso ? 'Aviso enviado' : 'Basura llena'}
-          </button>
-          {resp && (
-            // si no está (o la sacas tú igualmente), te la quedas: desde ahora es tuya y sus puntos también
-            <button
-              type="button"
-              className="enlace atajo-enlace"
-              onClick={async () => {
-                await acciones.quedarmeBasura(estado.semana);
-                avisar('Te quedas la basura esta semana. Ya lo saben.');
-              }}
-            >
-              Me la quedo yo
-            </button>
-          )}
-        </div>
-      )}
+      {/* la basura: por colores, con las bolsas y quién avisa (si está llena, ocupa todo el ancho) */}
+      <TarjetaBasura />
       <div className="atajo">
         <span className="emoji" aria-hidden="true">🧦</span>
         <strong>¿Algo tirado por ahí?</strong>

@@ -6638,6 +6638,19 @@ function nombreMes(m, corto = false) {
 function nombreDia(ms, corto = false) {
 	return (corto ? DIAS_C : DIAS)[diaSemana(ms)];
 }
+function hora(ms) {
+	const p = partes(ms);
+	return `${String(p.h).padStart(2, "0")}:${String(p.mi).padStart(2, "0")}`;
+}
+/** "hoy a las 19:30", "ayer a las 9:05", "el jueves a las 21:00", "el 3 nov" */
+function cuando(ms, ahora) {
+	const dif = diaLocal(ahora) - diaLocal(ms);
+	if (dif === 0) return `hoy a las ${hora(ms)}`;
+	if (dif === 1) return `ayer a las ${hora(ms)}`;
+	if (dif > 1 && dif < 7) return `el ${nombreDia(ms)} a las ${hora(ms)}`;
+	const f = fechaDeDia(diaLocal(ms));
+	return `el ${f.d} ${MESES_C[f.m - 1]}`;
+}
 /** Duración en texto: "2 d 5 h", "5 h 20 min", "12 min" */
 function duracion(ms) {
 	const min = Math.max(0, Math.round(ms / 6e4));
@@ -6911,6 +6924,28 @@ function euros(cent, conSigno = false) {
 	return `${conSigno ? cent > 0 ? "+" : cent < 0 ? "−" : "" : cent < 0 ? "−" : ""}${t} €`;
 }
 // src/core/basura.ts
+/** Lo más atrás que se puede decir que se sacó: una semana. */
+const ATRAS_MAX = 168 * HORA;
+/** Cuándo se sacó: la hora que se dice al apuntarla («¿Cuándo la sacaste?»: Javi, 17 de noviembre, la sacó a las 2 de
+*  la mañana y se acordó de apuntarlo al mediodía), nunca después de apuntarla ni más de una semana antes. */
+function cuandoSacada(e) {
+	const c = e.datos?.cuando;
+	if (c === void 0 || c === null || !Number.isFinite(Number(c))) return e.ts;
+	return Math.max(e.ts - ATRAS_MAX, Math.min(e.ts, Number(c)));
+}
+/** ¿Se apuntó más de una hora después de sacarla? */
+function apuntadaTarde(e) {
+	return e.ts - cuandoSacada(e) > HORA;
+}
+/** Las bolsas que dice un «Basura llena» (de 1 a 12; si no lo dice, 0). */
+function bolsasDe(e) {
+	const b = Math.round(Number(e.datos?.bolsas));
+	return Number.isFinite(b) && b > 0 ? Math.min(b, 12) : 0;
+}
+/** Quiénes han avisado de que está llena (sin repetir, por orden). */
+function quienesAvisan(a) {
+	return [...new Set(a.pulsaciones.map((p) => p.autor))];
+}
 /** ¿Se la quedó desde antes de decirlo? («desde el lunes»: toda la semana) */
 function desdeAntes(t) {
 	return t.evento !== void 0 && t.desde < t.evento.ts - 6e4;
@@ -6934,7 +6969,7 @@ function calcularBasura(config, normas, eventos, ahora) {
 	const wAhora = semana(ahora);
 	const esMiembro = (m) => typeof m === "string" && config.miembros.some((x) => x.id === m);
 	const pulsaciones = eventos.filter((e) => e.tipo === "basura_llena").sort((a, b) => a.ts - b.ts);
-	const sacadas = eventos.filter((e) => e.tipo === "basura_sacada" && (e.datos?.quien === void 0 || esMiembro(e.datos.quien))).sort((a, b) => a.ts - b.ts);
+	const sacadas = eventos.filter((e) => e.tipo === "basura_sacada" && (e.datos?.quien === void 0 || esMiembro(e.datos.quien))).sort((a, b) => cuandoSacada(a) - cuandoSacada(b));
 	const cambios = eventos.filter((e) => e.tipo === "basura_cubierta").sort((a, b) => a.ts - b.ts);
 	const r = [];
 	for (let w = s; w <= wAhora; w++) {
@@ -6960,25 +6995,46 @@ function calcularBasura(config, normas, eventos, ahora) {
 			});
 		}
 		const en = (ts) => responsableEn({ tramos }, ts);
-		const validas = sacadas.filter((x) => sacadaPor(x) === en(x.ts));
-		const ajenas = sacadas.filter((x) => sacadaPor(x) !== en(x.ts) && semana(x.ts) === w);
-		const vacian = sacadas;
+		const validas = sacadas.filter((x) => sacadaPor(x) === en(cuandoSacada(x)));
+		const ajenas = sacadas.filter((x) => sacadaPor(x) !== en(cuandoSacada(x)) && semana(cuandoSacada(x)) === w);
+		const vacia = (desde) => sacadas.find((x) => cuandoSacada(x) >= desde);
 		const avisos = [];
+		const recordatorios = [];
 		for (const p of pulsaciones) {
-			if (semana(p.ts) !== w || p.autor === en(p.ts)) continue;
+			if (semana(p.ts) !== w) continue;
 			const ult = avisos[avisos.length - 1];
-			if (ult && p.ts < ult.limite && (ult.estado === "abierto" || (ult.resueltoEn ?? 0) > p.ts)) {
+			const sigue = ult && p.ts < ult.limite && (ult.estado === "abierto" || (ult.resueltoEn ?? 0) > p.ts);
+			if (p.autor === en(p.ts)) {
+				const r = recordatorios[recordatorios.length - 1];
+				if (sigue || r && (r.resueltoEn === void 0 || r.resueltoEn > p.ts)) {
+					if (r && r.resueltoEn === void 0) r.bolsas = Math.max(r.bolsas, bolsasDe(p));
+					continue;
+				}
+				const sacada = vacia(p.ts);
+				recordatorios.push({
+					id: p.id,
+					semana: w,
+					quien: p.autor,
+					evento: p,
+					desde: p.ts,
+					bolsas: bolsasDe(p),
+					resueltoEn: sacada ? cuandoSacada(sacada) : void 0
+				});
+				continue;
+			}
+			if (sigue) {
 				ult.pulsaciones.push(p);
+				ult.bolsas = Math.max(ult.bolsas, bolsasDe(p));
 				continue;
 			}
 			const limite = p.ts + normas.horasBasura * HORA;
-			const sacada = vacian.find((x) => x.ts >= p.ts);
+			const sacada = vacia(p.ts);
 			let estado = "abierto";
 			let resueltoEn;
 			let responsable = en(Math.min(ahora, limite));
-			if (sacada && sacada.ts <= limite) {
+			if (sacada && cuandoSacada(sacada) <= limite) {
 				estado = "resuelto";
-				resueltoEn = sacada.ts;
+				resueltoEn = cuandoSacada(sacada);
 				responsable = sacadaPor(sacada);
 			} else if (ahora > limite) {
 				estado = "queja";
@@ -6993,7 +7049,8 @@ function calcularBasura(config, normas, eventos, ahora) {
 				desde: p.ts,
 				limite,
 				estado,
-				resueltoEn
+				resueltoEn,
+				bolsas: bolsasDe(p)
 			});
 		}
 		const quejas = avisos.filter((a) => a.estado === "queja").length;
@@ -7006,8 +7063,9 @@ function calcularBasura(config, normas, eventos, ahora) {
 			avisos,
 			quejas,
 			cerrada,
-			sacadas: validas.filter((x) => semana(x.ts) === w),
-			ajenas
+			sacadas: validas.filter((x) => semana(cuandoSacada(x)) === w),
+			ajenas,
+			recordatorios
 		});
 	}
 	return r;
@@ -7434,14 +7492,15 @@ function calcularApuntes(config, normas, tareas, basura, tuyos, ahora) {
 		const contadas = /* @__PURE__ */ new Set();
 		for (const x of s.ajenas) {
 			const quien = sacadaPor(x);
-			const k = `${quien}|${diaLocal(x.ts)}`;
+			const t = cuandoSacada(x);
+			const k = `${quien}|${diaLocal(t)}`;
 			if (contadas.has(k)) continue;
 			contadas.add(k);
 			r.push({
 				miembro: quien,
 				puntos: normas.puntosSacarAjena,
-				motivo: `Sacaste la basura de ${nombre(responsableEn(s, x.ts))}`,
-				ts: x.ts,
+				motivo: `Sacaste la basura de ${nombre(responsableEn(s, t))}`,
+				ts: t,
 				mes: m,
 				clase: "sacada"
 			});
@@ -7750,14 +7809,22 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 				texto
 			});
 		}
+		const bolsas = (p) => {
+			const b = bolsasDe(p);
+			return b ? ` (${b === 1 ? "1 bolsa" : `${b} bolsas`})` : "";
+		};
 		for (const a of s.avisos) {
-			a.pulsaciones.forEach((p, k) => r.push({
-				id: `${p.id}-b`,
-				ts: p.ts,
-				quien: p.autor,
-				texto: k === 0 ? `${n(p.autor)} avisa de que la basura está llena. Le toca a ${n(responsableEn(s, p.ts))}.` : `${n(p.autor)} insiste: la basura sigue llena.`,
-				fotos: p.datos?.fotos
-			}));
+			a.pulsaciones.forEach((p, k) => {
+				const yaAviso = a.pulsaciones.slice(0, k).some((x) => x.autor === p.autor);
+				const texto = k === 0 ? `${n(p.autor)} avisa de que la basura está llena${bolsas(p)}. Le toca a ${n(responsableEn(s, p.ts))}.` : yaAviso ? `${n(p.autor)} insiste: la basura sigue llena${bolsas(p)}.` : `${n(p.autor)} también avisa: ya son dos${bolsas(p)}.`;
+				r.push({
+					id: `${p.id}-b`,
+					ts: p.ts,
+					quien: p.autor,
+					texto,
+					fotos: p.datos?.fotos
+				});
+			});
 			if (a.estado === "queja") {
 				const id = `${a.id}-q`;
 				const Y = n(a.responsable);
@@ -7770,18 +7837,27 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
 				});
 			}
 		}
+		for (const x of s.recordatorios) r.push({
+			id: `${x.id}-br`,
+			ts: x.desde,
+			quien: x.quien,
+			texto: `${n(x.quien)} apunta que la basura está llena${bolsas(x.evento)}: la saca en un rato.`,
+			fotos: x.evento.datos?.fotos
+		});
 		const apunta = (x) => sacadaPor(x) !== x.autor ? ` Lo apunta ${n(x.autor)}.` : "";
+		const ha = (x) => apuntadaTarde(x) ? "sacó la basura" : "ha sacado la basura";
+		const tarde = (x) => apuntadaTarde(x) ? ` ${cuando(cuandoSacada(x), x.ts)} (lo apunta más tarde)` : "";
 		for (const x of s.sacadas) r.push({
 			id: `${x.id}-s`,
 			ts: x.ts,
 			quien: sacadaPor(x),
-			texto: `${n(sacadaPor(x))} ha sacado la basura.${apunta(x)}`
+			texto: `${n(sacadaPor(x))} ${ha(x)}${tarde(x)}.${apunta(x)}`
 		});
 		for (const x of s.ajenas) r.push({
 			id: `${x.id}-sa`,
 			ts: x.ts,
 			quien: sacadaPor(x),
-			texto: `${n(sacadaPor(x))} ha sacado la basura de ${n(responsableEn(s, x.ts))}.${apunta(x)}`
+			texto: `${n(sacadaPor(x))} ${ha(x)} de ${n(responsableEn(s, cuandoSacada(x)))}${tarde(x)}.${apunta(x)}`
 		});
 	}
 	for (const a of tuyos) {
@@ -7883,6 +7959,12 @@ const aLas = (dia, h) => {
 	const f = fechaDeDia(dia);
 	return instanteLocal(f.y, f.m, f.d, h);
 };
+/** Si cae de noche (de 23:00 a 9:00), a las 9 de la mañana. */
+function deDia(t) {
+	const h = partes(t).h;
+	if (h >= 9 && h < 23) return t;
+	return aLas(diaLocal(t) + (h >= 23 ? 1 : 0), 9);
+}
 function nombres(config) {
 	return (m) => config.miembros.find((x) => x.id === m)?.nombre ?? "Alguien";
 }
@@ -7935,12 +8017,32 @@ function avisosDeEvento(config, eventos, id) {
 			const s = estado.semanasBasura.find((x) => x.semana === w);
 			const r = s ? responsableEn(s, e.ts) : basuraDe(config, w);
 			if (!r || r === e.autor) return [];
-			return [{
+			const a = s?.avisos.find((x) => x.pulsaciones.some((p) => p.id === e.id));
+			const b = bolsasDe(e);
+			const bolsas = b ? ` · ${b === 1 ? "1 bolsa" : `${b} bolsas`}` : "";
+			const etiqueta = `basura-${w}`;
+			if (!a || a.pulsaciones[0].id === e.id) return [{
 				para: r,
-				titulo: "🗑️ La basura está llena",
+				titulo: `🗑️ La basura está llena${bolsas}`,
 				texto: `Te avisa ${yo}. Tienes ${n.horasBasura} horas para sacarla.`,
 				pantalla: "hoy",
-				etiqueta: `basura-${w}`
+				etiqueta
+			}];
+			const antes = a.pulsaciones.slice(0, a.pulsaciones.findIndex((p) => p.id === e.id));
+			const queda = `Te quedan ${duracion(a.limite - e.ts)} para sacarla.`;
+			if (antes.some((p) => p.autor === e.autor)) return [{
+				para: r,
+				titulo: `🗑️ ${yo} insiste: la basura sigue llena${bolsas}`,
+				texto: queda,
+				pantalla: "hoy",
+				etiqueta
+			}];
+			return [{
+				para: r,
+				titulo: `🗑️ Te avisan dos: ${nombre(antes[0].autor)} y ${yo}${bolsas}`,
+				texto: `La basura está muy llena. ${queda}`,
+				pantalla: "hoy",
+				etiqueta
 			}];
 		}
 		case "esto_es_tuyo": {
@@ -8089,34 +8191,51 @@ function avisosDeEvento(config, eventos, id) {
 		case "basura_sacada": {
 			const q = sacadaPor(e);
 			const deOtro = q !== e.autor;
+			const t = cuandoSacada(e);
+			const fue = apuntadaTarde(e) ? `La sacó ${cuando(t, e.ts)}. ` : "";
+			const r = [];
 			const s = estado.semanasBasura.find((x) => x.ajenas.some((a) => a.id === e.id));
 			if (!s) {
 				const suya = deOtro ? estado.semanasBasura.find((x) => x.sacadas.some((a) => a.id === e.id)) : void 0;
-				return suya ? [{
+				if (suya) r.push({
 					para: q,
 					titulo: `🗑️ ${yo} ha apuntado que sacaste la basura`,
-					texto: "Ya consta: si estaba avisada, se acaba el aviso.",
+					texto: `${fue}Ya consta: si estaba avisada, se acaba el aviso.`,
 					pantalla: "hoy",
 					etiqueta: `basura-${suya.semana}`
-				}] : [];
+				});
+			} else {
+				const quien = responsableEn(s, t);
+				const resolvio = s.avisos.some((a) => a.resueltoEn === t && a.estado === "resuelto");
+				const gana = estado.apuntes.some((a) => a.clase === "sacada" && a.ts === t && a.miembro === q);
+				r.push({
+					para: quien,
+					titulo: `🗑️ ${deOtro ? nombre(q) : yo} ha sacado tu basura`,
+					texto: `${fue}${deOtro ? `Lo apunta ${yo}. ` : ""}${resolvio ? "Ya no te cae la queja. " : ""}${gana ? `${pts(n.puntosSacarAjena)} para él.` : ""}`.trim(),
+					pantalla: "hoy",
+					etiqueta: `basura-${s.semana}`
+				});
+				if (deOtro) r.push({
+					para: q,
+					titulo: `🗑️ ${yo} ha apuntado que sacaste la basura de ${nombre(quien)}`,
+					texto: gana ? `${pts(n.puntosSacarAjena)} para ti.` : "Ya consta.",
+					pantalla: "hoy",
+					etiqueta: `basura-${s.semana}`
+				});
 			}
-			const quien = responsableEn(s, e.ts);
-			const resolvio = s.avisos.some((a) => a.resueltoEn === e.ts && a.estado === "resuelto");
-			const gana = estado.apuntes.some((a) => a.clase === "sacada" && a.ts === e.ts && a.miembro === q);
-			const r = [{
-				para: quien,
-				titulo: `🗑️ ${deOtro ? nombre(q) : yo} ha sacado tu basura`,
-				texto: `${deOtro ? `Lo apunta ${yo}. ` : ""}${resolvio ? "Ya no te cae la queja. " : ""}${gana ? `${pts(n.puntosSacarAjena)} para él.` : ""}`.trim(),
-				pantalla: "hoy",
-				etiqueta: `basura-${s.semana}`
-			}];
-			if (deOtro) r.push({
-				para: q,
-				titulo: `🗑️ ${yo} ha apuntado que sacaste la basura de ${nombre(quien)}`,
-				texto: gana ? `${pts(n.puntosSacarAjena)} para ti.` : "Ya consta.",
-				pantalla: "hoy",
-				etiqueta: `basura-${s.semana}`
-			});
+			for (const a of estado.semanasBasura.flatMap((x) => x.avisos)) {
+				if (a.estado !== "resuelto" || a.resueltoEn !== t) continue;
+				for (const p of quienesAvisan(a)) {
+					if (p === e.autor || p === q || r.some((x) => x.para === p)) continue;
+					r.push({
+						para: p,
+						titulo: `✅ ${nombre(q)} ha sacado la basura`,
+						texto: `La que avisaste ${cuando(a.desde, e.ts)}.`,
+						pantalla: "hoy",
+						etiqueta: `basura-${a.semana}`
+					});
+				}
+			}
 			return r.filter((x) => x.para !== e.autor && x.texto);
 		}
 		case "basura_cubierta": {
@@ -8310,6 +8429,19 @@ function avisosDelReloj(config, eventos, desde, hasta, ahora = hasta) {
 			texto: `Queja por la basura: ${pts(n.puntosQuejaBasura)}. Sácala cuanto antes.`,
 			pantalla: "hoy",
 			etiqueta: `basura-${a.semana}`
+		});
+	}
+	for (const x of estado.semanasBasura) for (const rec of x.recordatorios) {
+		if (rec.resueltoEn !== void 0) continue;
+		[...new Set([rec.desde + 2 * HORA, rec.desde + 8 * HORA].map(deDia))].forEach((t, k) => {
+			if (!en(t)) return;
+			r.push({
+				para: rec.quien,
+				titulo: k === 0 ? "🗑️ ¿Sacas la basura?" : "🗑️ La basura sigue llena",
+				texto: `Lo apuntaste ${cuando(rec.desde, t)}. Cuando la saques, márcalo.`,
+				pantalla: "hoy",
+				etiqueta: `basura-${x.semana}`
+			});
 		});
 	}
 	for (const a of estado.tuyos) {

@@ -1,6 +1,7 @@
 // Historial: cómo estaba la casa cualquier día pasado.
 // Como todo se apunta y nada se borra (los eventos), basta con volver a calcular el estado con los eventos de
 // hasta ese día: es la misma cuenta de siempre, pero «parando el reloj» al final de ese día.
+import { cuandoSacada } from './basura';
 import { avisosBasuraAbiertos, derivar, paraPuntuar, type Estado } from './estado';
 import { espacioAnulados, type CosaEspacio } from './espacio';
 import { calcularMedallas, type MedallaGanada } from './juego';
@@ -140,7 +141,8 @@ export function marcasDelMes(config: Config, eventos: Evento[], mesId: string, e
   for (const ev of [...eventos].sort((a, b) => a.ts - b.ts)) {
     if (ev.ts > ahora) continue;
     if (yo && ev.autor === yo && ev.tipo === 'espacio_cosa') nombres.set(String(ev.datos?.cosa), String(ev.datos?.nombre ?? ''));
-    const k = de(ev.ts);
+    // la basura, el día que se sacó (si se apuntó más tarde, el que se dijo)
+    const k = de(ev.tipo === 'basura_sacada' ? cuandoSacada(ev) : ev.ts);
     if (!k) continue;
     if (ev.tipo === 'pago' || ev.tipo === 'gasto') anadir(k.pagaron, ev.autor);
     else if (ev.tipo === 'basura_sacada') k.basuraSacada = true;

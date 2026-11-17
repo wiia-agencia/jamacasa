@@ -3,18 +3,19 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEven
 import { bocadillos, fichaDe, marcaDe, resumenDe, type Bocadillo } from '../core/bocadillos';
 import { escenaCasa } from '../core/escena';
 import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, hechaEstaSemana, type CosaEspacio } from '../core/espacio';
-import { avisosBasuraAbiertos, basuraTocaba, rotacionFutura, tareaDe } from '../core/estado';
+import { basuraAhora, basuraTocaba, rotacionFutura, tareaDe } from '../core/estado';
 import { enMarcha, type Tarea } from '../core/limpieza';
 import { luzDe } from '../core/luz';
 import { nota } from '../core/noticias';
 import { esDeTipo, parteDe, type CuartoParte } from '../core/parte';
 import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, nombreDia, rangoSemana } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
+import { Bolsas, textosBasura } from './Basura';
 import { Casa3D, type BurbujaCasa, type ParteCasa } from './Casa3D';
 import { claseColor, miembro, useCasa } from './contexto';
 import { CuadroSemana, QuedarmeBasura } from './Cuadro';
 import { EstadoTarea } from './Hoy';
-import { Avatar, Nombre, Placa, Seccion } from './piezas';
+import { Avatar, Placa, Seccion } from './piezas';
 
 export const corto = (z: Zona | null | undefined) => {
   if (!z) return '—';
@@ -189,7 +190,8 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
 
   const ordenCaras = [yo, ...config.miembros.map((m) => m.id).filter((id) => id !== yo)];
   const basura = escena.basura;
-  const basuraMia = avisosBasuraAbiertos(estado, yo).length > 0;
+  const basuraMia = estado.basura === yo;
+  const nivelBasura = basuraAhora(estado).nivel;
 
   return (
     <div className={`juego ${deNoche ? 'de-noche' : ''} ${enParte ? 'en-parte' : ''} ${enParte && !cuartos.length ? 'sin-parte' : ''}`} style={{ top: banda || undefined, ['--cielo-arriba' as string]: cielo || undefined }}>
@@ -265,7 +267,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         <>
           <button type="button" className="juego-redondo der" onClick={() => { setMenuBasura(!menuBasura); setMenuCara(false); }} aria-expanded={menuBasura} aria-label="La basura">
             <Trash2 size={25} aria-hidden="true" />
-            {basura && <b className={basuraMia ? 'tuya' : ''}>{basura.bolsas}</b>}
+            {basura && <b className={`${nivelBasura} ${basuraMia ? 'tuya' : ''}`}>{basura.bolsas}</b>}
             <span>Basura</span>
           </button>
           {menuBasura && <MenuBasura cerrar={() => setMenuBasura(false)} />}
@@ -586,34 +588,39 @@ function FichaPiso({ id, caras, volver }: { id: MiembroId; caras: Record<string,
 /** El menú del botón de la basura: de quién es esta semana y lo que se puede hacer (también quedártela tú). */
 function MenuBasura({ cerrar }: { cerrar: () => void }) {
   const { estado, yo, acciones, avisar, abrir, config } = useCasa();
-  const resp = estado.basura;
+  const b = basuraAhora(estado);
+  const resp = b.quien;
   const tocaba = basuraTocaba(estado);
-  const abiertos = resp ? avisosBasuraAbiertos(estado, resp) : [];
   const mia = resp === yo;
   const deOtro = resp && tocaba && resp !== tocaba; // se la ha quedado alguien («Me la quedo yo»)
+  const nombre = (m: MiembroId) => miembro(config, m).nombre;
+  const { titulo, linea } = textosBasura(b, yo, nombre, estado.ahora, estado.normas.horasBasura);
+  const yaAvise = b.avisan.includes(yo) && b.aviso?.estado === 'abierto';
+  const ir = (h: Parameters<typeof abrir>[0]) => { cerrar(); abrir(h); };
+  // de quién es (si está llena, el título dice cómo está: aquí, de quién)
+  const deQuien = !resp ? '' : b.nivel === 'tranquila' ? '' : mia ? 'Es tuya. ' : `Es de ${nombre(resp)}. `;
   return (
-    <div className="juego-menu" role="dialog" aria-label="La basura">
-      <p className="negrita">{resp ? (mia ? 'Esta semana la basura es tuya' : deOtro ? <>La basura la tiene <Nombre id={resp} /></> : <>La basura: le toca a <Nombre id={resp} /></>) : 'La basura'}</p>
-      {deOtro && <p className="peq suave">{mia ? 'Te la has quedado tú' : 'Se la ha quedado'}: le tocaba a <Nombre id={tocaba} />.</p>}
-      <p className="peq suave">{abiertos.length ? `Está llena: ${abiertos.length === 1 ? '1 aviso' : `${abiertos.length} avisos`} sin sacar.` : 'Nadie ha avisado de que esté llena.'}</p>
-      {mia && abiertos.length > 0 && (
-        <button type="button" className="boton ancho verde" onClick={async () => { await acciones.basuraSacada(); cerrar(); avisar('Basura sacada. ¡Gracias!'); }}>Ya la saqué</button>
+    <div className={`juego-menu menu-basura ${b.nivel}`} role="dialog" aria-label="La basura">
+      <div className="basura-cabeza">
+        <span className={`semaforo ${b.nivel}`} aria-hidden="true" />
+        <p className="negrita crece">{titulo}</p>
+        {b.avisan.length > 0 && <span className="basura-caras" aria-hidden="true">{b.avisan.map((m) => <Avatar key={m} id={m} tam="s" />)}</span>}
+      </div>
+      {b.bolsas > 0 && <Bolsas n={b.bolsas} />}
+      <p className="peq suave">{deQuien}{linea}{deOtro ? ` ${mia ? 'Te la quedaste' : 'Se la quedó'}: le tocaba a ${tocaba === yo ? 'ti' : nombre(tocaba!)}.` : ''}</p>
+      {mia && (
+        <>
+          <button type="button" className="boton ancho verde" onClick={() => ir({ tipo: 'sacada' })}>Ya la saqué</button>
+          {!b.aviso && !b.recordatorio && <button type="button" className="boton ancho claro" onClick={() => ir({ tipo: 'basura' })}>Está llena: recuérdamelo</button>}
+        </>
       )}
       {!mia && resp && (
         <>
           {/* «Esta la saqué yo»: la has sacado tú aunque no te toque (+1, uno al día) */}
-          <button
-            type="button"
-            className="boton ancho verde"
-            onClick={async () => {
-              await acciones.basuraSacada();
-              cerrar();
-              avisar(`Apuntado: la has sacado tú. Se lo decimos a ${miembro(config, resp).nombre}.`);
-            }}
-          >
-            Esta la saqué yo
+          <button type="button" className="boton ancho verde" onClick={() => ir({ tipo: 'sacada' })}>Esta la saqué yo</button>
+          <button type="button" className="boton ancho claro" disabled={yaAvise} onClick={() => ir({ tipo: 'basura' })}>
+            {yaAvise ? 'Ya avisaste' : b.avisan.length ? 'Avisar yo también' : 'Avisar: está llena'}
           </button>
-          <button type="button" className="boton ancho claro" onClick={() => { cerrar(); abrir({ tipo: 'basura' }); }}>Avisar: está llena</button>
           <QuedarmeBasura despues={cerrar} />
         </>
       )}

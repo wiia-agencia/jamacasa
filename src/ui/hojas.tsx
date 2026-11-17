@@ -7,6 +7,7 @@ import { nota } from '../core/noticias';
 import { cuando, diaDeTexto, diaLocal, fechaCorta, nombreMes, rangoSemana, textoDeDia } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
 import { claseColor, useCasa, type Hoja as TipoHoja } from './contexto';
+import { HojaBasura, HojaSacada } from './Basura';
 import { LoLimpioOtro, PonermeBasura, PonermePiso } from './Cuadro';
 import { EstadoTarea, Jueces } from './Hoy';
 import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, Placa, SelectorFotos } from './piezas';
@@ -18,6 +19,7 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
     case 'ponerme': return hoja.fila === 'basura' ? <PonermeBasura key={`b-${hoja.quien ?? ''}`} quien={hoja.quien} /> : <PonermePiso key={`${hoja.fila}-${hoja.quien ?? ''}`} de={hoja.fila} quien={hoja.quien} />;
     case 'puntuar': return <HojaPuntuar tarea={hoja.tarea} intento={hoja.intento} propia={hoja.propia} />;
     case 'basura': return <HojaBasura />;
+    case 'sacada': return <HojaSacada quien={hoja.quien} />;
     case 'tuyo': return <HojaTuyo />;
     case 'gasto': return <HojaGasto />;
     case 'detalle-gasto': return <HojaDetalleGasto gasto={hoja.gasto} />;
@@ -247,30 +249,6 @@ function HojaPuntuar({ tarea, intento, propia = false }: { tarea: Tarea; intento
           <textarea id="comentario" className="entrada" value={comentario} onChange={(e) => { setComentario(e.target.value); setError(''); }} placeholder={propia ? 'Ya fregué el suelo' : 'Te dejaste el espejo del baño'} />
         </div>
         {error && <p className="error" role="alert">{error}</p>}
-      </div>
-    </Hoja>
-  );
-}
-
-function HojaBasura() {
-  const { cerrar, acciones, avisar, estado, config } = useCasa();
-  const [fotos, setFotos] = useState<string[]>([]);
-  const resp = estado.basura!;
-  const nombre = config.miembros.find((m) => m.id === resp)?.nombre ?? '';
-  return (
-    <Hoja
-      titulo="¿La basura está llena?"
-      subtitulo={`Le llega el aviso a ${nombre}. Tiene ${estado.normas.horasBasura} horas para sacarla o se lleva una queja.`}
-      onCerrar={cerrar}
-      pie={
-        <BotonAccion hacer={async () => { await acciones.basuraLlena(fotos); cerrar(); avisar(`Aviso enviado a ${nombre}.`); }}>
-          Avisar a {nombre}
-        </BotonAccion>
-      }
-    >
-      <div className="campo">
-        <span className="etiqueta">Foto (si quieres)</span>
-        <SelectorFotos fotos={fotos} cambiar={setFotos} max={2} />
       </div>
     </Hoja>
   );

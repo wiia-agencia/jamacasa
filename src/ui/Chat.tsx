@@ -224,7 +224,7 @@ function EnCasa({ n }: { n: Noticia }) {
     if (p) accion = { texto: 'Ponle nota', hacer: () => abrir({ tipo: 'puntuar', tarea: p.tarea, intento: p.intento }) };
   } else if (tipo === 'b') {
     const a = avisosBasuraAbiertos(estado).find((x) => x.responsable === yo && x.pulsaciones.some((p) => p.id === base));
-    if (a) accion = { texto: 'Ya la saqué', hacer: async () => { await acciones.basuraSacada(); avisar('Basura sacada. ¡Gracias!'); } };
+    if (a) accion = { texto: 'Ya la saqué', hacer: () => abrir({ tipo: 'sacada' }) };
   } else if (tipo === 't') {
     const a = tuyosAbiertos(estado, yo).find((x) => x.id === base);
     if (a) accion = { texto: 'Ya lo recogí', hacer: async () => { await acciones.recogido(a.id); avisar('Recogido. ¡Bien!'); } };

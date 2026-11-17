@@ -1,8 +1,8 @@
 import { hash32 } from './azar';
-import { desdeAntes, responsableEn, sacadaPor, type AvisoTuyo, type SemanaBasura } from './basura';
+import { apuntadaTarde, bolsasDe, cuandoSacada, desdeAntes, responsableEn, sacadaPor, type AvisoTuyo, type SemanaBasura } from './basura';
 import { euros, type Cuentas } from './cuentas';
 import type { Tarea } from './limpieza';
-import { nombreDia, nombreMes } from './tiempo';
+import { cuando, nombreDia, nombreMes } from './tiempo';
 import type { Config, Evento, MiembroId, Normas } from './tipos';
 
 export interface Noticia {
@@ -108,10 +108,16 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
           : `${n(c.autor)} le pasa la basura de ${n(antes)} a ${n(tr.quien)}.`;
       r.push({ id: `${c.id}-bc`, ts: c.ts, quien: c.autor, texto });
     }
+    // cuántas bolsas dice (Javi, 17 de noviembre: «no es lo mismo que haya una bolsa a que haya 6»)
+    const bolsas = (p: Evento) => { const b = bolsasDe(p); return b ? ` (${b === 1 ? '1 bolsa' : `${b} bolsas`})` : ''; };
     for (const a of s.avisos) {
-      a.pulsaciones.forEach((p, k) =>
-        r.push({ id: `${p.id}-b`, ts: p.ts, quien: p.autor, texto: k === 0 ? `${n(p.autor)} avisa de que la basura está llena. Le toca a ${n(responsableEn(s, p.ts))}.` : `${n(p.autor)} insiste: la basura sigue llena.`, fotos: p.datos?.fotos }),
-      );
+      a.pulsaciones.forEach((p, k) => {
+        const yaAviso = a.pulsaciones.slice(0, k).some((x) => x.autor === p.autor);
+        const texto = k === 0
+          ? `${n(p.autor)} avisa de que la basura está llena${bolsas(p)}. Le toca a ${n(responsableEn(s, p.ts))}.`
+          : yaAviso ? `${n(p.autor)} insiste: la basura sigue llena${bolsas(p)}.` : `${n(p.autor)} también avisa: ya son dos${bolsas(p)}.`;
+        r.push({ id: `${p.id}-b`, ts: p.ts, quien: p.autor, texto, fotos: p.datos?.fotos });
+      });
       if (a.estado === 'queja') {
         const id = `${a.id}-q`;
         const Y = n(a.responsable);
@@ -127,11 +133,16 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
         });
       }
     }
-    // quien la sacó (si lo apuntó otro desde el cuadro, «La ha sacado Jose», se dice quién)
+    // «Recuérdamelo»: quien la tiene dice que está llena
+    for (const x of s.recordatorios) r.push({ id: `${x.id}-br`, ts: x.desde, quien: x.quien, texto: `${n(x.quien)} apunta que la basura está llena${bolsas(x.evento)}: la saca en un rato.`, fotos: x.evento.datos?.fotos });
+    // quien la sacó (si lo apuntó otro desde el cuadro, «La ha sacado Jose», se dice quién) y, si lo apunta más tarde,
+    // cuándo la sacó («¿Cuándo la sacaste?»)
     const apunta = (x: Evento) => (sacadaPor(x) !== x.autor ? ` Lo apunta ${n(x.autor)}.` : '');
-    for (const x of s.sacadas) r.push({ id: `${x.id}-s`, ts: x.ts, quien: sacadaPor(x), texto: `${n(sacadaPor(x))} ha sacado la basura.${apunta(x)}` });
+    const ha = (x: Evento) => (apuntadaTarde(x) ? 'sacó la basura' : 'ha sacado la basura');
+    const tarde = (x: Evento) => (apuntadaTarde(x) ? ` ${cuando(cuandoSacada(x), x.ts)} (lo apunta más tarde)` : '');
+    for (const x of s.sacadas) r.push({ id: `${x.id}-s`, ts: x.ts, quien: sacadaPor(x), texto: `${n(sacadaPor(x))} ${ha(x)}${tarde(x)}.${apunta(x)}` });
     // «Esta la saqué yo»
-    for (const x of s.ajenas) r.push({ id: `${x.id}-sa`, ts: x.ts, quien: sacadaPor(x), texto: `${n(sacadaPor(x))} ha sacado la basura de ${n(responsableEn(s, x.ts))}.${apunta(x)}` });
+    for (const x of s.ajenas) r.push({ id: `${x.id}-sa`, ts: x.ts, quien: sacadaPor(x), texto: `${n(sacadaPor(x))} ${ha(x)} de ${n(responsableEn(s, cuandoSacada(x)))}${tarde(x)}.${apunta(x)}` });
   }
 
   for (const a of tuyos) {

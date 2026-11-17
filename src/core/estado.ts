@@ -1,5 +1,5 @@
 import { calcularChat, type Chat } from './chat';
-import { calcularBasura, calcularEstoEsTuyo, type AvisoBasura, type AvisoTuyo, type SemanaBasura } from './basura';
+import { calcularBasura, calcularEstoEsTuyo, cuandoSacada, type AvisoBasura, type AvisoTuyo, type RecordatorioBasura, type SemanaBasura } from './basura';
 import { basuraDe, normasDe, repartoSemana, semanaInicial, zonaDe } from './calendario';
 import { calcularCuentas, type Cuentas } from './cuentas';
 import { calcularEspacio, type CosaEspacio } from './espacio';
@@ -16,7 +16,7 @@ import {
 } from './juego';
 import { calcularTareas, porPuntuar, type Intento, type Tarea } from './limpieza';
 import { calcularNoticias, type Noticia } from './noticias';
-import { mes, mesDeSemana, mesesEntre, semana } from './tiempo';
+import { DIA_MS, mes, mesDeSemana, mesesEntre, semana } from './tiempo';
 import type { Config, Evento, MiembroId, Normas, Zona } from './tipos';
 
 export interface Estado {
@@ -111,6 +111,51 @@ export function semanaBasura(e: Estado, w: number): SemanaBasura | undefined {
 /** Avisos de basura abiertos ahora mismo (de la semana actual o de la anterior); con `para`, solo los que le tocan a él. */
 export function avisosBasuraAbiertos(e: Estado, para?: MiembroId): AvisoBasura[] {
   return e.semanasBasura.flatMap((s) => s.avisos).filter((a) => a.estado === 'abierto' && (!para || a.responsable === para));
+}
+
+export type NivelBasura = 'tranquila' | 'llena' | 'urgente';
+
+export interface BasuraAhora {
+  quien: MiembroId | null; // quien la tiene ahora
+  nivel: NivelBasura;
+  desde?: number; // desde cuándo está llena (el aviso o el «Recuérdamelo» más antiguo sin sacar)
+  avisan: MiembroId[]; // quienes han avisado (sin quien la tenía)
+  bolsas: number; // las que dicen que hay (0 si nadie dijo cuántas)
+  aviso?: AvisoBasura; // el aviso abierto, o la queja que sigue sin sacar
+  limite?: number; // hasta cuándo hay para sacarla sin queja (con un aviso abierto)
+  pasada: boolean; // se pasó el plazo y sigue sin sacar
+  recordatorio?: RecordatorioBasura; // «Recuérdamelo» sin sacar
+}
+
+/** Cómo está la basura ahora: sin avisos, tranquila; si avisa uno (o te lo apuntas tú), llena; si avisan dos, dicen
+ *  4 bolsas o más o se pasó el plazo sin sacarla, urgente (Javi, 17 de noviembre: «no es lo mismo que avise Josu… o
+ *  que avise Jose también… no es lo mismo que haya una bolsa a que haya 6»). */
+export function basuraAhora(e: Estado): BasuraAhora {
+  const todas = e.semanasBasura;
+  const sacadas = todas.flatMap((s) => [...s.sacadas, ...s.ajenas]).map(cuandoSacada);
+  const sinSacar = (desde: number) => !sacadas.some((t) => t >= desde);
+  const reciente = (t: number) => e.ahora - t < 7 * DIA_MS;
+  const avisos = todas
+    .flatMap((s) => s.avisos)
+    .filter((a) => a.estado === 'abierto' || (a.estado === 'queja' && reciente(a.desde) && sinSacar(a.desde)))
+    .sort((a, b) => a.desde - b.desde);
+  const recs = todas.flatMap((s) => s.recordatorios).filter((r) => r.resueltoEn === undefined && reciente(r.desde));
+  const avisan = [...new Set(avisos.flatMap((a) => a.pulsaciones.map((p) => p.autor)))];
+  const bolsas = Math.max(0, ...avisos.map((a) => a.bolsas), ...recs.map((r) => r.bolsas));
+  const pasada = avisos.some((a) => a.estado === 'queja');
+  const desdes = [...avisos.map((a) => a.desde), ...recs.map((r) => r.desde)];
+  const abierto = avisos.find((a) => a.estado === 'abierto');
+  return {
+    quien: e.basura,
+    nivel: !desdes.length ? 'tranquila' : pasada || avisan.length >= 2 || bolsas >= 4 ? 'urgente' : 'llena',
+    desde: desdes.length ? Math.min(...desdes) : undefined,
+    avisan,
+    bolsas,
+    aviso: abierto ?? avisos[0],
+    limite: abierto?.limite,
+    pasada,
+    recordatorio: recs[recs.length - 1],
+  };
 }
 
 /** A quién le salió la basura esta semana en el sorteo (si se la ha quedado otro, no es quien la tiene). */

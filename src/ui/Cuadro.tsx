@@ -240,10 +240,13 @@ export function PonermeBasura({ quien: inicial }: { quien?: MiembroId }) {
               key={`${p}-sacada`}
               e="🗑️"
               titulo={tu ? 'Ya la saqué' : `La ha sacado ${P}`}
-              texto={abiertos.length ? 'Y se acaba el aviso.' : 'Queda apuntado.'}
+              texto={abiertos.length ? 'Ahora o antes (dinos cuándo): se acaba el aviso.' : 'Ahora o antes: dinos cuándo.'}
               principal
-              hacer={async () => { await acciones.basuraSacada(p); listo(tu ? 'Basura sacada. ¡Gracias!' : `Apuntado: la ha sacado ${P}.`); }}
+              hacer={() => abrir({ tipo: 'sacada', quien: p })}
             />
+            {tu && !abiertos.length && (
+              <Opcion key="recuerda" e="⏰" titulo="Está llena: recuérdamelo" texto="Te aviso dentro de 2 horas y, si sigue, más tarde. Sin quejas." hacer={() => abrir({ tipo: 'basura' })} />
+            )}
             {deOtro && (
               <Opcion
                 key={`${p}-devuelve`}
@@ -262,11 +265,11 @@ export function PonermeBasura({ quien: inicial }: { quien?: MiembroId }) {
               titulo={tu ? 'Esta la saqué yo' : `La ha sacado ${P}`}
               texto={`${tu ? 'La has sacado tú' : `La sacó ${P}`} esta vez: ${nota(estado.normas.puntosSacarAjena)} punto para ${tu ? 'ti' : 'él'} (uno al día)${abiertos.length ? ' y se acaba el aviso' : ''}.`}
               principal
-              hacer={async () => { await acciones.basuraSacada(p); listo(tu ? `Apuntado: la has sacado tú. Se lo decimos a ${n(resp)}.` : `Apuntado: la ha sacado ${P}. Ya lo saben.`); }}
+              hacer={() => abrir({ tipo: 'sacada', quien: p })}
             />
             {tu ? (
               <>
-                <Opcion e="📣" titulo="Avisar: está llena" texto={`Le llega a ${n(resp)} y tiene ${estado.normas.horasBasura} horas.`} hacer={() => abrir({ tipo: 'basura' })} />
+                <Opcion e="📣" titulo={abiertos.length ? 'Avisar yo también' : 'Avisar: está llena'} texto={abiertos.length ? `A ${n(resp)} le llega que sois dos.` : `Le llega a ${n(resp)} y tiene ${estado.normas.horasBasura} horas.`} hacer={() => abrir({ tipo: 'basura' })} />
                 <div className="opcion-grande sin-boton">
                   <span className="e" aria-hidden="true">🙋</span>
                   <span className="crece"><b>Me la quedo yo</b><span>Te la quedas esta semana (o desde el día que digas).</span></span>

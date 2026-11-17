@@ -11,7 +11,7 @@
 //   · Mientras alguien limpia, lo sucio de su piso se va quitando según lo que marca de «Lo que se limpia».
 //   · Insignias: corona del rey del mes, racha (3 pisos seguidos con 9 o más), mejorando o empeorando,
 //     debe un piso de antes y peste (2 semanas seguidas sin hacer su piso o 3 «Esto es tuyo» sin recoger en el mes).
-import type { Estado } from './estado';
+import { basuraAhora, type Estado } from './estado';
 import { enMarcha, lohizoOtro, type Tarea } from './limpieza';
 import { diaLocal, inicioSemana, mes } from './tiempo';
 import type { MiembroId, Zona } from './tipos';
@@ -86,20 +86,14 @@ export function nivelDeDias(d: number): number {
   return d >= 21 ? 3 : d >= 14 ? 2 : d >= 7 ? 1 : 0;
 }
 
-/** La basura llena que espera a que la saquen: desde el aviso más antiguo sin resolver (de los últimos días).
- *  Un aviso que ya pasó de plazo («queja») sigue en la cocina hasta que alguien la saca. */
+/** La basura llena que espera a que la saquen: desde el aviso (o el «Recuérdamelo») más antiguo sin sacar. Un aviso
+ *  que ya pasó de plazo («queja») sigue en la cocina hasta que alguien la saca. Las bolsas: las que dicen que hay y,
+ *  si pasan los días, más (`BOLSAS_POR_DIA`). */
 export function basuraEnCasa(e: Estado): { bolsas: number; dias: number } | null {
-  const sacadas = e.semanasBasura.flatMap((s) => s.sacadas);
-  let desde = Infinity;
-  for (const s of e.semanasBasura) {
-    for (const a of s.avisos) {
-      const sigue = a.estado === 'abierto' || (a.estado === 'queja' && e.ahora - a.desde < 7 * 86_400_000 && !sacadas.some((x) => x.ts > a.desde));
-      if (sigue && a.desde < desde) desde = a.desde;
-    }
-  }
-  if (desde === Infinity) return null;
-  const dias = Math.max(0, diaLocal(e.ahora) - diaLocal(desde));
-  return { bolsas: BOLSAS_POR_DIA[Math.min(dias, BOLSAS_POR_DIA.length - 1)], dias };
+  const b = basuraAhora(e);
+  if (b.desde === undefined) return null;
+  const dias = Math.max(0, diaLocal(e.ahora) - diaLocal(b.desde));
+  return { bolsas: Math.max(b.bolsas, BOLSAS_POR_DIA[Math.min(dias, BOLSAS_POR_DIA.length - 1)]), dias };
 }
 
 function insigniasDe(e: Estado, m: MiembroId): Insignia[] {

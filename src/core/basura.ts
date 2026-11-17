@@ -15,6 +15,47 @@ export interface AvisoBasura {
   limite: number;
   estado: EstadoAviso;
   resueltoEn?: number;
+  /** Cuántas bolsas dicen que hay: lo más que haya dicho alguien (0 si nadie lo dijo) */
+  bolsas: number;
+}
+
+/** «Recuérdamelo»: quien tiene la basura dice él mismo que está llena para que la app se lo recuerde (Javi, 17 de
+ *  noviembre: «simplemente para que la app me lo recuerde»). Sin plazo ni queja: hasta que alguien la saque. */
+export interface RecordatorioBasura {
+  id: string;
+  semana: number;
+  quien: MiembroId;
+  evento: Evento;
+  desde: number;
+  bolsas: number;
+  resueltoEn?: number;
+}
+
+/** Lo más atrás que se puede decir que se sacó: una semana. */
+export const ATRAS_MAX = 7 * 24 * HORA;
+
+/** Cuándo se sacó: la hora que se dice al apuntarla («¿Cuándo la sacaste?»: Javi, 17 de noviembre, la sacó a las 2 de
+ *  la mañana y se acordó de apuntarlo al mediodía), nunca después de apuntarla ni más de una semana antes. */
+export function cuandoSacada(e: Evento): number {
+  const c = e.datos?.cuando;
+  if (c === undefined || c === null || !Number.isFinite(Number(c))) return e.ts;
+  return Math.max(e.ts - ATRAS_MAX, Math.min(e.ts, Number(c)));
+}
+
+/** ¿Se apuntó más de una hora después de sacarla? */
+export function apuntadaTarde(e: Evento): boolean {
+  return e.ts - cuandoSacada(e) > HORA;
+}
+
+/** Las bolsas que dice un «Basura llena» (de 1 a 12; si no lo dice, 0). */
+export function bolsasDe(e: Evento): number {
+  const b = Math.round(Number(e.datos?.bolsas));
+  return Number.isFinite(b) && b > 0 ? Math.min(b, 12) : 0;
+}
+
+/** Quiénes han avisado de que está llena (sin repetir, por orden). */
+export function quienesAvisan(a: AvisoBasura): MiembroId[] {
+  return [...new Set(a.pulsaciones.map((p) => p.autor))];
 }
 
 /** Quién tiene la basura de la semana desde cuándo: el que salió en el sorteo y, si alguien dice «Me la quedo yo»
@@ -41,6 +82,7 @@ export interface SemanaBasura {
   sacadas: Evento[]; // las que sacó quien la tenía
   /** «Esta la saqué yo»: las que sacó otro que no la tenía (Javi, 14 de noviembre: +1 para él, como mucho una al día) */
   ajenas: Evento[];
+  recordatorios: RecordatorioBasura[];
 }
 
 /** Quién tenía la basura de esa semana en ese momento. */
@@ -66,7 +108,9 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
   const esMiembro = (m: unknown): m is MiembroId => typeof m === 'string' && config.miembros.some((x) => x.id === m);
   const pulsaciones = eventos.filter((e) => e.tipo === 'basura_llena').sort((a, b) => a.ts - b.ts);
   // las que dicen que la sacó alguien que no es de la casa no cuentan
-  const sacadas = eventos.filter((e) => e.tipo === 'basura_sacada' && (e.datos?.quien === undefined || esMiembro(e.datos.quien))).sort((a, b) => a.ts - b.ts);
+  const sacadas = eventos
+    .filter((e) => e.tipo === 'basura_sacada' && (e.datos?.quien === undefined || esMiembro(e.datos.quien)))
+    .sort((a, b) => cuandoSacada(a) - cuandoSacada(b));
   const cambios = eventos.filter((e) => e.tipo === 'basura_cubierta').sort((a, b) => a.ts - b.ts);
   const r: SemanaBasura[] = [];
 
@@ -92,26 +136,41 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
     }
     const en = (ts: number) => responsableEn({ tramos }, ts);
 
-    // la que saca quien la tiene en ese momento y la que saca otro por él («Esta la saqué yo»): las dos la vacían
-    const validas = sacadas.filter((x) => sacadaPor(x) === en(x.ts));
-    const ajenas = sacadas.filter((x) => sacadaPor(x) !== en(x.ts) && semana(x.ts) === w);
-    const vacian = sacadas; // cualquiera que la saque dentro del plazo resuelve el aviso
+    // la que saca quien la tiene en ese momento y la que saca otro por él («Esta la saqué yo»): las dos la vacían.
+    // Cuenta cuándo se sacó de verdad (si se apunta más tarde, la hora que se dice), no cuándo se apuntó
+    const validas = sacadas.filter((x) => sacadaPor(x) === en(cuandoSacada(x)));
+    const ajenas = sacadas.filter((x) => sacadaPor(x) !== en(cuandoSacada(x)) && semana(cuandoSacada(x)) === w);
+    const vacia = (desde: number) => sacadas.find((x) => cuandoSacada(x) >= desde); // cualquiera que la saque
     const avisos: AvisoBasura[] = [];
+    const recordatorios: RecordatorioBasura[] = [];
     for (const p of pulsaciones) {
-      if (semana(p.ts) !== w || p.autor === en(p.ts)) continue;
+      if (semana(p.ts) !== w) continue;
       const ult = avisos[avisos.length - 1];
-      if (ult && p.ts < ult.limite && (ult.estado === 'abierto' || (ult.resueltoEn ?? 0) > p.ts)) {
+      const sigue = ult && p.ts < ult.limite && (ult.estado === 'abierto' || (ult.resueltoEn ?? 0) > p.ts);
+      if (p.autor === en(p.ts)) {
+        // quien la tiene dice que está llena: «Recuérdamelo» (si ya le han avisado, no hace falta)
+        const r = recordatorios[recordatorios.length - 1];
+        if (sigue || (r && (r.resueltoEn === undefined || r.resueltoEn > p.ts))) {
+          if (r && r.resueltoEn === undefined) r.bolsas = Math.max(r.bolsas, bolsasDe(p));
+          continue;
+        }
+        const sacada = vacia(p.ts);
+        recordatorios.push({ id: p.id, semana: w, quien: p.autor, evento: p, desde: p.ts, bolsas: bolsasDe(p), resueltoEn: sacada ? cuandoSacada(sacada) : undefined });
+        continue;
+      }
+      if (sigue) {
         ult.pulsaciones.push(p);
+        ult.bolsas = Math.max(ult.bolsas, bolsasDe(p));
         continue;
       }
       const limite = p.ts + normas.horasBasura * HORA;
-      const sacada = vacian.find((x) => x.ts >= p.ts);
+      const sacada = vacia(p.ts);
       let estado: EstadoAviso = 'abierto';
       let resueltoEn: number | undefined;
       let responsable = en(Math.min(ahora, limite));
-      if (sacada && sacada.ts <= limite) { estado = 'resuelto'; resueltoEn = sacada.ts; responsable = sacadaPor(sacada); }
+      if (sacada && cuandoSacada(sacada) <= limite) { estado = 'resuelto'; resueltoEn = cuandoSacada(sacada); responsable = sacadaPor(sacada); }
       else if (ahora > limite) { estado = 'queja'; resueltoEn = limite; responsable = en(limite); }
-      avisos.push({ id: p.id, semana: w, responsable, pulsaciones: [p], desde: p.ts, limite, estado, resueltoEn });
+      avisos.push({ id: p.id, semana: w, responsable, pulsaciones: [p], desde: p.ts, limite, estado, resueltoEn, bolsas: bolsasDe(p) });
     }
     const quejas = avisos.filter((a) => a.estado === 'queja').length;
     const cerrada = ahora > fin && avisos.every((a) => a.estado !== 'abierto');
@@ -123,8 +182,9 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
       avisos,
       quejas,
       cerrada,
-      sacadas: validas.filter((x) => semana(x.ts) === w),
+      sacadas: validas.filter((x) => semana(cuandoSacada(x)) === w),
       ajenas,
+      recordatorios,
     });
   }
   return r;

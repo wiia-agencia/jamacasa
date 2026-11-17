@@ -1450,7 +1450,7 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
   border-radius: 999px;
   cursor: pointer;
 }
-.desde-dias button[aria-checked='true'] { background: #13233a; color: #ffffff; }
+.desde-dias button[aria-checked='true'] { background: var(--boton); color: var(--sobre-boton); }
 .juego-menu .quedarme { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--linea); }
 
 /* ——— El cuadro de la semana (la B, Javi, 14 de noviembre: «que podamos movernos de un piso a otro fácilmente») ——— */
@@ -1520,3 +1520,96 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 /* «¿Lo limpió otro?» (Javi, 14 de noviembre) */
 .lo-limpio-otro { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--papel-2); }
 .lo-limpio-otro p { margin: 0; }
+
+/* ——— La basura clara (Javi, 17 de noviembre): verde tranquila, amarillo llena, rojo urgente; las bolsas y quién avisa ——— */
+.atajo.basura { gap: 6px; }
+.atajo.basura.llena,
+.atajo.basura.urgente { grid-column: 1 / -1; min-height: 0; }
+.atajo.basura.llena { background: var(--ouro-suave); box-shadow: inset 0 0 0 1.5px var(--ouro); }
+.atajo.basura.urgente { background: var(--vermello-suave); box-shadow: inset 0 0 0 1.5px var(--vermello); }
+.atajo.basura.llena strong { color: var(--ouro-texto); }
+.atajo.basura.urgente strong { color: var(--vermello); }
+.atajo.basura .peq { color: var(--texto-2); }
+.basura-cabeza { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.basura-cabeza .crece { flex: 1; }
+.basura-caras { display: inline-flex; }
+.basura-caras .avatar + .avatar { margin-left: -6px; }
+.basura-caras .avatar { box-shadow: 0 0 0 2px var(--papel); }
+.basura-botones { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: auto; padding-top: 2px; }
+.atajo.basura.llena .basura-botones .boton,
+.atajo.basura.urgente .basura-botones .boton { padding-left: 16px; padding-right: 16px; }
+.bolsas { display: inline-flex; align-items: flex-end; gap: 1px; color: var(--texto); }
+.bolsas b { font-size: 0.8rem; margin-left: 3px; align-self: center; }
+.bolsa { width: 22px; height: 22px; opacity: 0.85; flex: none; }
+.semaforo { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--verde); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verde) 22%, transparent); }
+.semaforo.llena { background: var(--ouro); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ouro) 28%, transparent); }
+.semaforo.urgente { background: var(--vermello); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vermello) 25%, transparent); }
+.menu-basura.llena { box-shadow: var(--sombra), inset 0 4px 0 var(--ouro); }
+.menu-basura.urgente { box-shadow: var(--sombra), inset 0 4px 0 var(--vermello); }
+.menu-basura .basura-cabeza p { margin: 0; }
+.juego-redondo b.llena { background: var(--ouro); color: #2b1d00; }
+.juego-redondo b.urgente { background: #c23a31; color: #ffffff; }
+/* «¿Cuántas bolsas hay?» */
+.elige-bolsas { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.elige-bolsas button {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  color: var(--texto);
+  background: var(--papel-2);
+  border-radius: 14px;
+  padding: 10px 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.elige-bolsas button b { font-size: 0.95rem; }
+.elige-bolsas button[aria-checked='true'] { background: var(--boton); color: var(--sobre-boton); }
+.elige-bolsas button[aria-checked='true'] .bolsa { opacity: 1; }
+/* «¿Cuándo la sacaste?» */
+.cuando-dias { display: flex; flex-wrap: wrap; gap: 6px; }
+.cuando-dias button {
+  appearance: none;
+  border: 0;
+  font: 650 0.9rem var(--f);
+  color: var(--texto);
+  background: var(--papel-2);
+  padding: 10px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.cuando-dias button.grande { flex-basis: 100%; padding: 14px; font-size: 1rem; border-radius: 16px; }
+.cuando-dias button[aria-checked='true'] { background: var(--boton); color: var(--sobre-boton); }
+.cuando-hora { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-weight: 650; color: var(--texto-2); }
+.cuando-hora input {
+  font: 700 1.4rem var(--f);
+  color: var(--texto);
+  background: var(--papel-2);
+  border: 0;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+/* si la basura ocupa todo el ancho, «Esto es tuyo» va debajo, en una fila */
+.atajo.basura.llena + .atajo,
+.atajo.basura.urgente + .atajo {
+  grid-column: 1 / -1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: 'e t b' 'e p b';
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+}
+.atajo.basura.llena + .atajo .emoji,
+.atajo.basura.urgente + .atajo .emoji { grid-area: e; }
+.atajo.basura.llena + .atajo strong,
+.atajo.basura.urgente + .atajo strong { grid-area: t; }
+.atajo.basura.llena + .atajo .peq,
+.atajo.basura.urgente + .atajo .peq { grid-area: p; }
+.atajo.basura.llena + .atajo .boton,
+.atajo.basura.urgente + .atajo .boton { grid-area: b; margin-top: 0 !important; }
+.basura-botones .atajo-enlace { text-align: left; }
+.bolsa { width: 26px; height: 26px; }

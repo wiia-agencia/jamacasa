@@ -15,7 +15,8 @@ export type Hoja =
   | { tipo: 'cubrir'; tarea: Tarea }
   | { tipo: 'ponerme'; fila: MiembroId | 'basura'; quien?: MiembroId } // el cuadro de la semana: lo que se puede hacer en esa fila (tú o a quien arrastras)
   | { tipo: 'puntuar'; tarea: Tarea; intento: Intento; propia?: boolean } // con `propia`, el que lo limpió se cambia su nota
-  | { tipo: 'basura' }
+  | { tipo: 'basura' } // «Basura llena» (si la tienes tú, «Recuérdamelo»)
+  | { tipo: 'sacada'; quien?: MiembroId } // «¿Cuándo la sacaste?» (con `quien`, desde el cuadro)
   | { tipo: 'tuyo' }
   | { tipo: 'gasto' }
   | { tipo: 'detalle-gasto'; gasto: Gasto }
@@ -49,9 +50,11 @@ export interface Acciones {
   pasarBasura(semana: number, a: MiembroId): Promise<void>;
   /** Votar el piso de otro o, con `propia`, cambiarte tu nota («ya lo fregué») */
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string, propia?: boolean): Promise<void>;
-  basuraLlena(fotos: string[]): Promise<void>;
-  /** «Ya la saqué» (o «Esta la saqué yo»); con `quien`, desde el cuadro: «La ha sacado Jose» */
-  basuraSacada(quien?: MiembroId): Promise<void>;
+  /** «Basura llena», con cuántas bolsas hay (si la tienes tú, es «Recuérdamelo») */
+  basuraLlena(fotos: string[], bolsas?: number): Promise<void>;
+  /** «Ya la saqué» (o «Esta la saqué yo»); con `quien`, desde el cuadro: «La ha sacado Jose». Con `cuando`, si la
+   *  sacó antes de apuntarlo («¿Cuándo la sacaste?») */
+  basuraSacada(quien?: MiembroId, cuando?: number): Promise<void>;
   estoEsTuyo(para: MiembroId, fotos: string[], que?: string): Promise<void>;
   recogido(aviso: string): Promise<void>;
   gasto(d: DatosGasto): Promise<void>;

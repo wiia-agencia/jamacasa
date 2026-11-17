@@ -275,7 +275,11 @@ describe('«Le echo una mano» y «Esta la saqué yo»', () => {
     expect(e.apuntes.filter((x) => x.clase === 'sacada').map((x) => x.puntos)).toEqual([1, 1]);
     expect(e.apuntes.find((x) => x.clase === 'sacada')!.motivo).toContain('Sacaste la basura de');
     const r = avisosDeEvento(config, [aviso, una], una.id);
-    expect(r).toMatchObject([{ para: tocaba, titulo: expect.stringContaining('ha sacado tu basura'), texto: expect.stringContaining('Ya no te cae la queja') }]);
+    expect(r).toMatchObject([
+      { para: tocaba, titulo: expect.stringContaining('ha sacado tu basura'), texto: expect.stringContaining('Ya no te cae la queja') },
+      // y a quien avisó, que ya está
+      { para: tercero, titulo: expect.stringContaining('ha sacado la basura'), texto: expect.stringContaining('La que avisaste') },
+    ]);
     // la que saca quien la tiene no es «de otro»
     expect(derivar(config, [ev('basura_sacada', tocaba, dia(2, 9))], dia(2, 10)).semanasBasura.find((x) => x.semana === s)!.ajenas).toHaveLength(0);
   });

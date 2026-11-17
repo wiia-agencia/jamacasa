@@ -245,9 +245,10 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
         try { confetti({ particleCount: 70, spread: 65, origin: { y: 0.7 }, colors: ['#f6c14f', '#ec6b67', '#fa8f59'] }); } catch { /* nada */ }
       },
       puntuar: (t, i, nota, faltan, fotos, comentario, propia) => apuntar('puntuacion', { semana: t.semana, de: t.miembro, intento: i.n, nota, faltan, fotos, comentario, ...(propia ? { propia: true } : {}) }),
-      basuraLlena: (fotos) => apuntar('basura_llena', { fotos }),
-      // con `quien` (desde el cuadro), lo que se dice es de otro: «Lo limpia Jose», «Josu le echa una mano»…
-      basuraSacada: (quien) => apuntar('basura_sacada', quien && quien !== yo ? { quien } : {}),
+      basuraLlena: (fotos, bolsas) => apuntar('basura_llena', { fotos, ...(bolsas ? { bolsas } : {}) }),
+      // con `quien` (desde el cuadro), lo que se dice es de otro: «Lo limpia Jose», «Josu le echa una mano»…; con
+      // `cuando`, la hora a la que la sacó si lo apunta más tarde
+      basuraSacada: (quien, cuando) => apuntar('basura_sacada', { ...(quien && quien !== yo ? { quien } : {}), ...(cuando !== undefined ? { cuando } : {}) }),
       cubrir: (semana, de, quien) => apuntar('zona_cubierta', { semana, de, ...(quien && quien !== yo ? { quien } : {}) }),
       dejarDeCubrir: (semana, de, quien) => apuntar('zona_cubierta', { semana, de, ...(quien && quien !== yo ? { quien } : {}), deja: true }),
       ayudar: (semana, de, quien) => apuntar('zona_ayuda', { semana, de, ...(quien && quien !== yo ? { quien } : {}) }),
