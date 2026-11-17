@@ -507,6 +507,22 @@ function HojaDetalleGasto({ gasto }: { gasto: Gasto }) {
         </div>
         {gasto.alquiler && <p className="peq suave">El alquiler se apunta solo cada mes. Cada uno marca en Cuentas cuándo le ha pagado su parte a <Nombre id={gasto.pagador} />.</p>}
         {gasto.fotos.length > 0 && <div className="fotos">{gasto.fotos.map((f) => <FotoRef key={f} ref_={f} />)}</div>}
+        {/* lo que se apuntó como «Otro» y era del súper de casa (los aceites del 16 de noviembre): se anula y se vuelve a
+            apuntar como súper (de turno, no deuda), con lo mismo */}
+        {puedeAnular && gasto.categoria === 'otro' && gasto.evento && (
+          <BotonAccion
+            clase="boton claro ancho"
+            hacer={async () => {
+              const d = gasto.evento!.datos;
+              await acciones.anularGasto(gasto.id);
+              await acciones.gasto({ concepto: gasto.concepto, categoria: 'compra', importe: gasto.importe, pagador: gasto.pagador, participantes: d.participantes ?? config.miembros.map((m) => m.id), fecha: gasto.fecha, fotos: gasto.fotos });
+              cerrar();
+              avisar('Pasado al súper de casa: ya no es deuda, cuenta en el marcador.');
+            }}
+          >
+            Es del súper de casa
+          </BotonAccion>
+        )}
       </div>
     </Hoja>
   );
