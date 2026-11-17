@@ -98,6 +98,8 @@ export type TipoEvento =
   | 'pago'
   | 'pago_anulado'
   | 'aviso_prueba' // «Probar los avisos»: se avisa solo a quien lo pulsa
+  | 'fuera' // «Estoy fuera»: { desde, hasta, quien? } (con `quien`, lo dice otro por él)
+  | 'fuera_anulado' // { id, hasta? }: sin `hasta`, se anula; con `hasta`, «Ya he vuelto» en ese momento
   | 'mensaje' // el chat de la casa
   | 'mensaje_fijado' // fija un mensaje arriba del chat (o lo quita, con mensaje: null)
   | 'mensaje_borrado' // su autor lo borra: queda «Mensaje borrado» en su sitio

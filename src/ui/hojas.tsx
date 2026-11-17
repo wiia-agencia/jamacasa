@@ -9,6 +9,7 @@ import { cuando, diaDeTexto, diaLocal, fechaCorta, nombreMes, rangoSemana, texto
 import type { MiembroId, Zona } from '../core/tipos';
 import { claseColor, useCasa, type Hoja as TipoHoja } from './contexto';
 import { HojaBasura, HojaSacada } from './Basura';
+import { HojaFuera } from './Fuera';
 import { LoLimpioOtro, PonermeBasura, PonermePiso } from './Cuadro';
 import { EstadoTarea, Jueces } from './Hoy';
 import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, Placa, SelectorFotos } from './piezas';
@@ -21,6 +22,7 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
     case 'puntuar': return <HojaPuntuar tarea={hoja.tarea} intento={hoja.intento} propia={hoja.propia} />;
     case 'basura': return <HojaBasura />;
     case 'sacada': return <HojaSacada quien={hoja.quien} />;
+    case 'fuera': return <HojaFuera quien={hoja.quien} />;
     case 'tuyo': return <HojaTuyo />;
     case 'gasto': return <HojaGasto />;
     case 'detalle-gasto': return <HojaDetalleGasto gasto={hoja.gasto} />;

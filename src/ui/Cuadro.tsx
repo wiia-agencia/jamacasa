@@ -48,7 +48,7 @@ function Opcion({ e, titulo, texto, hacer, principal = false, children }: { e: s
 }
 
 /** «¿Quién?»: a quién se refiere lo de la hoja (tú, o a quien has arrastrado); se cambia tocando otra cara. */
-function EligeQuien({ quien, elegir }: { quien: MiembroId; elegir: (m: MiembroId) => void }) {
+export function EligeQuien({ quien, elegir }: { quien: MiembroId; elegir: (m: MiembroId) => void }) {
   const { config, yo } = useCasa();
   const orden = [yo, ...config.miembros.map((m) => m.id).filter((id) => id !== yo)];
   return (

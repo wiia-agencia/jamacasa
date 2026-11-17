@@ -3,6 +3,7 @@ import { calcularBasura, calcularEstoEsTuyo, cuandoSacada, type AvisoBasura, typ
 import { basuraDe, normasDe, repartoSemana, semanaInicial, zonaDe } from './calendario';
 import { calcularCuentas, type Cuentas } from './cuentas';
 import { calcularEspacio, type CosaEspacio } from './espacio';
+import { calcularFuera, type Fuera } from './fuera';
 import {
   calcularApuntes,
   calcularMedallas,
@@ -42,6 +43,8 @@ export interface Estado {
   chat: Chat;
   /** «Tu espacio» de cada uno (en el móvil solo llega el tuyo) */
   espacio: Record<MiembroId, CosaEspacio[]>;
+  /** «Estoy fuera»: quién se va y cuándo */
+  fuera: Fuera[];
 }
 
 export function derivar(config: Config, eventos: Evento[], ahora: number): Estado {
@@ -61,7 +64,8 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
   const mesInicio = mesDeSemana(s) < mes(ahora) ? mesDeSemana(s) : mes(ahora);
   const meses = mesesEntre(mesInicio, mes(ahora));
   const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
-  const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas);
+  const fuera = calcularFuera(config, ordenados);
+  const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera);
   const chat = calcularChat(ordenados);
   return {
     ahora,
@@ -86,6 +90,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
     noticias,
     chat,
     espacio: calcularEspacio(ordenados, ahora),
+    fuera,
   };
 }
 

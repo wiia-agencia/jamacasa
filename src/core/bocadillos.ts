@@ -1,6 +1,7 @@
 // La pantalla de Limpieza (la D, la «pantalla de juego» que eligió Javi el 10 de noviembre): lo que dice cada uno en
 // su bocadillo encima del muñeco, la marca de su cara arriba, la frase de debajo de la semana y la ficha que sale al
 // tocar la cara de otro. Reglas puras: la pantalla solo lo pinta.
+import { elDia, estaFuera, fueraDe } from './fuera';
 import { diasSinLimpiar, pisoDe } from './escena';
 import { tareaDe, type Estado } from './estado';
 import { enMarcha, progreso, type Intento, type Tarea } from './limpieza';
@@ -29,8 +30,8 @@ export interface Bocadillo {
 
 /** La marca de la cara: te toca (!), limpiando (…), esperando nota (★), aprobado (✓), suspenso (✕) o va tarde (⏰). */
 export interface Marca {
-  marca: '!' | '…' | '★' | '✓' | '✕' | '⏰' | '';
-  tono: 'naranja' | 'oro' | 'verde' | 'rojo' | '';
+  marca: '!' | '…' | '★' | '✓' | '✕' | '⏰' | '✈' | '';
+  tono: 'naranja' | 'oro' | 'verde' | 'rojo' | 'fuera' | '';
 }
 
 export interface Ficha {
@@ -93,6 +94,14 @@ export function bocadilloDe(config: Config, e: Estado, m: MiembroId, yo: Miembro
         : { miembro: m, titulo: `Suspenso ${nota(ult.media!)}`, sub: lo, tono: 'rojo', accion: 'tarea' };
     }
   }
+  // «Estoy fuera»: su piso queda libre (si lo limpia alguien, sale arriba como siempre)
+  if (t.libre && t.estado === 'pendiente') {
+    const f = fueraDe(e.fuera, m, e.ahora);
+    const vuelve = f ? `Vuelve ${elDia(f.hasta)}` : undefined;
+    return mio
+      ? { miembro: m, titulo: '✈️ Estás fuera', sub: 'Tu piso queda libre esta semana', tono: 'yo', accion: 'tarea' }
+      : { miembro: m, titulo: `✈️ ${nombre(config, m)} está fuera`, sub: vuelve ? `Su piso, libre · ${vuelve.toLowerCase()}` : 'Su piso queda libre', tono: 'blanco', accion: 'tarea' };
+  }
   switch (t.estado) {
     case 'pendiente': {
       if (!t.enCurso) {
@@ -127,6 +136,7 @@ export function bocadillos(config: Config, e: Estado, yo: MiembroId): Bocadillo[
 export function marcaDe(e: Estado, m: MiembroId, yo: MiembroId): Marca {
   const t = tareaDe(e, e.semana, m);
   if (!t) return { marca: '', tono: '' };
+  if (estaFuera(e.fuera, m, e.ahora)) return { marca: '✈', tono: 'fuera' };
   if (limpiando(t)) return { marca: '…', tono: 'oro' };
   if (t.estado === 'esperando') return { marca: '★', tono: 'oro' };
   if (t.estado === 'aprobada') return { marca: '✓', tono: 'verde' };

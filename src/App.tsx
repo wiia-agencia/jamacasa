@@ -257,6 +257,8 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       quedarmeBasura: (semana, desde) => apuntar('basura_cubierta', desde !== undefined ? { semana, quien: yo, desde } : { semana, quien: yo }),
       devolverBasura: (semana, a) => apuntar('basura_cubierta', { semana, quien: a }),
       pasarBasura: (semana, a) => apuntar('basura_cubierta', { semana, quien: a }),
+      fuera: (desde, hasta, quien) => apuntar('fuera', { desde, hasta, ...(quien && quien !== yo ? { quien } : {}) }),
+      anularFuera: (id, hasta) => apuntar('fuera_anulado', { id, ...(hasta !== undefined ? { hasta } : {}) }),
       estoEsTuyo: (para, fotos, que) => apuntar('esto_es_tuyo', { para, fotos, que }),
       recogido: (aviso) => apuntar('recogido', { aviso }),
       gasto: (d) => apuntar('gasto', d),

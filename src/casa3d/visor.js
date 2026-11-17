@@ -589,6 +589,8 @@ export function crearVisor(contenedor, opciones = {}) {
       }
       const [x, y, mira] = sitio;
       const base = planta.def.nivel === 2 && x < 11 ? PIEDRA_SUBE : 0;
+      // «Estoy fuera»: su muñeco no está en casa
+      m.raiz.visible = !cfg.fuera;
       m.pose(pose);
       const lista = [...(cfg.insignias || [])];
       if (esc.rey === id) lista.push('corona');

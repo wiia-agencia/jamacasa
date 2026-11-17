@@ -1,4 +1,5 @@
 import { basuraDe, semanaInicial } from './calendario';
+import { calcularFuera, estaFuera, siguienteEnCasa, type Fuera } from './fuera';
 import { HORA, finSemana, inicioSemana, semana } from './tiempo';
 import type { Config, DatosEstoEsTuyo, Evento, MiembroId, Normas } from './tipos';
 
@@ -64,6 +65,31 @@ export interface TramoBasura {
   desde: number;
   quien: MiembroId;
   evento?: Evento; // el «Me la quedo yo» (o el «Te la devuelvo») que lo cambió
+  /** Si la lleva porque quien la tenía está fuera («Estoy fuera»), ese */
+  fuera?: MiembroId;
+}
+
+/** «Estoy fuera»: mientras quien la tiene está fuera, la lleva el siguiente que esté en casa (y vuelve a él al volver). */
+function conFuera(config: Config, tramos: TramoBasura[], fueras: Fuera[], w: number): TramoBasura[] {
+  const ini = inicioSemana(w), fin = finSemana(w);
+  if (!fueras.some((f) => f.desde <= fin && f.hasta >= ini)) return tramos;
+  const cortes = new Set<number>([ini]);
+  for (const t of tramos) if (t.desde > ini && t.desde <= fin) cortes.add(t.desde);
+  for (const f of fueras) {
+    if (f.desde > ini && f.desde <= fin) cortes.add(f.desde);
+    if (f.hasta + 1 > ini && f.hasta + 1 <= fin) cortes.add(f.hasta + 1);
+  }
+  const r: TramoBasura[] = [];
+  for (const c of [...cortes].sort((a, b) => a - b)) {
+    const base = responsableEn({ tramos }, c);
+    const quien = estaFuera(fueras, base, c) ? siguienteEnCasa(config, fueras, base, c) : base;
+    const ult = r[r.length - 1];
+    if (ult && ult.quien === quien) continue;
+    const t: TramoBasura = { desde: r.length ? c : -Infinity, quien, evento: tramos.find((x) => x.desde === c)?.evento };
+    if (quien !== base) t.fuera = base;
+    r.push(t);
+  }
+  return r;
 }
 
 /** ¿Se la quedó desde antes de decirlo? («desde el lunes»: toda la semana) */
@@ -112,6 +138,7 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
     .filter((e) => e.tipo === 'basura_sacada' && (e.datos?.quien === undefined || esMiembro(e.datos.quien)))
     .sort((a, b) => cuandoSacada(a) - cuandoSacada(b));
   const cambios = eventos.filter((e) => e.tipo === 'basura_cubierta').sort((a, b) => a.ts - b.ts);
+  const fueras = calcularFuera(config, eventos);
   const r: SemanaBasura[] = [];
 
   for (let w = s; w <= wAhora; w++) {
@@ -134,6 +161,7 @@ export function calcularBasura(config: Config, normas: Normas, eventos: Evento[]
       const antes = tramos.filter((t) => t.desde < desde);
       tramos.splice(0, tramos.length, ...antes, { desde, quien, evento: c });
     }
+    tramos.splice(0, tramos.length, ...conFuera(config, tramos, fueras, w));
     const en = (ts: number) => responsableEn({ tramos }, ts);
 
     // la que saca quien la tiene en ese momento y la que saca otro por él («Esta la saqué yo»): las dos la vacían.

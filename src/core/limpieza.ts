@@ -1,3 +1,4 @@
+import { calcularFuera, pisoLibre } from './fuera';
 import { semanaInicial, zonaDe } from './calendario';
 import { HORA, diaLocal, finSemana, inicioDia, lunesDe, mesDeSemana, semana } from './tiempo';
 import type { Config, DatosPuntuacion, Evento, MiembroId, Normas, Zona } from './tipos';
@@ -74,6 +75,9 @@ export interface Tarea {
   enCurso: boolean; // la semana aún no ha terminado
   limiteSinHacer: number;
   sinHacer: boolean;
+  /** Su dueño está fuera 4 días o más de esa semana («Estoy fuera», Javi, 17 de noviembre): queda libre, se queda sin
+   *  limpiar y nadie pierde puntos por él (si alguien lo limpia, se lleva lo de siempre). */
+  libre: boolean;
   nota?: number; // nota con la que se aprobó
 }
 
@@ -91,6 +95,7 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
   const correcciones = new Map<string, Evento[]>();
   const esMiembro = (m: unknown): m is MiembroId => typeof m === 'string' && config.miembros.some((x) => x.id === m);
   const anadir = (mapa: Map<string, Evento[]>, k: string, e: Evento) => (mapa.get(k) ?? mapa.set(k, []).get(k)!).push(e);
+  const fueras = calcularFuera(config, eventos);
   // a quién se refiere: a quien lo apunta o, si lleva `quien`, a ese (desde el cuadro se puede poner a cualquiera:
   // «Lo limpia Jose», «Josu le echa una mano», «Ya lo ha limpiado Jose»; Javi, 14 de noviembre)
   const actor = (e: Evento): MiembroId => (esMiembro(e.datos?.quien) ? e.datos.quien : e.autor);
@@ -183,7 +188,10 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         retrasoDias = diaLocal(ahora) - lunesSig + 1;
       }
       const limiteSinHacer = inicioDia(lunesSig + normas.diasGracia) - 1;
-      const sinHacer = ahora > limiteSinHacer && (primerHecho === undefined || primerHecho > limiteSinHacer);
+      // si su dueño estuvo fuera casi toda la semana, el piso queda libre: ni retraso ni «sin hacer»
+      const libre = pisoLibre(fueras, m.id, w);
+      if (libre) retrasoDias = 0;
+      const sinHacer = !libre && ahora > limiteSinHacer && (primerHecho === undefined || primerHecho > limiteSinHacer);
 
       const ult = intentos[intentos.length - 1];
       let estado: EstadoTarea = 'pendiente';
@@ -210,6 +218,7 @@ export function calcularTareas(config: Config, normas: Normas, eventos: Evento[]
         enCurso: ahora <= fin,
         limiteSinHacer,
         sinHacer,
+        libre,
         nota: estado === 'aprobada' ? ult!.media : undefined,
       });
     }

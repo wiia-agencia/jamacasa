@@ -2,7 +2,8 @@ import { hash32 } from './azar';
 import { apuntadaTarde, bolsasDe, cuandoSacada, desdeAntes, responsableEn, sacadaPor, type AvisoTuyo, type SemanaBasura } from './basura';
 import { euros, type Cuentas } from './cuentas';
 import type { Tarea } from './limpieza';
-import { cuando, nombreDia, nombreMes } from './tiempo';
+import { cuando, nombreDia, nombreMes, semana as semanaDe } from './tiempo';
+import { rangoFuera, type Fuera } from './fuera';
 import type { Config, Evento, MiembroId, Normas } from './tipos';
 
 export interface Noticia {
@@ -18,9 +19,17 @@ const elegir = (id: string, opciones: string[]) => opciones[hash32(id) % opcione
 export const nota = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 1 });
 export const pt = (x: number) => (x > 0 ? '+' : x < 0 ? '−' : '') + nota(Math.abs(x));
 
-export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], cuentas: Cuentas): Noticia[] {
+export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], cuentas: Cuentas, fueras: Fuera[] = []): Noticia[] {
   const n = (id: MiembroId) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
   const r: Noticia[] = [];
+
+  // «Estoy fuera»: quién se va, hasta cuándo y si su piso queda libre
+  for (const f of fueras) {
+    const libres = tareas.filter((t) => t.miembro === f.quien && t.libre && t.semana >= semanaDe(f.desde) && t.semana <= semanaDe(f.hasta));
+    const piso = libres.length ? `: su ${libres[0].zona.nombre.toLowerCase()} queda libre${libres.length > 1 ? ' esas semanas' : ''}` : '';
+    const apunta = f.por !== f.quien ? ` Lo apunta ${n(f.por)}.` : '';
+    r.push({ id: `${f.id}-fu`, ts: f.evento.ts, quien: f.quien, texto: `${n(f.quien)} está fuera ${rangoFuera(f, f.evento.ts)}${piso}.${apunta}` });
+  }
 
   for (const t of tareas) {
     const X = n(t.miembro);

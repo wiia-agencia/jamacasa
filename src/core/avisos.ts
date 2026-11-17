@@ -8,6 +8,7 @@ import { resumen } from './chat';
 import { alquilerPendiente, euros } from './cuentas';
 import { apuntadaTarde, bolsasDe, cuandoSacada, desdeAntes, quienesAvisan, responsableEn, sacadaPor } from './basura';
 import { derivar, tareaDe } from './estado';
+import { calcularFuera, elDia, estaFuera, pisoLibre, rangoFuera, siguienteEnCasa } from './fuera';
 import type { Intento, Tarea } from './limpieza';
 import { nota } from './noticias';
 import { HORA, cuando, diaLocal, duracion, fechaDeDia, instanteLocal, lunesDe, mes, mesesEntre, nombreDia, nombreMes, partes, semana } from './tiempo';
@@ -78,9 +79,15 @@ function resultados(t: Tarea, i: Intento, n: Normas, nombre: (m: MiembroId) => s
 }
 
 /** Lo que hay que avisar en cuanto se apunta el evento `id`. */
+/** Los avisos de algo que se acaba de apuntar. A quien está fuera («Estoy fuera») no le llega nada. */
 export function avisosDeEvento(config: Config, eventos: Evento[], id: string): Aviso[] {
   const e = eventos.find((x) => x.id === id);
   if (!e) return [];
+  const fueras = calcularFuera(config, eventos.filter((x) => x.ts <= e.ts));
+  return avisosDe(config, eventos, e).filter((a) => !estaFuera(fueras, a.para, e.ts));
+}
+
+function avisosDe(config: Config, eventos: Evento[], e: Evento): Aviso[] {
   const estado = derivar(config, eventos, e.ts);
   const n = estado.normas;
   const nombre = nombres(config);
@@ -332,6 +339,28 @@ export function avisosDeEvento(config: Config, eventos: Evento[], id: string): A
         .filter((x) => x.id !== e.autor)
         .map((x) => ({ para: x.id, titulo: `📌 ${yo} ha fijado un mensaje`, texto: resumen(f), pantalla: 'chat' as const, etiqueta: 'chat-fijado' }));
     }
+    case 'fuera': {
+      // «Estoy fuera»: se lo dice a los otros (y, si lo apunta otro, a quien se va): su piso, si queda libre, y quién
+      // lleva la basura mientras
+      const f = estado.fuera.find((x) => x.id === e.id);
+      if (!f) return [];
+      const Q = nombre(f.quien);
+      const partes: string[] = [];
+      for (const ww of [...new Set([semana(f.desde), semana(f.hasta)])]) {
+        if (ww < estado.semanaInicio || !pisoLibre(estado.fuera, f.quien, ww)) continue;
+        const t = tareaDe(estado, ww, f.quien);
+        if (t) partes.push(`${ww === w ? 'Esta semana' : 'La semana que viene'}, su ${t.zona.nombre.toLowerCase()} queda libre: si nadie lo limpia, se queda así y nadie pierde puntos.`);
+      }
+      const s = estado.semanasBasura.find((x) => x.tramos.some((tr) => tr.fuera === f.quien));
+      const lleva = s?.tramos.find((tr) => tr.fuera === f.quien);
+      if (lleva) partes.push(`La basura la lleva ${nombre(lleva.quien)} mientras.`);
+      else if (estado.basura === f.quien) partes.push(`La basura la lleva ${nombre(siguienteEnCasa(config, estado.fuera, f.quien, f.desde))} mientras.`);
+      const r: Aviso[] = config.miembros
+        .filter((x) => x.id !== f.quien)
+        .map((x) => ({ para: x.id, titulo: `✈️ ${Q} está fuera ${rangoFuera(f, e.ts)}`, texto: partes.join(' ') || `Vuelve ${elDia(f.hasta)}.`, pantalla: 'hoy' as const, etiqueta: `fuera-${f.id}` }));
+      if (f.quien !== e.autor) r.push({ para: f.quien, titulo: `✈️ ${yo} ha apuntado que estás fuera ${rangoFuera(f, e.ts)}`, texto: 'Mientras, no te llegan avisos.', pantalla: 'hoy', etiqueta: `fuera-${f.id}` });
+      return r.filter((x) => x.para !== e.autor);
+    }
     case 'aviso_prueba':
       return [{ para: e.autor, titulo: '🔔 Así te llegarán los avisos', texto: 'La basura, las notas, «Esto es tuyo», las cuentas… Solo lo que te toca a ti.', pantalla: 'hoy', etiqueta: 'prueba' }];
   }
@@ -466,5 +495,6 @@ export function avisosDelReloj(config: Config, eventos: Evento[], desde: number,
       }
     }
   }
-  return r;
+  // a quien está fuera no le llega nada
+  return r.filter((a) => !estaFuera(estado.fuera, a.para, hasta));
 }

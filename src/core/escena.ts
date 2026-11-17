@@ -12,6 +12,7 @@
 //   · Insignias: corona del rey del mes, racha (3 pisos seguidos con 9 o más), mejorando o empeorando,
 //     debe un piso de antes y peste (2 semanas seguidas sin hacer su piso o 3 «Esto es tuyo» sin recoger en el mes).
 import { basuraAhora, type Estado } from './estado';
+import { estaFuera } from './fuera';
 import { enMarcha, lohizoOtro, type Tarea } from './limpieza';
 import { diaLocal, inicioSemana, mes } from './tiempo';
 import type { MiembroId, Zona } from './tipos';
@@ -25,6 +26,7 @@ export interface PersonaEscena {
   accion?: Accion; // sin acción: la que toca por el estado del piso (barrer, esperar, descansar)
   insignias: Insignia[];
   dice?: string;
+  fuera?: boolean; // «Estoy fuera»: no sale en la casa
 }
 
 /** [estado, nivel, días sin limpiar, lo hecho de la lista (0–1, mientras se limpia)]: el nivel es el brillo si está
@@ -161,6 +163,7 @@ export function escenaCasa(e: Estado): EscenaCasa | null {
     pisos[piso] = estado;
 
     const p: PersonaEscena = { insignias: insigniasDe(e, t.miembro) };
+    if (estaFuera(e.fuera, t.miembro, e.ahora)) p.fuera = true;
     if (estado[0] === 'sucio') {
       if (t.estado === 'suspendida') { p.accion = 'pie'; p.dice = 'Toca repasarlo'; }
       else if (sucio >= 2) p.accion = 'triste';

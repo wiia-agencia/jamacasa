@@ -17,6 +17,7 @@ export type Hoja =
   | { tipo: 'puntuar'; tarea: Tarea; intento: Intento; propia?: boolean } // con `propia`, el que lo limpió se cambia su nota
   | { tipo: 'basura' } // «Basura llena» (si la tienes tú, «Recuérdamelo»)
   | { tipo: 'sacada'; quien?: MiembroId } // «¿Cuándo la sacaste?» (con `quien`, desde el cuadro)
+  | { tipo: 'fuera'; quien?: MiembroId } // «Estoy fuera»: las fechas (tuyas o de otro)
   | { tipo: 'tuyo' }
   | { tipo: 'gasto' }
   | { tipo: 'detalle-gasto'; gasto: Gasto }
@@ -48,6 +49,10 @@ export interface Acciones {
   devolverBasura(semana: number, a: MiembroId): Promise<void>;
   /** Pasarle la basura a otro desde ahora (desde el cuadro) */
   pasarBasura(semana: number, a: MiembroId): Promise<void>;
+  /** «Estoy fuera»: del comienzo de un día al final de otro (con `quien`, otro por él) */
+  fuera(desde: number, hasta: number, quien?: MiembroId): Promise<void>;
+  /** Anular un «Estoy fuera» o, con `hasta`, «Ya he vuelto» en ese momento */
+  anularFuera(id: string, hasta?: number): Promise<void>;
   /** Votar el piso de otro o, con `propia`, cambiarte tu nota («ya lo fregué») */
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string, propia?: boolean): Promise<void>;
   /** «Basura llena», con cuántas bolsas hay (si la tienes tú, es «Recuérdamelo») */

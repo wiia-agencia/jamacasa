@@ -1622,3 +1622,50 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .opcion.falta svg { flex: none; }
 .busca-entera { align-self: flex-start; font-size: var(--t-s); }
 .busca-falta .opcion { text-align: left; }
+
+/* ——— «Estoy fuera» (Javi, 17 de noviembre) ——— */
+.atajo-fuera {
+  grid-column: 1 / -1;
+  appearance: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radio);
+  background: var(--papel);
+  box-shadow: inset 0 0 0 1px var(--linea);
+  color: var(--texto-2);
+  cursor: pointer;
+}
+.atajo-fuera > span:first-child { font-size: 1.25rem; }
+.atajo-fuera .crece { flex: 1; }
+.atajo-fuera b { color: var(--texto); text-decoration: underline; text-underline-offset: 3px; }
+.aviso-fuera {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--azul) 10%, var(--papel));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--azul) 35%, transparent);
+  color: var(--texto);
+  cursor: pointer;
+}
+.aviso-fuera .e { font-size: 1.5rem; line-height: 1.1; }
+.aviso-fuera .crece { display: flex; flex-direction: column; gap: 2px; }
+.aviso-fuera b { font-size: var(--t-m); }
+.aviso-fuera .crece > span { font-size: var(--t-s); color: var(--texto-2); }
+.fuera-ya { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--azul) 10%, var(--papel)); }
+.fuera-ya b { font-size: var(--t-s); }
+.fuera-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fuera-fechas .entrada { font-weight: 700; padding: 12px 10px; }
+.fuera-lineas { margin: 0; padding: 14px 14px 14px 32px; border-radius: 14px; background: var(--papel-2); display: flex; flex-direction: column; gap: 6px; font-size: var(--t-s); color: var(--texto); }
+.juego-marca.fuera { background: #2569db; }

@@ -8,6 +8,7 @@ import { cuando, duracion, fechaCorta, finSemana, lunesDe, nombreMes, rangoSeman
 import { leer, guardar } from '../datos/guardado';
 import { miembro, useCasa } from './contexto';
 import { TarjetaBasura } from './Basura';
+import { AvisoFuera } from './Fuera';
 import { ChapaEstado } from './Limpieza';
 import { PortadaHoy } from './PortadaHoy';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
@@ -25,6 +26,7 @@ export function Hoy() {
       <div className="margen pila">
         <ActivarAvisos />
         <Atrasadas />
+        <AvisoFuera />
         <Atajos />
         <AvisosParaMi />
         <PorPuntuar />
@@ -350,6 +352,12 @@ function Atajos() {
           Esto es tuyo
         </button>
       </div>
+      {/* «Estoy fuera» (Javi, 17 de noviembre) */}
+      <button type="button" className="atajo-fuera" onClick={() => abrir({ tipo: 'fuera' })}>
+        <span aria-hidden="true">✈️</span>
+        <span className="crece">¿Te vas unos días?</span>
+        <b>Estoy fuera</b>
+      </button>
     </div>
   );
 }

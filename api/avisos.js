@@ -6923,6 +6923,80 @@ function euros(cent, conSigno = false) {
 	});
 	return `${conSigno ? cent > 0 ? "+" : cent < 0 ? "−" : "" : cent < 0 ? "−" : ""}${t} €`;
 }
+/** Las ausencias que valen: sin las anuladas y, si volvió antes, hasta que volvió. */
+function calcularFuera(config, eventos) {
+	const esMiembro = (m) => typeof m === "string" && config.miembros.some((x) => x.id === m);
+	const cambios = /* @__PURE__ */ new Map();
+	for (const e of eventos) {
+		if (e.tipo !== "fuera_anulado") continue;
+		const id = String(e.datos?.id ?? "");
+		const antes = cambios.get(id);
+		if (!antes || antes.ts <= e.ts) cambios.set(id, e);
+	}
+	const r = [];
+	for (const e of eventos) {
+		if (e.tipo !== "fuera") continue;
+		const quien = esMiembro(e.datos?.quien) ? e.datos.quien : e.autor;
+		const desde = Number(e.datos?.desde);
+		let hasta = Number(e.datos?.hasta);
+		if (!esMiembro(quien) || !Number.isFinite(desde) || !Number.isFinite(hasta)) continue;
+		const c = cambios.get(e.id);
+		if (c) {
+			const vuelta = Number(c.datos?.hasta);
+			if (!Number.isFinite(vuelta)) continue;
+			hasta = Math.min(hasta, vuelta);
+		}
+		if (hasta <= desde) continue;
+		r.push({
+			id: e.id,
+			quien,
+			desde,
+			hasta,
+			evento: e,
+			por: e.autor
+		});
+	}
+	return r.sort((a, b) => a.desde - b.desde);
+}
+/** ¿Está fuera en ese momento? */
+function estaFuera(fueras, m, t) {
+	return fueras.some((f) => f.quien === m && t >= f.desde && t <= f.hasta);
+}
+/** Cuántos días de esa semana está fuera (un día cuenta si está fuera casi entero: más de 20 horas). */
+function diasFuera(fueras, m, w) {
+	const lunes = lunesDe(w);
+	let n = 0;
+	for (let d = lunes; d < lunes + 7; d++) {
+		const a = inicioDia(d), b = inicioDia(d + 1);
+		if (fueras.filter((f) => f.quien === m).reduce((x, f) => x + Math.max(0, Math.min(b, f.hasta) - Math.max(a, f.desde)), 0) > 72e6) n++;
+	}
+	return n;
+}
+/** ¿Su piso de esa semana queda libre? (4 días fuera o más) */
+function pisoLibre(fueras, m, w) {
+	return diasFuera(fueras, m, w) >= 4;
+}
+/** El siguiente que está en casa en ese momento (por el orden de la casa), para pasarle lo de quien se ha ido. */
+function siguienteEnCasa(config, fueras, m, t) {
+	const ids = config.miembros.map((x) => x.id);
+	const i = ids.indexOf(m);
+	for (let k = 1; k < ids.length; k++) {
+		const otro = ids[(i + k) % ids.length];
+		if (!estaFuera(fueras, otro, t)) return otro;
+	}
+	return m;
+}
+/** «el jueves 19»: el día de un momento. */
+function elDia(t) {
+	return `el ${nombreDia(t)} ${fechaDeDia(diaLocal(t)).d}`;
+}
+/** «del jueves 19 al domingo 22» o, si ya se ha ido, «hasta el domingo 22». */
+function rangoFuera(f, ahora) {
+	const hasta = elDia(f.hasta);
+	if (f.desde <= ahora) return `hasta ${hasta}`;
+	if (diaLocal(f.desde) === diaLocal(f.hasta)) return hasta;
+	return `del ${elDia(f.desde).slice(3)} al ${hasta.slice(3)}`;
+}
 // src/core/basura.ts
 /** Lo más atrás que se puede decir que se sacó: una semana. */
 const ATRAS_MAX = 168 * HORA;
@@ -6945,6 +7019,32 @@ function bolsasDe(e) {
 /** Quiénes han avisado de que está llena (sin repetir, por orden). */
 function quienesAvisan(a) {
 	return [...new Set(a.pulsaciones.map((p) => p.autor))];
+}
+/** «Estoy fuera»: mientras quien la tiene está fuera, la lleva el siguiente que esté en casa (y vuelve a él al volver). */
+function conFuera(config, tramos, fueras, w) {
+	const ini = inicioSemana(w), fin = finSemana(w);
+	if (!fueras.some((f) => f.desde <= fin && f.hasta >= ini)) return tramos;
+	const cortes = /* @__PURE__ */ new Set([ini]);
+	for (const t of tramos) if (t.desde > ini && t.desde <= fin) cortes.add(t.desde);
+	for (const f of fueras) {
+		if (f.desde > ini && f.desde <= fin) cortes.add(f.desde);
+		if (f.hasta + 1 > ini && f.hasta + 1 <= fin) cortes.add(f.hasta + 1);
+	}
+	const r = [];
+	for (const c of [...cortes].sort((a, b) => a - b)) {
+		const base = responsableEn({ tramos }, c);
+		const quien = estaFuera(fueras, base, c) ? siguienteEnCasa(config, fueras, base, c) : base;
+		const ult = r[r.length - 1];
+		if (ult && ult.quien === quien) continue;
+		const t = {
+			desde: r.length ? c : -Infinity,
+			quien,
+			evento: tramos.find((x) => x.desde === c)?.evento
+		};
+		if (quien !== base) t.fuera = base;
+		r.push(t);
+	}
+	return r;
 }
 /** ¿Se la quedó desde antes de decirlo? («desde el lunes»: toda la semana) */
 function desdeAntes(t) {
@@ -6971,6 +7071,7 @@ function calcularBasura(config, normas, eventos, ahora) {
 	const pulsaciones = eventos.filter((e) => e.tipo === "basura_llena").sort((a, b) => a.ts - b.ts);
 	const sacadas = eventos.filter((e) => e.tipo === "basura_sacada" && (e.datos?.quien === void 0 || esMiembro(e.datos.quien))).sort((a, b) => cuandoSacada(a) - cuandoSacada(b));
 	const cambios = eventos.filter((e) => e.tipo === "basura_cubierta").sort((a, b) => a.ts - b.ts);
+	const fueras = calcularFuera(config, eventos);
 	const r = [];
 	for (let w = s; w <= wAhora; w++) {
 		const tocaba = basuraDe(config, w);
@@ -6994,6 +7095,7 @@ function calcularBasura(config, normas, eventos, ahora) {
 				evento: c
 			});
 		}
+		tramos.splice(0, tramos.length, ...conFuera(config, tramos, fueras, w));
 		const en = (ts) => responsableEn({ tramos }, ts);
 		const validas = sacadas.filter((x) => sacadaPor(x) === en(cuandoSacada(x)));
 		const ajenas = sacadas.filter((x) => sacadaPor(x) !== en(cuandoSacada(x)) && semana(cuandoSacada(x)) === w);
@@ -7176,6 +7278,7 @@ function calcularTareas(config, normas, eventos, ahora) {
 	const correcciones = /* @__PURE__ */ new Map();
 	const esMiembro = (m) => typeof m === "string" && config.miembros.some((x) => x.id === m);
 	const anadir = (mapa, k, e) => (mapa.get(k) ?? mapa.set(k, []).get(k)).push(e);
+	const fueras = calcularFuera(config, eventos);
 	const actor = (e) => esMiembro(e.datos?.quien) ? e.datos.quien : e.autor;
 	for (const e of eventos) if (e.tipo === "zona_cosa") anadir(cosas, `${e.datos?.semana}|${duenoDe(e, esMiembro)}`, e);
 	else if (e.tipo === "zona_empezada") {
@@ -7253,7 +7356,9 @@ function calcularTareas(config, normas, eventos, ahora) {
 			if (primerHecho > fin) retrasoDias = diaLocal(primerHecho) - lunesSig + 1;
 		} else if (ahora > fin) retrasoDias = diaLocal(ahora) - lunesSig + 1;
 		const limiteSinHacer = inicioDia(lunesSig + normas.diasGracia) - 1;
-		const sinHacer = ahora > limiteSinHacer && (primerHecho === void 0 || primerHecho > limiteSinHacer);
+		const libre = pisoLibre(fueras, m.id, w);
+		if (libre) retrasoDias = 0;
+		const sinHacer = !libre && ahora > limiteSinHacer && (primerHecho === void 0 || primerHecho > limiteSinHacer);
 		const ult = intentos[intentos.length - 1];
 		let estado = "pendiente";
 		if (ult) estado = !ult.resuelto ? "esperando" : ult.aprobado ? "aprobada" : "suspendida";
@@ -7277,6 +7382,7 @@ function calcularTareas(config, normas, eventos, ahora) {
 			enCurso: ahora <= fin,
 			limiteSinHacer,
 			sinHacer,
+			libre,
 			nota: estado === "aprobada" ? ult.media : void 0
 		});
 	}
@@ -7704,9 +7810,20 @@ function calcularTitulos(config, tareas, porMes, cuentas, tuyos, meses) {
 const elegir = (id, opciones) => opciones[hash32(id) % opciones.length];
 const nota = (n) => n.toLocaleString("es-ES", { maximumFractionDigits: 1 });
 const pt = (x) => (x > 0 ? "+" : x < 0 ? "−" : "") + nota(Math.abs(x));
-function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas) {
+function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras = []) {
 	const n = (id) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
 	const r = [];
+	for (const f of fueras) {
+		const libres = tareas.filter((t) => t.miembro === f.quien && t.libre && t.semana >= semana(f.desde) && t.semana <= semana(f.hasta));
+		const piso = libres.length ? `: su ${libres[0].zona.nombre.toLowerCase()} queda libre${libres.length > 1 ? " esas semanas" : ""}` : "";
+		const apunta = f.por !== f.quien ? ` Lo apunta ${n(f.por)}.` : "";
+		r.push({
+			id: `${f.id}-fu`,
+			ts: f.evento.ts,
+			quien: f.quien,
+			texto: `${n(f.quien)} está fuera ${rangoFuera(f, f.evento.ts)}${piso}.${apunta}`
+		});
+	}
 	for (const t of tareas) {
 		const X = n(t.miembro);
 		const zona = t.zona.nombre.toLowerCase();
@@ -7920,7 +8037,8 @@ function derivar(config, eventos, ahora) {
 	const medallas = calcularMedallas(config, normas, tareas, semanasBasura, racha.historial);
 	const meses = mesesEntre(mesDeSemana(s) < mes(ahora) ? mesDeSemana(s) : mes(ahora), mes(ahora));
 	const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
-	const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas);
+	const fuera = calcularFuera(config, ordenados);
+	const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera);
 	const chat = calcularChat(ordenados);
 	return {
 		ahora,
@@ -7943,7 +8061,8 @@ function derivar(config, eventos, ahora) {
 		cuentas,
 		noticias,
 		chat,
-		espacio: calcularEspacio(ordenados, ahora)
+		espacio: calcularEspacio(ordenados, ahora),
+		fuera
 	};
 }
 function tareaDe(e, w, m) {
@@ -8000,9 +8119,14 @@ function resultados(t, i, n, nombre) {
 	return r;
 }
 /** Lo que hay que avisar en cuanto se apunta el evento `id`. */
+/** Los avisos de algo que se acaba de apuntar. A quien está fuera («Estoy fuera») no le llega nada. */
 function avisosDeEvento(config, eventos, id) {
 	const e = eventos.find((x) => x.id === id);
 	if (!e) return [];
+	const fueras = calcularFuera(config, eventos.filter((x) => x.ts <= e.ts));
+	return avisosDe(config, eventos, e).filter((a) => !estaFuera(fueras, a.para, e.ts));
+}
+function avisosDe(config, eventos, e) {
 	const estado = derivar(config, eventos, e.ts);
 	const n = estado.normas;
 	const nombre = nombres(config);
@@ -8349,6 +8473,35 @@ function avisosDeEvento(config, eventos, id) {
 				etiqueta: "chat-fijado"
 			}));
 		}
+		case "fuera": {
+			const f = estado.fuera.find((x) => x.id === e.id);
+			if (!f) return [];
+			const Q = nombre(f.quien);
+			const partes = [];
+			for (const ww of [.../* @__PURE__ */ new Set([semana(f.desde), semana(f.hasta)])]) {
+				if (ww < estado.semanaInicio || !pisoLibre(estado.fuera, f.quien, ww)) continue;
+				const t = tareaDe(estado, ww, f.quien);
+				if (t) partes.push(`${ww === w ? "Esta semana" : "La semana que viene"}, su ${t.zona.nombre.toLowerCase()} queda libre: si nadie lo limpia, se queda así y nadie pierde puntos.`);
+			}
+			const lleva = estado.semanasBasura.find((x) => x.tramos.some((tr) => tr.fuera === f.quien))?.tramos.find((tr) => tr.fuera === f.quien);
+			if (lleva) partes.push(`La basura la lleva ${nombre(lleva.quien)} mientras.`);
+			else if (estado.basura === f.quien) partes.push(`La basura la lleva ${nombre(siguienteEnCasa(config, estado.fuera, f.quien, f.desde))} mientras.`);
+			const r = config.miembros.filter((x) => x.id !== f.quien).map((x) => ({
+				para: x.id,
+				titulo: `✈️ ${Q} está fuera ${rangoFuera(f, e.ts)}`,
+				texto: partes.join(" ") || `Vuelve ${elDia(f.hasta)}.`,
+				pantalla: "hoy",
+				etiqueta: `fuera-${f.id}`
+			}));
+			if (f.quien !== e.autor) r.push({
+				para: f.quien,
+				titulo: `✈️ ${yo} ha apuntado que estás fuera ${rangoFuera(f, e.ts)}`,
+				texto: "Mientras, no te llegan avisos.",
+				pantalla: "hoy",
+				etiqueta: `fuera-${f.id}`
+			});
+			return r.filter((x) => x.para !== e.autor);
+		}
 		case "aviso_prueba": return [{
 			para: e.autor,
 			titulo: "🔔 Así te llegarán los avisos",
@@ -8502,7 +8655,7 @@ function avisosDelReloj(config, eventos, desde, hasta, ahora = hasta) {
 			});
 		}
 	}
-	return r;
+	return r.filter((a) => !estaFuera(estado.fuera, a.para, hasta));
 }
 // src/conexion.ts
 const SUPABASE = {
