@@ -2,6 +2,7 @@ import { ArrowRight, ChevronRight, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { alquilerPendiente, euros, type Gasto } from '../core/cuentas';
 import { diaLocal, fechaCorta, mesDeDia, nombreMes, diaDeTexto } from '../core/tiempo';
+import { SuperDeCasa } from './Compras';
 import { useCasa } from './contexto';
 import { Avatar, Nombre, Seccion } from './piezas';
 
@@ -27,6 +28,10 @@ export function Cuentas() {
       <header className="cabecera">
         <h1 className="display titulo-pantalla">Cuentas</h1>
       </header>
+
+      {/* el súper de casa va por turnos (Javi, 17 de noviembre); el alquiler y las facturas, por deudas */}
+      <div id="super-casa"><SuperDeCasa /></div>
+      <p className="etiqueta" style={{ marginBottom: -8 }}>Alquiler y facturas</p>
 
       <section className="tarjeta pila-s" aria-label="Tu saldo">
         {debo.length > 0 ? (
@@ -161,7 +166,7 @@ export function Cuentas() {
                     <span className="crece">
                       <span className="negrita" style={{ display: 'block', textDecoration: g.anulado ? 'line-through' : undefined }}>{g.concepto}</span>
                       <span className="peq suave">
-                        Pagó <Nombre id={g.pagador} />. {g.partes[yo] ? `Te toca ${euros(g.partes[yo])}` : 'No te toca nada'}
+                        {g.categoria === 'compra' ? <>Súper de casa: lo compró <Nombre id={g.pagador} /> (no es deuda)</> : <>Pagó <Nombre id={g.pagador} />. {g.partes[yo] ? `Te toca ${euros(g.partes[yo])}` : 'No te toca nada'}</>}
                       </span>
                     </span>
                     <span className="negrita">{euros(g.importe)}</span>

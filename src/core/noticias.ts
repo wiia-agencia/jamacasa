@@ -4,6 +4,7 @@ import { euros, type Cuentas } from './cuentas';
 import type { Tarea } from './limpieza';
 import { cuando, nombreDia, nombreMes, semana as semanaDe } from './tiempo';
 import { rangoFuera, type Fuera } from './fuera';
+import { esSuper, type Falta } from './compras';
 import type { Config, Evento, MiembroId, Normas } from './tipos';
 
 export interface Noticia {
@@ -19,7 +20,7 @@ const elegir = (id: string, opciones: string[]) => opciones[hash32(id) % opcione
 export const nota = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 1 });
 export const pt = (x: number) => (x > 0 ? '+' : x < 0 ? '−' : '') + nota(Math.abs(x));
 
-export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], cuentas: Cuentas, fueras: Fuera[] = []): Noticia[] {
+export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], cuentas: Cuentas, fueras: Fuera[] = [], faltas: Falta[] = []): Noticia[] {
   const n = (id: MiembroId) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
   const r: Noticia[] = [];
 
@@ -163,7 +164,15 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
 
   for (const g of cuentas.gastos) {
     if (!g.evento || g.anulado) continue;
-    r.push({ id: `${g.id}-g`, ts: g.evento.ts, quien: g.pagador, texto: `${n(g.pagador)} ha apuntado un gasto: ${g.concepto}, ${euros(g.importe)}.` });
+    // el súper de casa es de turno: se dice que lo ha comprado (cuenta en su marcador, no es deuda)
+    const texto = esSuper(g) ? `${n(g.pagador)} ha comprado para casa: ${g.concepto.toLowerCase()}, ${euros(g.importe)}.` : `${n(g.pagador)} ha apuntado un gasto: ${g.concepto}, ${euros(g.importe)}.`;
+    r.push({ id: `${g.id}-g`, ts: g.evento.ts, quien: g.pagador, texto });
+  }
+  // «Se ha acabado…» y «Ahora no puedo»
+  for (const f of faltas) {
+    const T = (m: MiembroId) => (m === f.pide ? 'a él mismo' : `a ${n(m)}`);
+    r.push({ id: `${f.id}-fa`, ts: f.desde, quien: f.pide, texto: `${n(f.pide)} avisa: se ha acabado ${f.cosa.toLowerCase()}. Le toca comprarlo ${T(f.pasaron[0] ?? f.toca)}.` });
+    if (f.pasaron.length) r.push({ id: `${f.id}-fp`, ts: f.tocaDesde, quien: f.pasaron[f.pasaron.length - 1], texto: `${n(f.pasaron[f.pasaron.length - 1])} ahora no puede comprar ${f.cosa.toLowerCase()}: le toca a ${n(f.toca)}.` });
   }
   for (const p of cuentas.pagos) {
     if (p.anulado) continue;

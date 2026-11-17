@@ -10,6 +10,7 @@ import type { MiembroId, Zona } from '../core/tipos';
 import { claseColor, useCasa, type Hoja as TipoHoja } from './contexto';
 import { HojaBasura, HojaSacada } from './Basura';
 import { HojaFuera } from './Fuera';
+import { HojaComprado, HojaFalta } from './Compras';
 import { LoLimpioOtro, PonermeBasura, PonermePiso } from './Cuadro';
 import { EstadoTarea, Jueces } from './Hoy';
 import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, Placa, SelectorFotos } from './piezas';
@@ -23,6 +24,8 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
     case 'basura': return <HojaBasura />;
     case 'sacada': return <HojaSacada quien={hoja.quien} />;
     case 'fuera': return <HojaFuera quien={hoja.quien} />;
+    case 'falta': return <HojaFalta />;
+    case 'comprado': return <HojaComprado falta={hoja.falta} />;
     case 'tuyo': return <HojaTuyo />;
     case 'gasto': return <HojaGasto />;
     case 'detalle-gasto': return <HojaDetalleGasto gasto={hoja.gasto} />;
@@ -372,7 +375,7 @@ function HojaGasto() {
   const { cerrar, acciones, avisar, config, yo, estado } = useCasa();
   const ids = config.miembros.map((m) => m.id);
   const [categoria, setCategoria] = useState('compra');
-  const [concepto, setConcepto] = useState('Compra común');
+  const [concepto, setConcepto] = useState('');
   const [importe, setImporte] = useState('');
   const [pagador, setPagador] = useState<MiembroId>(yo);
   const [participantes, setParticipantes] = useState<MiembroId[]>(ids);
@@ -382,10 +385,10 @@ function HojaGasto() {
   const cent = leerImporte(importe);
   const reparto = useMemo(() => (cent ? repartir(cent, participantes, pagador, ids) : {}), [cent, participantes, pagador]);
 
-  const categorias = [{ id: 'compra', nombre: 'Compra común', paga: null as MiembroId | null }, ...config.facturas, { id: 'otro', nombre: 'Otro', paga: null }];
+  const categorias = [{ id: 'compra', nombre: 'Súper de casa', paga: null as MiembroId | null }, ...config.facturas, { id: 'otro', nombre: 'Otro', paga: null }];
   const elegir = (c: (typeof categorias)[number]) => {
     setCategoria(c.id);
-    setConcepto(c.id === 'otro' ? '' : c.nombre);
+    setConcepto(c.id === 'otro' || c.id === 'compra' ? '' : c.nombre);
     if (c.paga) setPagador(c.paga);
   };
   const guardar = async () => {

@@ -100,6 +100,10 @@ export type TipoEvento =
   | 'aviso_prueba' // «Probar los avisos»: se avisa solo a quien lo pulsa
   | 'fuera' // «Estoy fuera»: { desde, hasta, quien? } (con `quien`, lo dice otro por él)
   | 'fuera_anulado' // { id, hasta? }: sin `hasta`, se anula; con `hasta`, «Ya he vuelto» en ese momento
+  | 'falta' // «Se ha acabado el aceite»: { cosa }; le llega a quien le toca comprar
+  | 'falta_paso' // «Ahora no puedo»: { falta }; pasa al siguiente
+  | 'falta_quitada' // «Ya no hace falta»: { falta }
+  | 'compras_suave' // { suave }: «Una vez al día» (sin el modo pesado de los recordatorios)
   | 'mensaje' // el chat de la casa
   | 'mensaje_fijado' // fija un mensaje arriba del chat (o lo quita, con mensaje: null)
   | 'mensaje_borrado' // su autor lo borra: queda «Mensaje borrado» en su sitio
@@ -156,6 +160,7 @@ export interface DatosGasto {
   participantes: MiembroId[]; // entre quién se reparte a partes iguales
   fecha: string; // 'YYYY-MM-DD'
   fotos?: string[];
+  falta?: string; // «Lo compré»: el «Se ha acabado…» que resuelve
 }
 export interface DatosPago { de: MiembroId; a: MiembroId; importe: number; alquiler?: string; nota?: string }
 export interface DatosMensaje { texto?: string; fotos?: string[]; audio?: { ref: string; segundos: number } }

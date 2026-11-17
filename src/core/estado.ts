@@ -4,6 +4,7 @@ import { basuraDe, normasDe, repartoSemana, semanaInicial, zonaDe } from './cale
 import { calcularCuentas, type Cuentas } from './cuentas';
 import { calcularEspacio, type CosaEspacio } from './espacio';
 import { calcularFuera, type Fuera } from './fuera';
+import { calcularSuper, type Super } from './compras';
 import {
   calcularApuntes,
   calcularMedallas,
@@ -45,6 +46,8 @@ export interface Estado {
   espacio: Record<MiembroId, CosaEspacio[]>;
   /** «Estoy fuera»: quién se va y cuándo */
   fuera: Fuera[];
+  /** El súper de casa: lo que ha aportado cada uno, a quién le toca comprar y lo que hace falta */
+  super: Super;
 }
 
 export function derivar(config: Config, eventos: Evento[], ahora: number): Estado {
@@ -65,7 +68,8 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
   const meses = mesesEntre(mesInicio, mes(ahora));
   const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
   const fuera = calcularFuera(config, ordenados);
-  const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera);
+  const superCasa = calcularSuper(config, ordenados, cuentas.gastos, fuera, ahora);
+  const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera, superCasa.faltas);
   const chat = calcularChat(ordenados);
   return {
     ahora,
@@ -91,6 +95,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
     chat,
     espacio: calcularEspacio(ordenados, ahora),
     fuera,
+    super: superCasa,
   };
 }
 

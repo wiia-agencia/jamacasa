@@ -2,7 +2,7 @@ import confetti from 'canvas-confetti';
 import { House, MessageCircle, Sparkles, Trophy, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sinLeer } from './core/chat';
-import { diaLocal } from './core/tiempo';
+import { diaLocal, textoDeDia } from './core/tiempo';
 import { avisosBasuraAbiertos, derivar, paraPuntuar, tuyosAbiertos } from './core/estado';
 import type { Evento, MiembroId, TipoEvento } from './core/tipos';
 import type { Almacen } from './datos/almacen';
@@ -259,6 +259,12 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       pasarBasura: (semana, a) => apuntar('basura_cubierta', { semana, quien: a }),
       fuera: (desde, hasta, quien) => apuntar('fuera', { desde, hasta, ...(quien && quien !== yo ? { quien } : {}) }),
       anularFuera: (id, hasta) => apuntar('fuera_anulado', { id, ...(hasta !== undefined ? { hasta } : {}) }),
+      falta: (cosa) => apuntar('falta', { cosa }),
+      faltaPaso: (id) => apuntar('falta_paso', { falta: id }),
+      faltaQuitada: (id) => apuntar('falta_quitada', { falta: id }),
+      // «Lo compré»: un gasto del súper de casa (de turno: cuenta en el marcador, no es deuda) que resuelve lo que faltaba
+      comprado: (falta, cosa, importe) => apuntar('gasto', { concepto: cosa, categoria: 'compra', importe, pagador: yo, participantes: config.miembros.map((m) => m.id), fecha: textoDeDia(diaLocal(Date.now())), fotos: [], falta }),
+      comprasSuave: (suave) => apuntar('compras_suave', { suave }),
       estoEsTuyo: (para, fotos, que) => apuntar('esto_es_tuyo', { para, fotos, que }),
       recogido: (aviso) => apuntar('recogido', { aviso }),
       gasto: (d) => apuntar('gasto', d),

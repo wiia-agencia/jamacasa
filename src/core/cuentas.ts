@@ -134,7 +134,8 @@ export function calcularCuentas(config: Config, eventos: Evento[], ahora: number
   const saldo: Record<MiembroId, number> = {};
   for (const m of orden) saldo[m] = 0;
   for (const g of gastos) {
-    if (g.anulado) continue;
+    // el súper de casa es de turno, no deuda (Javi, 17 de noviembre): cuenta en el marcador de compras, no aquí
+    if (g.anulado || g.categoria === 'compra') continue;
     if (saldo[g.pagador] !== undefined) saldo[g.pagador] += g.importe;
     for (const [m, v] of Object.entries(g.partes)) if (saldo[m] !== undefined) saldo[m] -= v;
   }

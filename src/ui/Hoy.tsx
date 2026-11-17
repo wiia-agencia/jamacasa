@@ -9,6 +9,7 @@ import { leer, guardar } from '../datos/guardado';
 import { miembro, useCasa } from './contexto';
 import { TarjetaBasura } from './Basura';
 import { AvisoFuera } from './Fuera';
+import { AvisoCompras } from './Compras';
 import { ChapaEstado } from './Limpieza';
 import { PortadaHoy } from './PortadaHoy';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
@@ -27,6 +28,7 @@ export function Hoy() {
         <ActivarAvisos />
         <Atrasadas />
         <AvisoFuera />
+        <AvisoCompras />
         <Atajos />
         <AvisosParaMi />
         <PorPuntuar />

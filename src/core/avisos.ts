@@ -9,6 +9,7 @@ import { alquilerPendiente, euros } from './cuentas';
 import { apuntadaTarde, bolsasDe, cuandoSacada, desdeAntes, quienesAvisan, responsableEn, sacadaPor } from './basura';
 import { derivar, tareaDe } from './estado';
 import { calcularFuera, elDia, estaFuera, pisoLibre, rangoFuera, siguienteEnCasa } from './fuera';
+import { abierta, esSuper, horasRecuerdo } from './compras';
 import type { Intento, Tarea } from './limpieza';
 import { nota } from './noticias';
 import { HORA, cuando, diaLocal, duracion, fechaDeDia, instanteLocal, lunesDe, mes, mesesEntre, nombreDia, nombreMes, partes, semana } from './tiempo';
@@ -304,9 +305,27 @@ function avisosDe(config: Config, eventos: Evento[], e: Evento): Aviso[] {
       if (!i.resuelto || i.resueltoEn !== e.ts) return [];
       return resultados(t, i, n, nombre);
     }
+    case 'falta': {
+      // «Se ha acabado el aceite»: a quien le toca comprarlo (el que menos ha aportado al súper de casa)
+      const f = estado.super.faltas.find((x) => x.id === e.id);
+      if (!f || f.toca === e.autor) return [];
+      return [{ para: f.toca, titulo: `🛒 Se ha acabado: ${f.cosa.toLowerCase()}`, texto: `Te toca comprarlo: eres el que menos ha aportado al súper de casa. Avisa ${yo}.`, pantalla: 'cuentas', etiqueta: `falta-${f.id}` }];
+    }
+    case 'falta_paso': {
+      // «Ahora no puedo»: al siguiente
+      const f = estado.super.faltas.find((x) => x.id === e.datos?.falta);
+      if (!f || !abierta(f) || f.toca === e.autor) return [];
+      return [{ para: f.toca, titulo: `🛒 Te toca comprar: ${f.cosa.toLowerCase()}`, texto: `${yo} ahora no puede. Lo pidió ${f.pide === f.toca ? 'tú' : nombre(f.pide)}.`, pantalla: 'cuentas', etiqueta: `falta-${f.id}` }];
+    }
     case 'gasto': {
       const g = estado.cuentas.gastos.find((x) => x.id === e.id);
       if (!g || g.anulado) return [];
+      if (esSuper(g)) {
+        // el súper de casa no es deuda: se le dice a quien lo pidió («Se ha acabado…»), si lo había
+        const f = estado.super.faltas.find((x) => x.id === e.datos?.falta);
+        if (!f || f.pide === e.autor) return [];
+        return [{ para: f.pide, titulo: `✅ ${yo} ha comprado: ${f.cosa.toLowerCase()}`, texto: `${eur(g.importe)}, para el súper de casa.`, pantalla: 'cuentas', etiqueta: `falta-${f.id}` }];
+      }
       return Object.entries(g.partes)
         .filter(([m, v]) => m !== e.autor && v > 0)
         .map(([m, v]) => ({ para: m, titulo: `💶 ${yo} ha apuntado un gasto`, texto: `${mayus(g.concepto)}: ${eur(g.importe)}. Te tocan ${eur(v)}.`, pantalla: 'cuentas' as const, etiqueta: `gasto-${e.id}` }));
@@ -435,6 +454,26 @@ export function avisosDelReloj(config: Config, eventos: Evento[], desde: number,
         if (!en(t)) return;
         r.push({ para: rec.quien, titulo: k === 0 ? '🗑️ ¿Sacas la basura?' : '🗑️ La basura sigue llena', texto: `Lo apuntaste ${cuando(rec.desde, t)}. Cuando la saques, márcalo.`, pantalla: 'hoy', etiqueta: `basura-${x.semana}` });
       });
+    }
+  }
+
+  // Lo que falta en casa: a quien le toca comprarlo, una vez al día y, si tarda, más (horasRecuerdo)
+  for (const f of estado.super.faltas) {
+    if (!abierta(f)) continue;
+    const d0 = diaLocal(f.tocaDesde);
+    for (let d = diaLocal(desde); d <= diaLocal(hasta); d++) {
+      const dias = d - d0;
+      for (const h of horasRecuerdo(dias, estado.super.suave[f.toca] ?? false)) {
+        if (!en(aLas(d, h))) continue;
+        const quien = f.pide === f.toca ? '' : `: lo pidió ${nombre(f.pide)}`;
+        r.push({
+          para: f.toca,
+          titulo: dias >= 5 ? `🛒 ${mayus(f.cosa)}: hace ${dias} días que falta` : `🛒 Sigue faltando: ${f.cosa.toLowerCase()}`,
+          texto: `Te toca comprarlo${quien}. Cuando lo compres, márcalo en Cuentas.`,
+          pantalla: 'cuentas',
+          etiqueta: `falta-${f.id}`,
+        });
+      }
     }
   }
 

@@ -1,3 +1,4 @@
+import type { Falta } from '../core/compras';
 import { createContext, useContext } from 'react';
 import type { Mensaje } from '../core/chat';
 import type { Gasto, Transferencia } from '../core/cuentas';
@@ -18,6 +19,8 @@ export type Hoja =
   | { tipo: 'basura' } // «Basura llena» (si la tienes tú, «Recuérdamelo»)
   | { tipo: 'sacada'; quien?: MiembroId } // «¿Cuándo la sacaste?» (con `quien`, desde el cuadro)
   | { tipo: 'fuera'; quien?: MiembroId } // «Estoy fuera»: las fechas (tuyas o de otro)
+  | { tipo: 'falta' } // «Se ha acabado…»
+  | { tipo: 'comprado'; falta: Falta } // «Lo compré»: cuánto ha costado
   | { tipo: 'tuyo' }
   | { tipo: 'gasto' }
   | { tipo: 'detalle-gasto'; gasto: Gasto }
@@ -53,6 +56,12 @@ export interface Acciones {
   fuera(desde: number, hasta: number, quien?: MiembroId): Promise<void>;
   /** Anular un «Estoy fuera» o, con `hasta`, «Ya he vuelto» en ese momento */
   anularFuera(id: string, hasta?: number): Promise<void>;
+  /** Compras de casa: «Se ha acabado…», «Ahora no puedo», «Ya no hace falta», «Lo compré» y «Solo una vez al día» */
+  falta(cosa: string): Promise<void>;
+  faltaPaso(id: string): Promise<void>;
+  faltaQuitada(id: string): Promise<void>;
+  comprado(falta: string, cosa: string, importe: number): Promise<void>;
+  comprasSuave(suave: boolean): Promise<void>;
   /** Votar el piso de otro o, con `propia`, cambiarte tu nota («ya lo fregué») */
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string, propia?: boolean): Promise<void>;
   /** «Basura llena», con cuántas bolsas hay (si la tienes tú, es «Recuérdamelo») */

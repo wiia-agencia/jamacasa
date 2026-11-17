@@ -6875,7 +6875,7 @@ function calcularCuentas(config, eventos, ahora) {
 	const saldo = {};
 	for (const m of orden) saldo[m] = 0;
 	for (const g of gastos) {
-		if (g.anulado) continue;
+		if (g.anulado || g.categoria === "compra") continue;
 		if (saldo[g.pagador] !== void 0) saldo[g.pagador] += g.importe;
 		for (const [m, v] of Object.entries(g.partes)) if (saldo[m] !== void 0) saldo[m] -= v;
 	}
@@ -7263,6 +7263,113 @@ function calcularEspacio(eventos, ahora) {
 	}
 	for (const k of Object.keys(r)) r[k].sort((a, b) => a.faltan - b.faltan || a.creada - b.creada);
 	return r;
+}
+// src/core/compras.ts
+/** La categoría de los gastos del súper de casa (la «Compra común» de siempre). */
+const SUPER = "compra";
+const esSuper = (g) => g.categoria === SUPER;
+const abierta = (f) => !f.comprada && f.quitada === void 0;
+/** A quién le toca comprar: el que menos ha aportado (a igualdad, el que menos veces ha comprado), de los que están en
+*  casa y no han dicho «Ahora no puedo». */
+function aQuienToca(config, aportado, compras, fueras, t, sin = []) {
+	const ids = config.miembros.map((m) => m.id);
+	const quedan = ids.filter((m) => !sin.includes(m));
+	const enCasa = quedan.filter((m) => !estaFuera(fueras, m, t));
+	return (enCasa.length ? enCasa : quedan.length ? quedan : ids).slice().sort((a, b) => (aportado[a] ?? 0) - (aportado[b] ?? 0) || (compras[a] ?? 0) - (compras[b] ?? 0) || ids.indexOf(a) - ids.indexOf(b))[0];
+}
+function calcularSuper(config, eventos, gastos, fueras, ahora) {
+	const ids = config.miembros.map((m) => m.id);
+	const sup = gastos.filter((g) => !g.anulado && esSuper(g) && g.evento).sort((a, b) => a.evento.ts - b.evento.ts);
+	const hasta = (t) => {
+		const ap = Object.fromEntries(ids.map((m) => [m, 0]));
+		const co = Object.fromEntries(ids.map((m) => [m, 0]));
+		for (const g of sup) {
+			if (g.evento.ts > t || ap[g.pagador] === void 0) continue;
+			ap[g.pagador] += g.importe;
+			co[g.pagador] += 1;
+		}
+		return {
+			ap,
+			co
+		};
+	};
+	const pasos = eventos.filter((e) => e.tipo === "falta_paso").sort((a, b) => a.ts - b.ts);
+	const quitadas = eventos.filter((e) => e.tipo === "falta_quitada");
+	const faltas = [];
+	for (const e of eventos) {
+		if (e.tipo !== "falta") continue;
+		const cosa = String(e.datos?.cosa ?? "").trim();
+		if (!cosa) continue;
+		const compra = sup.find((g) => g.evento.datos?.falta === e.id && g.evento.ts >= e.ts);
+		const q = quitadas.find((x) => x.datos?.falta === e.id && x.ts >= e.ts);
+		const fin = Math.min(compra ? compra.evento.ts : Infinity, q ? q.ts : Infinity);
+		const { ap, co } = hasta(e.ts);
+		let toca = aQuienToca(config, ap, co, fueras, e.ts);
+		let tocaDesde = e.ts;
+		const pasaron = [];
+		for (const p of pasos) {
+			if (p.datos?.falta !== e.id || p.ts < e.ts || p.ts > fin || p.autor !== toca) continue;
+			pasaron.push(p.autor);
+			const h = hasta(p.ts);
+			toca = aQuienToca(config, h.ap, h.co, fueras, p.ts, pasaron);
+			tocaDesde = p.ts;
+		}
+		faltas.push({
+			id: e.id,
+			cosa,
+			evento: e,
+			pide: e.autor,
+			desde: e.ts,
+			toca,
+			tocaDesde,
+			pasaron,
+			comprada: compra && compra.evento.ts <= fin ? {
+				quien: compra.pagador,
+				ts: compra.evento.ts,
+				importe: compra.importe,
+				gasto: compra.id
+			} : void 0,
+			quitada: q && q.ts <= fin && !(compra && compra.evento.ts <= q.ts) ? q.ts : void 0
+		});
+	}
+	faltas.sort((a, b) => Number(abierta(b)) - Number(abierta(a)) || b.desde - a.desde);
+	const suave = {};
+	for (const e of eventos) if (e.tipo === "compras_suave") suave[e.autor] = Boolean(e.datos?.suave);
+	const { ap, co } = hasta(ahora);
+	return {
+		aportado: ap,
+		compras: co,
+		toca: aQuienToca(config, ap, co, fueras, ahora),
+		faltas,
+		suave
+	};
+}
+/** A qué horas se le recuerda lo que falta, según los días que lleva tocándole: una vez al día hasta el 4.º; desde el
+*  5.º, cinco; desde el 7.º, doce (Javi, 17 de noviembre). Con «Una vez al día», siempre una. Nunca de noche. */
+function horasRecuerdo(dias, suave) {
+	if (dias < 1) return [];
+	if (suave || dias < 5) return [19];
+	if (dias < 7) return [
+		10,
+		13,
+		16,
+		19,
+		21
+	];
+	return [
+		9,
+		10,
+		11,
+		12,
+		13,
+		14,
+		15,
+		16,
+		17,
+		18,
+		19,
+		20
+	];
 }
 // src/core/limpieza.ts
 const redondear1 = (x) => Math.round(x * 10) / 10;
@@ -7810,7 +7917,7 @@ function calcularTitulos(config, tareas, porMes, cuentas, tuyos, meses) {
 const elegir = (id, opciones) => opciones[hash32(id) % opciones.length];
 const nota = (n) => n.toLocaleString("es-ES", { maximumFractionDigits: 1 });
 const pt = (x) => (x > 0 ? "+" : x < 0 ? "−" : "") + nota(Math.abs(x));
-function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras = []) {
+function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras = [], faltas = []) {
 	const n = (id) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
 	const r = [];
 	for (const f of fueras) {
@@ -8002,11 +8109,27 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras
 	}
 	for (const g of cuentas.gastos) {
 		if (!g.evento || g.anulado) continue;
+		const texto = esSuper(g) ? `${n(g.pagador)} ha comprado para casa: ${g.concepto.toLowerCase()}, ${euros(g.importe)}.` : `${n(g.pagador)} ha apuntado un gasto: ${g.concepto}, ${euros(g.importe)}.`;
 		r.push({
 			id: `${g.id}-g`,
 			ts: g.evento.ts,
 			quien: g.pagador,
-			texto: `${n(g.pagador)} ha apuntado un gasto: ${g.concepto}, ${euros(g.importe)}.`
+			texto
+		});
+	}
+	for (const f of faltas) {
+		const T = (m) => m === f.pide ? "a él mismo" : `a ${n(m)}`;
+		r.push({
+			id: `${f.id}-fa`,
+			ts: f.desde,
+			quien: f.pide,
+			texto: `${n(f.pide)} avisa: se ha acabado ${f.cosa.toLowerCase()}. Le toca comprarlo ${T(f.pasaron[0] ?? f.toca)}.`
+		});
+		if (f.pasaron.length) r.push({
+			id: `${f.id}-fp`,
+			ts: f.tocaDesde,
+			quien: f.pasaron[f.pasaron.length - 1],
+			texto: `${n(f.pasaron[f.pasaron.length - 1])} ahora no puede comprar ${f.cosa.toLowerCase()}: le toca a ${n(f.toca)}.`
 		});
 	}
 	for (const p of cuentas.pagos) {
@@ -8038,7 +8161,8 @@ function derivar(config, eventos, ahora) {
 	const meses = mesesEntre(mesDeSemana(s) < mes(ahora) ? mesDeSemana(s) : mes(ahora), mes(ahora));
 	const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
 	const fuera = calcularFuera(config, ordenados);
-	const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera);
+	const superCasa = calcularSuper(config, ordenados, cuentas.gastos, fuera, ahora);
+	const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera, superCasa.faltas);
 	const chat = calcularChat(ordenados);
 	return {
 		ahora,
@@ -8062,7 +8186,8 @@ function derivar(config, eventos, ahora) {
 		noticias,
 		chat,
 		espacio: calcularEspacio(ordenados, ahora),
-		fuera
+		fuera,
+		super: superCasa
 	};
 }
 function tareaDe(e, w, m) {
@@ -8416,9 +8541,42 @@ function avisosDe(config, eventos, e) {
 			if (!i.resuelto || i.resueltoEn !== e.ts) return [];
 			return resultados(t, i, n, nombre);
 		}
+		case "falta": {
+			const f = estado.super.faltas.find((x) => x.id === e.id);
+			if (!f || f.toca === e.autor) return [];
+			return [{
+				para: f.toca,
+				titulo: `🛒 Se ha acabado: ${f.cosa.toLowerCase()}`,
+				texto: `Te toca comprarlo: eres el que menos ha aportado al súper de casa. Avisa ${yo}.`,
+				pantalla: "cuentas",
+				etiqueta: `falta-${f.id}`
+			}];
+		}
+		case "falta_paso": {
+			const f = estado.super.faltas.find((x) => x.id === e.datos?.falta);
+			if (!f || !abierta(f) || f.toca === e.autor) return [];
+			return [{
+				para: f.toca,
+				titulo: `🛒 Te toca comprar: ${f.cosa.toLowerCase()}`,
+				texto: `${yo} ahora no puede. Lo pidió ${f.pide === f.toca ? "tú" : nombre(f.pide)}.`,
+				pantalla: "cuentas",
+				etiqueta: `falta-${f.id}`
+			}];
+		}
 		case "gasto": {
 			const g = estado.cuentas.gastos.find((x) => x.id === e.id);
 			if (!g || g.anulado) return [];
+			if (esSuper(g)) {
+				const f = estado.super.faltas.find((x) => x.id === e.datos?.falta);
+				if (!f || f.pide === e.autor) return [];
+				return [{
+					para: f.pide,
+					titulo: `✅ ${yo} ha comprado: ${f.cosa.toLowerCase()}`,
+					texto: `${eur(g.importe)}, para el súper de casa.`,
+					pantalla: "cuentas",
+					etiqueta: `falta-${f.id}`
+				}];
+			}
 			return Object.entries(g.partes).filter(([m, v]) => m !== e.autor && v > 0).map(([m, v]) => ({
 				para: m,
 				titulo: `💶 ${yo} ha apuntado un gasto`,
@@ -8596,6 +8754,24 @@ function avisosDelReloj(config, eventos, desde, hasta, ahora = hasta) {
 				etiqueta: `basura-${x.semana}`
 			});
 		});
+	}
+	for (const f of estado.super.faltas) {
+		if (!abierta(f)) continue;
+		const d0 = diaLocal(f.tocaDesde);
+		for (let d = diaLocal(desde); d <= diaLocal(hasta); d++) {
+			const dias = d - d0;
+			for (const h of horasRecuerdo(dias, estado.super.suave[f.toca] ?? false)) {
+				if (!en(aLas(d, h))) continue;
+				const quien = f.pide === f.toca ? "" : `: lo pidió ${nombre(f.pide)}`;
+				r.push({
+					para: f.toca,
+					titulo: dias >= 5 ? `🛒 ${mayus(f.cosa)}: hace ${dias} días que falta` : `🛒 Sigue faltando: ${f.cosa.toLowerCase()}`,
+					texto: `Te toca comprarlo${quien}. Cuando lo compres, márcalo en Cuentas.`,
+					pantalla: "cuentas",
+					etiqueta: `falta-${f.id}`
+				});
+			}
+		}
 	}
 	for (const a of estado.tuyos) {
 		const que = a.que ? mayus(a.que) : "Lo que te dejaste por ahí";
