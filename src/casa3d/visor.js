@@ -23,6 +23,12 @@ const INSIGNIAS = {
   debe: ['Debe su piso', 'medio'],
 };
 
+// Lo que entra en la casa además de «Lo que se limpia»: lo de la lista de un piso (extras: el pasillo de arriba) y tus
+// cuartos (cuartos: { habitacion1: { dias, brillo }, … }, solo en tu pantalla). Si cambia, la casa se vuelve a montar
+function entraDe(esc) {
+  return JSON.stringify({ extras: (esc && esc.extras) || {}, cuartos: Object.keys((esc && esc.cuartos) || {}).sort() });
+}
+
 // [estado, nivel, días sin limpiar] de un piso en la escena. Las escenas pueden dar los días (la app) o solo el nivel.
 function estadoPiso(esc, piso) {
   const [estado, nivel = 0, dias, hecho] = esc.pisos[piso];
@@ -206,6 +212,33 @@ export function crearVisor(contenedor, opciones = {}) {
     casa.parte.grupo.add(marco);
   }
 
+  // tus cuartos en la casa de los tres (solo en tu pantalla): un marco de tu color en su suelo, que no se apaga cuando el
+  // piso sale medio transparente, para que se vean siempre (Javi, 17 de noviembre)
+  let marcosCuartos = [];
+  function quitarMarcosCuartos() {
+    for (const m of marcosCuartos) { m.parent?.remove(m); m.geometry.dispose(); m.material.map?.dispose(); m.material.dispose(); }
+    marcosCuartos = [];
+  }
+  function ponerMarcosCuartos() {
+    quitarMarcosCuartos();
+    if (!juego || !casa) return;
+    const color = (PERSONAS[st.verComo] || {}).color || '#ffffff';
+    for (const p of casa.plantas) {
+      for (const c of p.def.cuartosExtra || []) {
+        const [x0, y0, x1, y1] = c.zona;
+        const m = new THREE.Mesh(
+          new THREE.PlaneGeometry(x1 - x0, y1 - y0),
+          new THREE.MeshBasicMaterial({ map: texturaMarco(x1 - x0, y1 - y0, color), transparent: true, depthWrite: false }),
+        );
+        m.rotation.x = -Math.PI / 2;
+        m.position.set((x0 + x1) / 2 - CX, (x0 < 11 ? PIEDRA_SUBE : 0) + 0.035, (y0 + y1) / 2 - CZ);
+        m.renderOrder = 2;
+        p.grupo.add(m);
+        marcosCuartos.push(m);
+      }
+    }
+  }
+
   // «Mi parte»: tus cuartos, que se construyen solo cuando hacen falta (y otra vez si cambian)
   function ponerParte() {
     quitarMarco();
@@ -230,6 +263,7 @@ export function crearVisor(contenedor, opciones = {}) {
       escena.remove(casa.tejado.grupo); liberar(casa.tejado.grupo);
       if (casa.jardin) { escena.remove(casa.jardin.grupo); liberar(casa.jardin.grupo); }
       quitarMarco();
+      quitarMarcosCuartos();
       if (casa.parte) { escena.remove(casa.parte.grupo); liberar(casa.parte.grupo); casa.parte = null; }
       for (const m of Object.values(monigotes)) { m.raiz.parent?.remove(m.raiz); m.liberar(); }
     }
@@ -239,8 +273,8 @@ export function crearVisor(contenedor, opciones = {}) {
     hemi.color.set(E.luz.cielo); hemi.groundColor.set(E.luz.suelo); hemi.intensity = E.luz.hemi;
     sol.color.set(E.luz.dirColor); sol.intensity = E.luz.dir;
     amb.intensity = E.luz.amb;
-    st.extras = JSON.stringify(ESCENAS[st.escena]?.extras || {});
-    casa = construirCasa(E, modoDe(st.vista), JSON.parse(st.extras));
+    st.extras = entraDe(ESCENAS[st.escena]);
+    casa = construirCasa(E, modoDe(st.vista), ESCENAS[st.escena]?.extras || {}, Object.keys(ESCENAS[st.escena]?.cuartos || {}));
     for (const p of plantasConGaraje()) {
       posY[p.def.nivel] = objetivoY(p.def.nivel);
       p.escala = 1;
@@ -248,6 +282,7 @@ export function crearVisor(contenedor, opciones = {}) {
       escena.add(p.grupo);
       colocar(p);
     }
+    ponerMarcosCuartos();
     posY[3] = objetivoY(3);
     casa.tejado.grupo.position.y = posY[3];
     escena.add(casa.tejado.grupo);
@@ -407,12 +442,14 @@ export function crearVisor(contenedor, opciones = {}) {
   }
 
   // dias: días desde la última vez que se limpió (la suciedad sale poco a poco, día a día)
-  function pintarPlanta(p, estado, nivel, modo, color, destacada, dias = 0, hecho) {
+  function pintarPlanta(p, estado, nivel, modo, color, destacada, dias = 0, hecho, cuartos = {}) {
     let k = 0;
     // mientras se limpia y se va marcando la lista, lo sucio se quita al revés de como salió (lo último, lo primero)
     const quedan = estado === 'limpiando' && hecho !== undefined ? dias * (1 - hecho) : null;
     for (const s of p.suciedad) {
       const u = s.userData, d = u.dia ?? DIA_NIVEL[u.nivel ?? 0], h = u.hasta ?? Infinity;
+      // tus cuartos (en tu pantalla) van por sus días, no por los del piso
+      if (u.cuarto) { const n = cuartos[u.cuarto] && cuartos[u.cuarto].dias; s.visible = typeof n === 'number' && n >= d && n <= h; continue; }
       const toca = dias >= d && dias <= h;
       if (estado === 'sucio') s.visible = toca;
       else if (quedan !== null) s.visible = hecho < 1 && quedan >= d && quedan <= h;
@@ -421,7 +458,10 @@ export function crearVisor(contenedor, opciones = {}) {
     }
     for (const g of p.grietas) g.visible = estado === 'sucio' && nivel >= 3;
     for (const g of p.moho) g.visible = estado === 'sucio' && nivel >= 2;
-    for (const s of p.brillos) s.visible = estado === 'limpio' && (s.userData.nivel ?? 1) <= nivel;
+    for (const s of p.brillos) {
+      const c = s.userData.cuarto;
+      s.visible = c ? (s.userData.nivel ?? 1) <= ((cuartos[c] && cuartos[c].brillo) || 0) : estado === 'limpio' && (s.userData.nivel ?? 1) <= nivel;
+    }
     // 3 semanas: la casa se cae (paredes y muebles rotos); se construye la primera vez que hace falta
     const enRuinas = estado === 'sucio' && nivel >= 3 && p.def.piso !== 'garaje';
     if (enRuinas && !p.conRuina) construirRuina(p, ESTILOS[st.estilo]);
@@ -484,7 +524,7 @@ export function crearVisor(contenedor, opciones = {}) {
 
   function aplicar() {
     // si cambia lo que entra en algún piso (el pasillo de arriba según a quién le toque), se vuelve a montar
-    if (casa && casa.modo === 'foco' && JSON.stringify(ESCENAS[st.escena]?.extras || {}) !== st.extras) { montar(); return; }
+    if (casa && casa.modo === 'foco' && entraDe(ESCENAS[st.escena]) !== st.extras) { montar(); return; }
     if (!casa) return;
     const esc = ESCENAS[st.escena] || ESCENAS.vacia;
     const mio = TURNOS[st.verComo];
@@ -500,7 +540,7 @@ export function crearVisor(contenedor, opciones = {}) {
       const esDest = juego ? p.def.nivel === focoNivel() : p.def.nivel === dest;
       const modo = esDest ? 'normal' : juego ? 'medio' : st.vista === 'transparente' ? 'fantasma' : casa.modo === 'foco' ? 'fondo' : 'apagado';
       p.grupo.visible = !enParte;
-      pintarPlanta(p, estado, nivel, modo, PERSONAS[quien].color, esDest, dias, hecho);
+      pintarPlanta(p, estado, nivel, modo, PERSONAS[quien].color, esDest, dias, hecho, esc.cuartos || {});
       // la basura llena, esperando a que alguien la saque: bolsas que se acumulan y, al segundo día, moscas
       if (p.basura) {
         const b = esc.basura || null;
@@ -1010,7 +1050,7 @@ export function crearVisor(contenedor, opciones = {}) {
 
   return {
     setEstilo(id) { if (ESTILOS[id] && id !== st.estilo) { st.estilo = id; montar(); } },
-    setVerComo(id) { st.verComo = id; st.visita = null; aplicar(); },
+    setVerComo(id) { st.verComo = id; st.visita = null; ponerMarcosCuartos(); aplicar(); },
     setEscena(id) {
       // un nombre de las escenas de ejemplo, o una escena calculada por la app ({ turnos, pisos, personas, rey })
       if (id && typeof id === 'object') {

@@ -38,6 +38,9 @@ export interface EscenaCasa {
   rey: MiembroId | null;
   basura: { bolsas: number; dias: number } | null;
   extras: Partial<Record<Piso3D, string[]>>;
+  /** Tus cuartos, solo en tu pantalla (Javi, 17 de noviembre: «yo debería estar viendo siempre mi habitación y mi
+   *  baño… solo lo voy a ver yo»): cómo está cada uno, por sus días de «Tu parte» (null: sin apuntar, sin suciedad). */
+  cuartos?: Record<string, { dias: number | null; brillo: number }>;
 }
 
 /** Bolsas en la cocina según los días que lleva la basura sin sacar. */

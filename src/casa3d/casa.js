@@ -1647,12 +1647,17 @@ function construirPlanta(def, estilo, conRuina = false) {
   if (s) grupo.add(s);
 
   // la suciedad y los brillos; en «Mi parte», cuarto a cuarto (cada uno va por sus días: userData.cuarto)
+  // (en la casa de los tres, tus cuartos también van aparte: def.cuartosExtra; lo común, en sus zonas)
   const trozos = def.cuartos
     ? def.cuartos.map((c, i) => ({ id: c.id, def: { ...def, suciedad: c.suciedad, zonas: [c.zona], primeros: {}, muros: i === 0 ? def.muros : [] } }))
-    : [{ id: undefined, def }];
+    : [
+      { id: undefined, def: def.cuartosExtra ? { ...def, zonas: def.zonasComunes } : def },
+      ...(def.cuartosExtra || []).map((c) => ({ id: c.id, def: { ...def, suciedad: c.suciedad, zonas: [c.zona], primeros: {}, muros: [] } })),
+    ];
   const suciedad = [], brillos = [];
   const animados = { moscas: [], peste: [], niebla: [], ratas: [] };
-  const cuartoEn = (x, y) => (def.cuartos || []).find((c) => x > c.zona[0] - 0.4 && x < c.zona[2] + 0.4 && y > c.zona[1] - 0.4 && y < c.zona[3] + 0.4)?.id;
+  const susCuartos = def.cuartos || def.cuartosExtra || [];
+  const cuartoEn = (x, y) => susCuartos.find((c) => x > c.zona[0] - 0.4 && x < c.zona[2] + 0.4 && y > c.zona[1] - 0.4 && y < c.zona[3] + 0.4)?.id;
   for (const t of trozos) {
     const s = construirSuciedad(t.def, estilo, mats, ocupado);
     for (const p of s.piezas) { if (t.id) p.userData.cuarto = t.id; suciedad.push(p); grupo.add(p); }
@@ -1661,6 +1666,7 @@ function construirPlanta(def, estilo, conRuina = false) {
     for (const sp of b.sprites) {
       // los destellos de las ventanas van en su pared: su cuarto, por dónde caen
       if (t.id) sp.userData.cuarto = sp.parent === b.grupo ? t.id : cuartoEn(sp.position.x + CX, sp.position.z + CZ);
+      else if (def.cuartosExtra && sp.parent !== b.grupo) { const c = cuartoEn(sp.position.x + CX, sp.position.z + CZ); if (c) sp.userData.cuarto = c; }
       brillos.push(sp);
     }
     grupo.add(b.grupo);
@@ -1779,6 +1785,23 @@ function focoDe(def, extras) {
   return { ...f, zonas: [...f.zonas, ...mas.flatMap((k) => f.extras[k] || [])] };
 }
 
+// Tus cuartos dentro de la casa de los tres (Javi, 17 de noviembre: «yo debería estar viendo siempre mi habitación y
+// mi baño… solo lo voy a ver yo»): solo en la pantalla de quien mira, en su piso (todos están arriba). Entran como las
+// zonas que se limpian (suelo, paredes y muebles) y, si salía cerrado (el baño del salón de arriba), se abre; su
+// suciedad va aparte, cuarto a cuarto (userData.cuarto), porque va por sus días y no por los del piso
+function enfocarConCuartos(def, extras, cuartos) {
+  const f = focoDe(def, extras);
+  const yaVan = (extras && extras[def.piso]) || [];
+  const mios = def.nivel === 2 ? (cuartos || []).filter((id, i, a) => CUARTOS[id] && !yaVan.includes(id) && a.indexOf(id) === i) : [];
+  const comun = enfocar(def, f);
+  if (!mios.length) return comun;
+  const zonasMias = mios.map((id) => CUARTOS[id].zona);
+  const solapa = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+  const todo = enfocar(def, { ...f, zonas: [...f.zonas, ...zonasMias], cerrados: (f.cerrados || []).filter((c) => !zonasMias.some((z) => solapa(c, z))) });
+  // lo sucio de lo común, solo en lo común (el piso); lo de cada cuarto, aparte
+  return { ...todo, suciedad: comun.suciedad, zonasComunes: comun.zonas, cuartosExtra: mios.map((id) => ({ id, ...CUARTOS[id] })) };
+}
+
 // «Mi parte»: tus cuartos (los dice la config de la casa con los nombres de CUARTOS), recortados del piso de arriba
 // como «Lo que se limpia»: sin basura ni lo de los otros; la suciedad va cuarto a cuarto
 export function construirParte(estilo, ids) {
@@ -1793,9 +1816,9 @@ export function construirParte(estilo, ids) {
   return construirPlanta(def, estilo, false);
 }
 
-export function construirCasa(estilo, modo = 'entera', extras = {}) {
+export function construirCasa(estilo, modo = 'entera', extras = {}, cuartos = []) {
   if (modo === 'foco') {
-    const plantas = PLANTAS.map((def) => construirPlanta(enfocar(def, focoDe(def, extras)), estilo));
+    const plantas = PLANTAS.map((def) => construirPlanta(enfocarConCuartos(def, extras, cuartos), estilo));
     const defG = enfocar({ ...PLANTAS[0], nivel: -1, piso: 'garaje', suciedad: GARAJE.suciedad, sitios: GARAJE.sitios }, { zonas: GARAJE.zonas });
     const garaje = construirPlanta(defG, estilo, false);
     garaje.grupo.position.x = GARAJE.desplazar;

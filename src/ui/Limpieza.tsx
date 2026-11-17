@@ -1,7 +1,7 @@
 import { ArrowLeft, Bath, BedDouble, Check, ChevronDown, ChevronRight, Clock3, Dices, DoorOpen, Handshake, House, Info, Lock, Plus, Sparkles, TriangleAlert, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as PEvento, type ReactNode } from 'react';
 import { bocadillos, fichaDe, marcaDe, resumenDe, type Bocadillo } from '../core/bocadillos';
-import { escenaCasa } from '../core/escena';
+import { escenaCasa, type EscenaCasa } from '../core/escena';
 import { CADA_ESPACIO, SUGERENCIAS_ESPACIO, hechaEstaSemana, type CosaEspacio } from '../core/espacio';
 import { basuraAhora, basuraTocaba, rotacionFutura, tareaDe } from '../core/estado';
 import { enMarcha, type Tarea } from '../core/limpieza';
@@ -109,6 +109,15 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
     },
     [enParte, cuartos, cuarto, clavePiso], // eslint-disable-line react-hooks/exhaustive-deps
   );
+  // en la casa de los tres, tus cuartos también (solo en tu pantalla), con cómo está cada uno
+  const escenaMia: EscenaCasa = useMemo(
+    () => {
+      if (!cuartos.length) return escena;
+      const limpio = (id: string) => extras.some((x) => x.id === id && (mia!.marcadas.includes(x.nombre) || mia!.estado === 'esperando' || mia!.estado === 'aprobada'));
+      return { ...escena, cuartos: Object.fromEntries(cuartos.map((c) => [c.id, { dias: limpio(c.id) ? 0 : c.dias, brillo: limpio(c.id) ? Math.max(c.brillo, 1) : c.brillo }])) };
+    },
+    [escena, cuartos, clavePiso], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const verComunes = () => { setEnParte(false); setCuarto(null); setFoco(null); setMenuCara(false); };
   const verParte = () => {
     setEnParte(true); setCuarto(null); setFoco(null); setMenuCara(false); setMenuBasura(false); setPestana('lista');
@@ -197,7 +206,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
     <div className={`juego ${deNoche ? 'de-noche' : ''} ${enParte ? 'en-parte' : ''} ${enParte && !cuartos.length ? 'sin-parte' : ''}`} style={{ top: banda || undefined, ['--cielo-arriba' as string]: cielo || undefined }}>
       <Casa3D
         miembros={config.miembros}
-        escena={escena}
+        escena={escenaMia}
         yo={yo}
         alFallar={alFallar}
         juego={{ foco, cerca: abierto, parte, burbujas, luz, margenes, alListo: (v) => { setCaras(v.caras); setCielo(v.cielo); } }}
