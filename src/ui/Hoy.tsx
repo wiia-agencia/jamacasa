@@ -12,18 +12,26 @@ import { AvisoFuera } from './Fuera';
 import { AvisoCompras } from './Compras';
 import { ChapaEstado } from './Limpieza';
 import { PortadaHoy } from './PortadaHoy';
+import { HoyArriba, estiloHoy } from './HoyArriba';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
 
 export function Hoy() {
+  // tres estilos para elegir (Javi, 17 de noviembre): en la vista previa, «?estilo=juguete|marcador|plastilina»
+  const { estado } = useCasa();
+  const estilo = estado.empezado ? estiloHoy() : null;
   return (
-    <div className="pila">
-      <div>
-        <PortadaHoy />
-        <div className="margen pila-s">
-          <TuPiso />
-          <Cifras />
+    <div className={`pila ${estilo ? `hoy-pagina-${estilo}` : ''}`}>
+      {estilo ? (
+        <HoyArriba estilo={estilo} />
+      ) : (
+        <div>
+          <PortadaHoy />
+          <div className="margen pila-s">
+            <TuPiso />
+            <Cifras />
+          </div>
         </div>
-      </div>
+      )}
       <div className="margen pila">
         <ActivarAvisos />
         <Atrasadas />

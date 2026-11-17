@@ -1707,3 +1707,140 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .aviso-compra .falta-icono { background: var(--ouro); color: #2b1d00; }
 .aviso-compra .crece { display: flex; flex-direction: column; gap: 2px; }
 .aviso-compra .crece > span { font-size: var(--t-s); color: var(--texto-2); }
+
+/* ——— Hoy, tres estilos para elegir (Javi, 17 de noviembre: «todo texto y plano… no me siento dentro de una
+   aplicación»). Los tres con las caras de los muñecos (las de la casa en 3D) ——— */
+.hoy-arriba { display: flex; flex-direction: column; gap: 16px; }
+.hoy-cara { --c: var(--texto-3); flex: none; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 20%, var(--papel)); box-shadow: inset 0 0 0 3px var(--c); }
+.hoy-cara img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.06); }
+.hoy-cara b { font-size: 1.3rem; color: var(--c); }
+.hoy-racha { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+/* A · De juguete: piezas de plástico que se pulsan; el cielo de la casa en 3D */
+.hoy-juguete { background: linear-gradient(180deg, #cfe7f6 0%, #e4eef5 62%, rgba(237, 241, 246, 0) 100%); padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+.juguete-cabeza .marca { font-size: 2.15rem; color: #0e2a47; }
+.juguete-cabeza p { margin: 6px 0 0; font-weight: 650; color: #35506e; }
+.juguete-piezas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.juguete-pieza {
+  appearance: none; border: 0; font: inherit; cursor: pointer; position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 12px 6px 10px; border-radius: 20px; color: var(--texto); background: var(--papel);
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--c) 72%, #000), 0 12px 20px -10px rgba(14, 42, 71, 0.35);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.juguete-pieza:active { transform: translateY(4px); box-shadow: 0 1px 0 color-mix(in srgb, var(--c) 72%, #000), 0 4px 10px -6px rgba(14, 42, 71, 0.35); }
+.juguete-pieza.tu { background: color-mix(in srgb, var(--c) 13%, var(--papel)); }
+.juguete-pieza .hoy-cara { margin-bottom: 4px; }
+.juguete-pieza b { font-size: 0.98rem; font-stretch: 110%; }
+.juguete-pieza small { font-size: 0.8rem; font-weight: 650; color: var(--texto-2); }
+.juguete-marca { position: absolute; top: 6px; right: 8px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; display: grid; place-items: center; font: 800 0.75rem var(--f); font-style: normal; color: #fff; background: #5f7189; }
+.juguete-marca.naranja { background: #d96a14; } .juguete-marca.oro { background: #e0a21b; } .juguete-marca.verde { background: #1a9150; } .juguete-marca.rojo { background: #c23a31; } .juguete-marca.fuera { background: #2569db; }
+.juguete-tuya {
+  position: relative; overflow: hidden; color: #fff; background: var(--c); border-radius: 28px; padding: 18px 18px 20px;
+  box-shadow: 0 7px 0 color-mix(in srgb, var(--c) 60%, #000), 0 22px 34px -16px color-mix(in srgb, var(--c) 70%, #000);
+}
+.juguete-tuya::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 48%; background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0)); pointer-events: none; }
+.juguete-eti { margin: 0; font-weight: 750; opacity: 0.92; }
+.juguete-tuya h2 { font-size: 2.05rem; margin: 2px 0 4px; color: #fff; }
+.juguete-tuya .peq { margin: 0 0 16px; font-weight: 650; color: rgba(255, 255, 255, 0.92); }
+.juguete-boton {
+  appearance: none; border: 0; width: 100%; cursor: pointer; position: relative;
+  font: 800 1.15rem var(--f); font-stretch: 112%; padding: 16px; border-radius: 18px;
+  color: color-mix(in srgb, var(--c) 78%, #000); background: #ffffff; box-shadow: 0 5px 0 rgba(0, 0, 0, 0.24);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.juguete-boton:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.24); }
+.juguete-fichas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.juguete-ficha {
+  appearance: none; border: 0; font: inherit; text-align: left; cursor: pointer; color: var(--texto);
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 20px; background: var(--papel);
+  box-shadow: 0 5px 0 var(--borde, #c9d4e2), 0 12px 20px -12px rgba(14, 42, 71, 0.35);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.juguete-ficha:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--borde, #c9d4e2); }
+.juguete-ficha.oro { --borde: #d4951c; } .juguete-ficha.verde { --borde: #157a43; } .juguete-ficha.rojo { --borde: #a3302a; }
+.juguete-ficha .cifra { font-size: 2.3rem; }
+.juguete-ficha.rojo .cifra { color: var(--vermello); }
+.juguete-ficha span { font-size: 0.85rem; font-weight: 650; color: var(--texto-2); }
+.hoy-pagina-juguete .atajo { box-shadow: 0 5px 0 #c9d4e2, 0 12px 20px -14px rgba(14, 42, 71, 0.35); border-radius: 20px; }
+.hoy-pagina-juguete .atajo.basura.llena { box-shadow: 0 5px 0 #d4951c, 0 12px 20px -14px rgba(14, 42, 71, 0.35); }
+.hoy-pagina-juguete .atajo.basura.urgente { box-shadow: 0 5px 0 #a3302a, 0 12px 20px -14px rgba(14, 42, 71, 0.35); }
+.hoy-pagina-juguete .boton { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28); }
+.hoy-pagina-juguete .boton:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.28); }
+
+/* B · Marcador: la casa como un marcador de la tele (las cifras de placa de las notas) */
+.marcador-tablero { background: #0e2a47; color: #ffffff; padding: calc(20px + env(safe-area-inset-top, 0px)) 0 16px; border-radius: 0 0 30px 30px; box-shadow: 0 16px 30px -20px rgba(14, 42, 71, 0.9); }
+.marcador-cabeza { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.marcador-cabeza .marca { font-size: 1.95rem; color: #f6c14f; }
+.marcador-cabeza span { font-size: 0.85rem; font-weight: 700; color: #a9b9cd; white-space: nowrap; }
+.marcador-filas { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.marcador-fila {
+  appearance: none; border: 0; font: inherit; color: #ffffff; text-align: left; cursor: pointer;
+  display: grid; grid-template-columns: 18px auto 1fr auto; align-items: center; gap: 12px;
+  padding: 8px 14px 8px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); box-shadow: inset 4px 0 0 var(--c);
+}
+.marcador-fila.tu { background: rgba(255, 255, 255, 0.13); }
+.marcador-puesto { font-weight: 800; font-stretch: 70%; font-size: 1.15rem; color: #a9b9cd; text-align: center; }
+.marcador-fila .hoy-cara { box-shadow: inset 0 0 0 2.5px var(--c); }
+.marcador-nombre { display: flex; flex-direction: column; font-weight: 750; font-size: 1.05rem; line-height: 1.15; }
+.marcador-nombre small { font-size: 0.8rem; font-weight: 650; color: #a9b9cd; }
+.marcador-puntos { font-weight: 820; font-stretch: 64%; font-size: 2.2rem; line-height: 1; color: #f6c14f; font-variant-numeric: tabular-nums; }
+.marcador-pie { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.82rem; font-weight: 650; color: #a9b9cd; }
+.marcador-pie .hoy-racha { color: #f6c14f; }
+.marcador-prueba { display: flex; align-items: center; gap: 12px; padding: 18px; border-radius: 22px; background: var(--papel); box-shadow: var(--sombra); }
+.marcador-eti { margin: 0; font-size: 0.9rem; font-weight: 750; color: var(--texto-2); }
+.marcador-prueba h2 { font-size: 1.4rem; margin: 2px 0; }
+.marcador-prueba .peq { margin: 0; }
+.marcador-reloj { display: flex; align-items: baseline; gap: 3px; }
+.marcador-reloj small { font-weight: 800; color: var(--texto-2); margin-right: 4px; }
+.marcador-boton { margin-top: 12px; background: #f2b233; color: #2b1d00; font-weight: 800; }
+
+/* C · Plastilina: blandito, de colores suaves; tu muñeco grande, saliendo de tu tarjeta */
+.hoy-plastilina { background: radial-gradient(130% 60% at 50% 0%, color-mix(in srgb, var(--c) 24%, var(--papel)) 0%, rgba(237, 241, 246, 0) 72%); padding-top: calc(20px + env(safe-area-inset-top, 0px)); gap: 18px; }
+.plastilina-cabeza .marca { font-size: 2.1rem; color: var(--texto); }
+.plastilina-cabeza p { margin: 6px 0 0; font-weight: 650; color: var(--texto-2); }
+.plastilina-tuya {
+  position: relative; margin-top: 50px; text-align: center; padding: 70px 20px 22px; border-radius: 36px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, var(--papel)), color-mix(in srgb, var(--c) 28%, var(--papel)));
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.9), inset 0 -12px 20px -10px color-mix(in srgb, var(--c) 35%, transparent), 0 26px 40px -24px color-mix(in srgb, var(--c) 85%, #000);
+}
+.plastilina-yo { position: absolute; top: -56px; left: 50%; transform: translateX(-50%); }
+.plastilina-yo .hoy-cara { box-shadow: 0 0 0 6px var(--papel), inset 0 0 0 3px var(--c), 0 16px 26px -12px rgba(14, 42, 71, 0.45); }
+.plastilina-eti { margin: 0; font-weight: 750; color: color-mix(in srgb, var(--c) 72%, var(--texto)); }
+.plastilina-tuya h2 { font-size: 2.05rem; margin: 4px 0; }
+.plastilina-tuya .peq { margin: 0 0 16px; font-weight: 600; color: var(--texto-2); }
+.plastilina-boton {
+  appearance: none; border: 0; width: 100%; cursor: pointer; font: 800 1.12rem var(--f); font-stretch: 110%; color: #ffffff;
+  padding: 17px 24px; border-radius: 999px; background: var(--c);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.15), 0 14px 22px -12px color-mix(in srgb, var(--c) 90%, #000);
+}
+.plastilina-boton:active { transform: scale(0.98); }
+.plastilina-otros, .plastilina-fichas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.plastilina-otro {
+  appearance: none; border: 0; font: inherit; text-align: left; cursor: pointer; color: var(--texto);
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 28px; background: color-mix(in srgb, var(--c) 14%, var(--papel));
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.9), 0 16px 24px -18px color-mix(in srgb, var(--c) 85%, #000);
+}
+.plastilina-otro b { display: block; font-size: 1rem; }
+.plastilina-otro small { font-size: 0.82rem; font-weight: 650; color: var(--texto-2); }
+.plastilina-fichas button {
+  appearance: none; border: 0; font: inherit; text-align: left; cursor: pointer; color: var(--texto);
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-radius: 28px; background: var(--papel);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.9), 0 18px 28px -20px rgba(14, 42, 71, 0.6);
+}
+.plastilina-fichas .cifra { font-size: 2.2rem; }
+.plastilina-fichas .cifra.mal { color: var(--vermello); }
+.plastilina-fichas span { font-size: 0.85rem; font-weight: 650; color: var(--texto-2); }
+.hoy-pagina-plastilina .atajo { border-radius: 28px; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.9), 0 18px 28px -22px rgba(14, 42, 71, 0.6); }
+.hoy-pagina-plastilina .boton { border-radius: 999px; }
+/* de juguete, de noche: el cielo de la casa en 3D de noche */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .hoy-juguete { background: linear-gradient(180deg, #1b3150 0%, #13243b 62%, rgba(11, 22, 38, 0) 100%); }
+  :root:not([data-theme='light']) .juguete-cabeza .marca { color: #eaf1f8; }
+  :root:not([data-theme='light']) .juguete-cabeza p { color: #a9b9cd; }
+  :root:not([data-theme='light']) .hoy-pagina-juguete .atajo { box-shadow: 0 5px 0 #0a1729, 0 12px 20px -14px rgba(0, 0, 0, 0.6); }
+}
+:root[data-theme='dark'] .hoy-juguete { background: linear-gradient(180deg, #1b3150 0%, #13243b 62%, rgba(11, 22, 38, 0) 100%); }
+:root[data-theme='dark'] .juguete-cabeza .marca { color: #eaf1f8; }
+:root[data-theme='dark'] .juguete-cabeza p { color: #a9b9cd; }
+:root[data-theme='dark'] .hoy-pagina-juguete .atajo { box-shadow: 0 5px 0 #0a1729, 0 12px 20px -14px rgba(0, 0, 0, 0.6); }

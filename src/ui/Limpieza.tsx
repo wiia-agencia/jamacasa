@@ -11,6 +11,7 @@ import { esDeTipo, parteDe, type CuartoParte } from '../core/parte';
 import { diaLocal, duracion, fechaDeDia, finSemana, inicioDia, lunesDe, nombreDia, rangoSemana } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
 import { Bolsas, textosBasura } from './Basura';
+import { guardarCaras } from './caras';
 import { Casa3D, type BurbujaCasa, type ParteCasa } from './Casa3D';
 import { claseColor, miembro, useCasa } from './contexto';
 import { CuadroSemana, QuedarmeBasura } from './Cuadro';
@@ -209,7 +210,7 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
         escena={escenaMia}
         yo={yo}
         alFallar={alFallar}
-        juego={{ foco, cerca: abierto, parte, burbujas, luz, margenes, alListo: (v) => { setCaras(v.caras); setCielo(v.cielo); } }}
+        juego={{ foco, cerca: abierto, parte, burbujas, luz, margenes, alListo: (v) => { setCaras(v.caras); guardarCaras(v.caras); setCielo(v.cielo); } }}
       />
 
       <header className="juego-arriba">
