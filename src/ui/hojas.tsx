@@ -1,3 +1,4 @@
+import { Plus, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { resumen, type Mensaje } from '../core/chat';
 import { euros, leerImporte, repartir, type Gasto, type Transferencia } from '../core/cuentas';
@@ -46,15 +47,63 @@ function SelectorNota({ valor, cambiar, minima }: { valor: number | null; cambia
   );
 }
 
-/** Lo de la lista que falta (se toca para marcarlo o quitarlo). */
-function QueFalta({ lista, faltan, cambiar }: { lista: string[]; faltan: string[]; cambiar: (f: string[]) => void }) {
+const sinTildes = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** Lo que falta, buscándolo (Javi, 17 de noviembre: «no tener que estar una a una todas las cosas de cada planta…
+ *  pones no he limpiado y en el buscador buscas el horno»): lo escribes y lo tocas; lo que no está en la lista también
+ *  se puede añadir. Debajo, lo que llevas y, si quieres, toda la lista para tocar ahí. */
+function BuscaFalta({ lista, faltan, cambiar, pista = 'horno, microondas, el suelo…' }: { lista: string[]; faltan: string[]; cambiar: (f: string[]) => void; pista?: string }) {
+  const [q, setQ] = useState('');
+  const [entera, setEntera] = useState(false);
+  const busca = sinTildes(q.trim());
+  const sale = busca ? lista.filter((c) => !faltan.includes(c) && busca.split(/\s+/).every((p) => sinTildes(c).includes(p))).slice(0, 6) : [];
+  // lo que no está en la lista (y no se parece a nada de ella) también se puede añadir
+  const nueva = q.trim().length > 2 && !sale.length && !lista.some((c) => sinTildes(c).includes(busca)) && !faltan.some((c) => sinTildes(c) === busca) ? q.trim() : '';
+  const poner = (c: string) => { cambiar([...faltan, c]); setQ(''); };
   return (
-    <div className="opciones">
-      {lista.map((c) => (
-        <button key={c} type="button" className="opcion falta" aria-pressed={faltan.includes(c)} onClick={() => cambiar(faltan.includes(c) ? faltan.filter((x) => x !== c) : [...faltan, c])}>
-          {c}
+    <div className="busca-falta">
+      <div className="busca-caja">
+        <Search size={18} aria-hidden="true" />
+        <input
+          type="search"
+          className="entrada"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && (sale[0] || nueva)) { e.preventDefault(); poner(sale[0] ?? nueva); } }}
+          placeholder={`Busca: ${pista}`}
+          aria-label="Busca lo que falta"
+          enterKeyHint="done"
+        />
+      </div>
+      {(sale.length > 0 || nueva) && (
+        <div className="opciones busca-sale">
+          {sale.map((c) => <button key={c} type="button" className="opcion" onClick={() => poner(c)}><Plus size={14} aria-hidden="true" />{c}</button>)}
+          {nueva && <button type="button" className="opcion" onClick={() => poner(nueva)}><Plus size={14} aria-hidden="true" />Añadir «{nueva}»</button>}
+        </div>
+      )}
+      {faltan.length > 0 && (
+        <div className="opciones">
+          {faltan.map((c) => (
+            <button key={c} type="button" className="opcion falta" aria-pressed="true" aria-label={`Quitar: ${c}`} onClick={() => cambiar(faltan.filter((x) => x !== c))}>
+              {c}<X size={14} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
+      {lista.length > 0 && (
+        <button type="button" className="enlace busca-entera" aria-expanded={entera} onClick={() => setEntera(!entera)}>
+          {entera ? 'Esconder la lista' : `Ver toda la lista (${lista.length})`}
         </button>
-      ))}
+      )}
+      {entera && (
+        <div className="opciones">
+          {lista.map((c) => (
+            <button key={c} type="button" className="opcion falta" aria-pressed={faltan.includes(c)} onClick={() => cambiar(faltan.includes(c) ? faltan.filter((x) => x !== c) : [...faltan, c])}>
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -62,20 +111,19 @@ function QueFalta({ lista, faltan, cambiar }: { lista: string[]; faltan: string[
 const yJunto = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
 
 /** Marcar tu piso como hecho, con tu nota (Javi, 16 de noviembre: «el propio que limpia el piso tenga que darse una
- *  propia puntuación… pues mira, esto no lo hice, chicos, o lo hago más tarde»): del 0 al 10, lo que te faltó (sale
- *  marcado lo que no tachaste de la lista) y lo que quieras contar. Si los otros no dicen nada, se queda tu nota. */
+ *  propia puntuación… pues mira, esto no lo hice, chicos, o lo hago más tarde»). Solo se dice lo que falta (Javi, 17 de
+ *  noviembre: «nadie quiere» ir marcando una a una): lo demás cuenta como hecho, y la nota sale sola (un 10, menos uno
+ *  por cada cosa que falta) hasta que la cambies. Si los otros no dicen nada, se queda tu nota. */
 function HojaHecho({ tarea }: { tarea: Tarea }) {
   const { cerrar, acciones, avisar, config, yo, estado } = useCasa();
   const vivo = estado.tareas.find((t) => t.semana === tarea.semana && t.miembro === tarea.miembro) ?? tarea;
-  // si fuiste tachando la lista, sale marcado lo que no tachaste (si no la usaste, no se da nada por hecho)
-  const usoLista = vivo.marcadas.length > 0;
-  const sinTachar = usoLista ? vivo.lista.filter((c) => !vivo.marcadas.includes(c)) : [];
-  // con la lista entera tachada, sale un 10 (lo bajas si quieres); si no, la eliges tú
-  const [valor, setValor] = useState<number | null>(usoLista && sinTachar.length === 0 ? 10 : null);
-  const [faltan, setFaltan] = useState<string[]>(sinTachar);
+  // si fuiste tachando la lista y te dejaste algo, se ofrece (no se da por hecho que falte)
+  const sinTachar = vivo.marcadas.length > 0 ? vivo.lista.filter((c) => !vivo.marcadas.includes(c)) : [];
+  const [faltan, setFaltan] = useState<string[]>([]);
+  const [elegida, setElegida] = useState<number | null>(null);
+  const valor = elegida ?? Math.max(0, 10 - faltan.length);
   const [fotos, setFotos] = useState<string[]>([]);
   const [texto, setTexto] = useState('');
-  const [error, setError] = useState('');
   const repaso = vivo.estado === 'suspendida';
   // el piso de otro que limpias tú («Lo limpio yo»): se apunta a su nombre y la nota es para ti
   const deOtro = vivo.miembro !== yo ? vivo.miembro : undefined;
@@ -83,45 +131,59 @@ function HojaHecho({ tarea }: { tarea: Tarea }) {
   // te ponen nota los que no lo han limpiado (ni te han echado una mano)
   const jueces = yJunto(config.miembros.filter((m) => m.id !== yo && !vivo.ayudan.includes(m.id)).map((m) => m.nombre));
   const piso = deOtro ? `${vivo.zona.nombre} de ${dueno}` : vivo.zona.nombre;
+  const quedan = sinTachar.filter((c) => !faltan.includes(c));
   return (
     <Hoja
-      titulo={repaso ? `Repaso del ${piso.charAt(0).toLowerCase()}${piso.slice(1)}` : piso}
-      subtitulo={jueces ? `Ponte tu nota. ${jueces} tienen ${estado.normas.horasRevision} horas para votar: si no dicen nada, se queda la tuya.` : 'Ponte tu nota: lo habéis limpiado entre todos, así que se queda la tuya.'}
+      titulo={repaso ? `Repaso del ${piso.charAt(0).toLowerCase()}${piso.slice(1)}` : `¿Has terminado el ${piso.charAt(0).toLowerCase()}${piso.slice(1)}?`}
+      subtitulo="Solo dinos lo que te faltó: lo demás cuenta como hecho."
       onCerrar={cerrar}
       pie={
-        <BotonAccion
-          desactivado={valor === null}
-          hacer={async () => {
-            if (valor === null) { setError('Ponte una nota del 0 al 10.'); return; }
-            await acciones.marcarHecho(vivo.semana, fotos, texto.trim() || undefined, deOtro, undefined, { nota: valor, faltan });
-            cerrar();
-            avisar(jueces ? `Marcado con un ${valor}. Si ${jueces} no dicen nada, se queda.` : `Marcado con un ${valor}.`);
-          }}
-        >
-          {repaso ? 'Marcar como repasado' : 'Marcar como hecho'}{valor !== null ? ` · un ${valor}` : ''}
-        </BotonAccion>
+        <div className="pila-s">
+          <BotonAccion
+            hacer={async () => {
+              await acciones.marcarHecho(vivo.semana, fotos, texto.trim() || undefined, deOtro, undefined, { nota: valor, faltan });
+              cerrar();
+              avisar(jueces ? `Marcado con un ${valor}. Si ${jueces} no dicen nada, se queda.` : `Marcado con un ${valor}.`);
+            }}
+          >
+            {repaso ? 'Marcar como repasado' : faltan.length ? 'Hecho, menos eso' : 'Todo hecho'} · un {valor}
+          </BotonAccion>
+          {!repaso && (
+            <button type="button" className="enlace" style={{ alignSelf: 'center' }} onClick={() => { cerrar(); avisar('Vale, sigue abierto: márcalo cuando acabes.'); }}>
+              Aún no he terminado: solo he dado un repaso
+            </button>
+          )}
+        </div>
       }
     >
       <div className="pila-s" style={{ gap: 22 }}>
-        <div className="campo">
-          <span className="etiqueta">Tu nota: ¿cómo te ha quedado?</span>
-          <SelectorNota valor={valor} cambiar={(v) => { setValor(v); setError(''); }} minima={estado.normas.notaMinima} />
-        </div>
         {vivo.lista.length > 0 && (
           <div className="campo">
-            <span className="etiqueta">{sinTachar.length ? '¿Te faltó algo? Sale marcado lo que no tachaste' : '¿Te faltó algo? Tócalo'}</span>
-            <QueFalta lista={vivo.lista} faltan={faltan} cambiar={setFaltan} />
+            <span className="etiqueta">¿Te faltó algo?</span>
+            <BuscaFalta lista={vivo.lista} faltan={faltan} cambiar={setFaltan} />
+            {quedan.length > 0 && (
+              <p className="peq suave">
+                No tachaste {quedan.length === 1 ? '1 cosa' : `${quedan.length} cosas`} de la lista.{' '}
+                <button type="button" className="enlace" onClick={() => setFaltan([...faltan, ...quedan])}>¿Te faltaron? Añádelas</button>
+              </p>
+            )}
           </div>
         )}
         <div className="campo">
+          <span className="etiqueta">
+            Tu nota{elegida === null ? (faltan.length ? `: un ${valor}, uno menos por cada cosa que falta. Cámbiala si quieres` : ': un 10. Cámbiala si quieres') : ''}
+          </span>
+          <SelectorNota valor={valor} cambiar={(v) => setElegida(v)} minima={estado.normas.notaMinima} />
+          <p className="peq tenue">{jueces ? `${jueces} tienen ${estado.normas.horasRevision} horas para votar: si no dicen nada, se queda la tuya.` : 'Lo habéis limpiado entre todos: se queda la tuya.'}</p>
+        </div>
+        <div className="campo">
           <label htmlFor="nota-hecho">Cuéntales (si quieres)</label>
-          <textarea id="nota-hecho" className="entrada" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Por ejemplo: el suelo no lo fregué, lo friego esta tarde" />
+          <textarea id="nota-hecho" className="entrada" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Por ejemplo: el horno lo limpio el sábado" />
         </div>
         <div className="campo">
           <span className="etiqueta">Fotos de cómo ha quedado (si quieres)</span>
           <SelectorFotos fotos={fotos} cambiar={setFotos} />
         </div>
-        {error && <p className="error" role="alert">{error}</p>}
       </div>
     </Hoja>
   );
@@ -234,8 +296,8 @@ function HojaPuntuar({ tarea, intento, propia = false }: { tarea: Tarea; intento
         </div>
         {lista.length > 0 && (
           <div className="campo">
-            <span className="etiqueta">{propia ? '¿Te faltó algo? Tócalo' : '¿Falta algo? Toca lo que no está bien'}</span>
-            <QueFalta lista={lista} faltan={faltan} cambiar={(f) => { setFaltan(f); setError(''); }} />
+            <span className="etiqueta">{propia ? '¿Te faltó algo?' : '¿Falta algo? Búscalo y tócalo'}</span>
+            <BuscaFalta lista={lista} faltan={faltan} cambiar={(f) => { setFaltan(f); setError(''); }} />
           </div>
         )}
         {!propia && (

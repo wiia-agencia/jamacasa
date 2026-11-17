@@ -1613,3 +1613,12 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .atajo.basura.urgente + .atajo .boton { grid-area: b; margin-top: 0 !important; }
 .basura-botones .atajo-enlace { text-align: left; }
 .bolsa { width: 26px; height: 26px; }
+/* «¿Te faltó algo?»: se busca lo que falta (Javi, 17 de noviembre: «no tener que estar una a una todas las cosas») */
+.busca-falta { display: flex; flex-direction: column; gap: 10px; }
+.busca-caja { position: relative; }
+.busca-caja svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--texto-3); pointer-events: none; }
+.busca-caja .entrada { padding-left: 42px; }
+.busca-sale .opcion { box-shadow: inset 0 0 0 1.5px var(--texto-3); }
+.opcion.falta svg { flex: none; }
+.busca-entera { align-self: flex-start; font-size: var(--t-s); }
+.busca-falta .opcion { text-align: left; }
