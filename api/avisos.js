@@ -6677,6 +6677,8 @@ const NORMAS_BASE = {
 	puntosSinHacer: -15,
 	puntosAyuda: 2,
 	puntosSacarAjena: 1,
+	horasExtra: 48,
+	puntosExtraSemana: 6,
 	diasGracia: 3
 };
 function normasDe(config) {
@@ -7264,6 +7266,68 @@ function calcularEspacio(eventos, ahora) {
 	for (const k of Object.keys(r)) r[k].sort((a, b) => a.faltan - b.faltan || a.creada - b.creada);
 	return r;
 }
+// src/core/extras.ts
+const ajustar = (x, min, max) => {
+	const v = Math.round(Number(x));
+	return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min;
+};
+function calcularExtras(config, normas, eventos) {
+	const esMiembro = (m) => typeof m === "string" && config.miembros.some((x) => x.id === m);
+	const ordenados = [...eventos].sort((a, b) => a.ts - b.ts);
+	const porId = /* @__PURE__ */ new Map();
+	const pegas = /* @__PURE__ */ new Map();
+	for (const e of ordenados) if (e.tipo === "extra") {
+		const que = String(e.datos?.que ?? "").trim();
+		if (!que || !esMiembro(e.autor)) continue;
+		porId.set(e.id, {
+			id: e.id,
+			evento: e,
+			quien: e.autor,
+			que,
+			puntos: ajustar(e.datos?.puntos, 1, 3),
+			cuenta: 0,
+			semana: semana(e.ts),
+			fotos: Array.isArray(e.datos?.fotos) ? e.datos.fotos.filter((f) => typeof f === "string") : [],
+			hasta: e.ts + normas.horasExtra * HORA,
+			noVale: [],
+			tope: false
+		});
+	} else if (e.tipo === "extra_no_vale") {
+		const x = porId.get(String(e.datos?.extra ?? ""));
+		if (!x || !esMiembro(e.autor) || e.autor === x.quien || e.ts > x.hasta) continue;
+		const deEste = pegas.get(x.id) ?? pegas.set(x.id, /* @__PURE__ */ new Map()).get(x.id);
+		const puntos = e.datos?.puntos === void 0 ? 0 : ajustar(e.datos.puntos, 0, 3);
+		const porque = typeof e.datos?.porque === "string" && e.datos.porque.trim() ? e.datos.porque.trim() : void 0;
+		deEste.set(e.autor, e.datos?.deja || puntos >= x.puntos ? null : {
+			autor: e.autor,
+			ts: e.ts,
+			puntos,
+			porque,
+			evento: e
+		});
+	} else if (e.tipo === "extra_anulado") {
+		const x = porId.get(String(e.datos?.extra ?? ""));
+		if (x && e.autor === x.quien && x.anulado === void 0) x.anulado = e.ts;
+	}
+	const r = [...porId.values()];
+	for (const x of r) x.noVale = [...pegas.get(x.id)?.values() ?? []].filter((p) => p !== null).sort((a, b) => a.ts - b.ts);
+	const usado = /* @__PURE__ */ new Map();
+	for (const x of r) {
+		if (x.anulado !== void 0) continue;
+		const vale = Math.min(x.puntos, ...x.noVale.map((p) => p.puntos));
+		if (vale <= 0) continue;
+		const k = `${x.quien}|${x.semana}`;
+		const queda = Math.max(0, normas.puntosExtraSemana - (usado.get(k) ?? 0));
+		x.cuenta = Math.min(vale, queda);
+		x.tope = x.cuenta < vale;
+		usado.set(k, (usado.get(k) ?? 0) + x.cuenta);
+	}
+	return r;
+}
+/** «el horno» (sin tocar lo que va en mayúsculas, como «KH7»). */
+function minus(t) {
+	return t.length > 1 && t[1] === t[1].toLowerCase() ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+}
 // src/core/compras.ts
 /** La categoría de los gastos del súper de casa (la «Compra común» de siempre). */
 const SUPER = "compra";
@@ -7625,7 +7689,7 @@ function resolverIntento(h, n, quien, ayudaron, jueces, votosEv, normas, ahora) 
 }
 const limitarNota = (x) => Math.max(0, Math.min(10, Number(x) || 0));
 // src/core/juego.ts
-function calcularApuntes(config, normas, tareas, basura, tuyos, ahora) {
+function calcularApuntes(config, normas, tareas, basura, tuyos, ahora, extras = []) {
 	const nombre = (id) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
 	const r = [];
 	for (const t of tareas) {
@@ -7738,6 +7802,18 @@ function calcularApuntes(config, normas, tareas, basura, tuyos, ahora) {
 		mes: mes(a.limite),
 		clase: "tuyo"
 	});
+	for (const x of extras) {
+		if (x.cuenta <= 0) continue;
+		r.push({
+			miembro: x.quien,
+			puntos: x.cuenta,
+			motivo: `Extra: ${minus(x.que)}`,
+			ts: x.evento.ts,
+			mes: mes(x.evento.ts),
+			clase: "extra",
+			provisional: ahora <= x.hasta
+		});
+	}
 	return r.sort((a, b) => b.ts - a.ts);
 }
 function puntosPorMes(config, apuntes) {
@@ -7917,7 +7993,7 @@ function calcularTitulos(config, tareas, porMes, cuentas, tuyos, meses) {
 const elegir = (id, opciones) => opciones[hash32(id) % opciones.length];
 const nota = (n) => n.toLocaleString("es-ES", { maximumFractionDigits: 1 });
 const pt = (x) => (x > 0 ? "+" : x < 0 ? "−" : "") + nota(Math.abs(x));
-function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras = [], faltas = []) {
+function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras = [], faltas = [], extras = []) {
 	const n = (id) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
 	const r = [];
 	for (const f of fueras) {
@@ -8132,6 +8208,27 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras
 			texto: `${n(f.pasaron[f.pasaron.length - 1])} ahora no puede comprar ${f.cosa.toLowerCase()}: le toca a ${n(f.toca)}.`
 		});
 	}
+	for (const x of extras) {
+		if (x.anulado !== void 0) continue;
+		const que = minus(x.que);
+		const tope = x.tope ? x.cuenta > 0 ? ` Suma ${pt(x.cuenta)}: ya llega a los ${normas.puntosExtraSemana} de la semana.` : ` No suma: ya tiene los ${normas.puntosExtraSemana} de la semana.` : "";
+		r.push({
+			id: `${x.id}-x`,
+			ts: x.evento.ts,
+			quien: x.quien,
+			texto: `${n(x.quien)} ha hecho un extra: ${que} (${pt(x.puntos)}).${tope}`,
+			fotos: x.fotos.length ? x.fotos : void 0
+		});
+		for (const p of x.noVale) {
+			const dice = p.puntos === 0 ? "no vale" : `vale ${pt(p.puntos)}`;
+			r.push({
+				id: `${p.evento.id}-xn`,
+				ts: p.ts,
+				quien: p.autor,
+				texto: `${n(p.autor)} dice que el extra de ${n(x.quien)} ${dice}: ${que}.${p.porque ? ` «${p.porque}»` : ""}`
+			});
+		}
+	}
 	for (const p of cuentas.pagos) {
 		if (p.anulado) continue;
 		const extra = p.alquiler ? ` (alquiler de ${nombreMes(p.alquiler)})` : "";
@@ -8154,15 +8251,17 @@ function derivar(config, eventos, ahora) {
 	const semanasBasura = calcularBasura(config, normas, ordenados, ahora);
 	const tuyos = calcularEstoEsTuyo(normas, ordenados.filter((e) => semana(e.ts) >= s), ahora);
 	const cuentas = calcularCuentas(config, ordenados, ahora);
-	const apuntes = calcularApuntes(config, normas, tareas, semanasBasura, tuyos, ahora);
+	const extras = calcularExtras(config, normas, ordenados);
+	const apuntes = calcularApuntes(config, normas, tareas, semanasBasura, tuyos, ahora, extras);
 	const puntosMes = puntosPorMes(config, apuntes);
 	const racha = calcularRacha(config, tareas, w);
 	const medallas = calcularMedallas(config, normas, tareas, semanasBasura, racha.historial);
 	const meses = mesesEntre(mesDeSemana(s) < mes(ahora) ? mesDeSemana(s) : mes(ahora), mes(ahora));
 	const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
 	const fuera = calcularFuera(config, ordenados);
+	const fotos = fotosDe(config, ordenados);
 	const superCasa = calcularSuper(config, ordenados, cuentas.gastos, fuera, ahora);
-	const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera, superCasa.faltas);
+	const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera, superCasa.faltas, extras);
 	const chat = calcularChat(ordenados);
 	return {
 		ahora,
@@ -8187,11 +8286,26 @@ function derivar(config, eventos, ahora) {
 		chat,
 		espacio: calcularEspacio(ordenados, ahora),
 		fuera,
-		super: superCasa
+		super: superCasa,
+		fotos,
+		extras
 	};
 }
 function tareaDe(e, w, m) {
 	return e.tareas.find((t) => t.semana === w && t.miembro === m);
+}
+/** La foto de cada uno: la última que se puso (`foto_perfil` { foto, quien? }; sin `quien`, la suya; `foto: null`, sin
+*  foto). La puede poner cualquiera (Javi pone las de los tres). */
+function fotosDe(config, eventos) {
+	const r = {};
+	for (const e of eventos) {
+		if (e.tipo !== "foto_perfil") continue;
+		const q = typeof e.datos?.quien === "string" && config.miembros.some((m) => m.id === e.datos.quien) ? e.datos.quien : e.autor;
+		if (!config.miembros.some((m) => m.id === q)) continue;
+		if (typeof e.datos?.foto === "string" && e.datos.foto) r[q] = e.datos.foto;
+		else delete r[q];
+	}
+	return r;
 }
 // src/core/avisos.ts
 const mayus = (t) => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
@@ -8659,6 +8773,50 @@ function avisosDe(config, eventos, e) {
 				etiqueta: `fuera-${f.id}`
 			});
 			return r.filter((x) => x.para !== e.autor);
+		}
+		case "extra": {
+			const x = estado.extras.find((y) => y.id === e.id);
+			if (!x || x.anulado !== void 0) return [];
+			const tope = x.tope ? x.cuenta > 0 ? ` Suma ${pts(x.cuenta)}: ya llega a los ${n.puntosExtraSemana} de la semana.` : ` No suma: ya tiene los ${n.puntosExtraSemana} de la semana.` : "";
+			return config.miembros.filter((m) => m.id !== x.quien).map((m) => ({
+				para: m.id,
+				titulo: `✨ ${yo} ha hecho un extra: ${minus(x.que)} (${pts(x.puntos)})`,
+				texto: `Si no vale, tienes ${n.horasExtra} horas para decirlo.${tope}`,
+				pantalla: "juego",
+				etiqueta: `extra-${x.id}`
+			}));
+		}
+		case "extra_no_vale": {
+			const x = estado.extras.find((y) => y.id === e.datos?.extra);
+			if (!x || x.anulado !== void 0 || e.autor === x.quien || e.ts > x.hasta) return [];
+			const que = minus(x.que);
+			const p = x.noVale.find((y) => y.evento.id === e.id);
+			const etiqueta = `extra-${x.id}`;
+			if (!p) {
+				if (!eventos.some((y) => y.tipo === "extra_no_vale" && y.autor === e.autor && y.datos?.extra === x.id && y.ts < e.ts && y.ts <= x.hasta && !y.datos?.deja)) return [];
+				return [{
+					para: x.quien,
+					titulo: `👍 ${yo} retira su pega: ${que}`,
+					texto: x.noVale.length ? "Aún hay otra pega." : `Vuelve a sumar ${pts(x.cuenta)}.`,
+					pantalla: "juego",
+					etiqueta
+				}];
+			}
+			const porque = p.porque ? `«${p.porque}»` : "";
+			if (p.puntos === 0) return [{
+				para: x.quien,
+				titulo: `🙅 ${yo} dice que tu extra no vale: ${que}`,
+				texto: porque || "No suma.",
+				pantalla: "juego",
+				etiqueta
+			}];
+			return [{
+				para: x.quien,
+				titulo: `✋ ${yo} dice que tu extra vale ${pts(p.puntos)}: ${que}`,
+				texto: porque || `En vez de ${pts(x.puntos)}.`,
+				pantalla: "juego",
+				etiqueta
+			}];
 		}
 		case "aviso_prueba": return [{
 			para: e.autor,

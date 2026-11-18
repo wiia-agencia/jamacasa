@@ -10,6 +10,7 @@ import { miembro, useCasa } from './contexto';
 import { TarjetaBasura } from './Basura';
 import { AvisoFuera } from './Fuera';
 import { AvisoCompras } from './Compras';
+import { AtajoExtra } from './Extras';
 import { ChapaEstado } from './Limpieza';
 import { PortadaHoy } from './PortadaHoy';
 import { HoyArriba, estiloHoy } from './HoyArriba';
@@ -362,6 +363,8 @@ function Atajos() {
           Esto es tuyo
         </button>
       </div>
+      {/* tareas extra (Javi, 18 de noviembre; lo pidió Josu) */}
+      <AtajoExtra />
       {/* «Estoy fuera» (Javi, 17 de noviembre) */}
       <button type="button" className="atajo-fuera" onClick={() => abrir({ tipo: 'fuera' })}>
         <span aria-hidden="true">✈️</span>

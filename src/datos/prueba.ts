@@ -141,6 +141,14 @@ export function generarPrueba(config: Config, ahora: number): Evento[] {
   }
   add('esto_es_tuyo', B, ahora - 2 * HORA, { para: A, que: 'La media bola naranja del jardín', fotos: hayFotoDemo('bola') ? ['demo:bola'] : [] });
 
+  // Tareas extra (Javi, 18 de noviembre): a una le ponen pega («vale +1») y la de hace un rato aún se puede discutir
+  add('extra', A, t(2, 5, 17), { que: 'Las ventanas', puntos: 3 });
+  add('extra', C, t(3, 1, 18), { que: 'El horno', puntos: 3 });
+  add('extra', B, t(3, 5, 12), { que: 'Ordenar el salón', puntos: 2 });
+  add('extra_no_vale', A, t(3, 5, 20), { extra: `prueba-${n}`, puntos: 1, porque: 'Es muy poca cosa' });
+  add('extra', A, ahora - 20 * HORA, { que: 'La nevera por dentro', puntos: 2 });
+  if (E > 6 * HORA) add('extra', C, ahora - 5 * HORA, { que: 'Las escaleras', puntos: 2 });
+
   // «Tu espacio»: la habitación y el baño de cada uno, con el baño ya tocando
   config.miembros.forEach((m, k) => {
     add('espacio_cosa', m.id, t(0, 0, 20), { cosa: `hab-${k}`, nombre: 'Tu habitación', cada: 7 });

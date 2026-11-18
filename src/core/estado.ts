@@ -3,6 +3,7 @@ import { calcularBasura, calcularEstoEsTuyo, cuandoSacada, type AvisoBasura, typ
 import { basuraDe, normasDe, repartoSemana, semanaInicial, zonaDe } from './calendario';
 import { calcularCuentas, type Cuentas } from './cuentas';
 import { calcularEspacio, type CosaEspacio } from './espacio';
+import { calcularExtras, type Extra } from './extras';
 import { calcularFuera, type Fuera } from './fuera';
 import { calcularSuper, type Super } from './compras';
 import {
@@ -50,6 +51,8 @@ export interface Estado {
   super: Super;
   /** La foto de cada uno (Javi, 18 de noviembre: fuera de Limpieza, fotos de verdad y no los muñecos) */
   fotos: Partial<Record<MiembroId, string>>;
+  /** Las tareas extra (Javi, 18 de noviembre): lo que dijo cada uno, lo que suma y las pegas */
+  extras: Extra[];
 }
 
 export function derivar(config: Config, eventos: Evento[], ahora: number): Estado {
@@ -62,7 +65,8 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
   // «Esto es tuyo» cuenta desde que arranca la casa, como la basura: lo de antes del primer lunes no resta
   const tuyos = calcularEstoEsTuyo(normas, ordenados.filter((e) => semana(e.ts) >= s), ahora);
   const cuentas = calcularCuentas(config, ordenados, ahora);
-  const apuntes = calcularApuntes(config, normas, tareas, semanasBasura, tuyos, ahora);
+  const extras = calcularExtras(config, normas, ordenados);
+  const apuntes = calcularApuntes(config, normas, tareas, semanasBasura, tuyos, ahora, extras);
   const puntosMes = puntosPorMes(config, apuntes);
   const racha = calcularRacha(config, tareas, w);
   const medallas = calcularMedallas(config, normas, tareas, semanasBasura, racha.historial);
@@ -72,7 +76,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
   const fuera = calcularFuera(config, ordenados);
   const fotos = fotosDe(config, ordenados);
   const superCasa = calcularSuper(config, ordenados, cuentas.gastos, fuera, ahora);
-  const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera, superCasa.faltas);
+  const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera, superCasa.faltas, extras);
   const chat = calcularChat(ordenados);
   return {
     ahora,
@@ -100,6 +104,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
     fuera,
     super: superCasa,
     fotos,
+    extras,
   };
 }
 

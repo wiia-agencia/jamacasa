@@ -61,6 +61,8 @@ export interface Normas {
   puntosSinHacer: number;
   puntosAyuda: number; // «Le echo una mano»: al que ayuda, si el piso se aprueba (Javi, 14 de noviembre)
   puntosSacarAjena: number; // «Esta la saqué yo»: sacar la basura de otro (como mucho una vez al día)
+  horasExtra: number; // tareas extra: lo que tienen los otros para decir «no vale» (Javi, 18 de noviembre)
+  puntosExtraSemana: number; // tareas extra: lo más que suman a la semana cada uno
   diasGracia: number; // días después del domingo hasta "sin hacer"
 }
 
@@ -105,6 +107,9 @@ export type TipoEvento =
   | 'falta_quitada' // «Ya no hace falta»: { falta }
   | 'compras_suave' // { suave }: «Una vez al día» (sin el modo pesado de los recordatorios)
   | 'foto_perfil' // { foto, quien? }: la foto de cada uno (sin foto, `null`: vuelve su silueta); vale la última
+  | 'extra' // tarea extra: { que, puntos (1, 2 o 3), fotos? }; cuenta sola
+  | 'extra_no_vale' // { extra, puntos?, porque?, deja? }: «no vale» (o «vale menos»), en las 48 h; `deja` lo retira
+  | 'extra_anulado' // { extra }: quien la apuntó la quita
   | 'mensaje' // el chat de la casa
   | 'mensaje_fijado' // fija un mensaje arriba del chat (o lo quita, con mensaje: null)
   | 'mensaje_borrado' // su autor lo borra: queda «Mensaje borrado» en su sitio

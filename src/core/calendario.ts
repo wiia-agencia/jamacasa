@@ -19,6 +19,8 @@ export const NORMAS_BASE: Normas = {
   puntosSinHacer: -15,
   puntosAyuda: 2,
   puntosSacarAjena: 1,
+  horasExtra: 48,
+  puntosExtraSemana: 6,
   diasGracia: 3,
 };
 

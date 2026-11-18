@@ -1,10 +1,11 @@
 import { cuandoSacada, quejasDe, responsableEn, sacadaPor, type AvisoTuyo, type SemanaBasura } from './basura';
 import type { Cuentas } from './cuentas';
+import { minus, type Extra } from './extras';
 import { limpiadoPor, lohizoOtro, redondear1, type Tarea } from './limpieza';
 import { diaLocal, diaSemana, finSemana, hora, mes, mesDeSemana, partes } from './tiempo';
 import type { Config, MiembroId, Normas } from './tipos';
 
-export type ClaseApunte = 'zona' | 'suspenso' | 'retraso' | 'sin_hacer' | 'revision' | 'basura' | 'queja' | 'tuyo' | 'ayuda' | 'sacada';
+export type ClaseApunte = 'zona' | 'suspenso' | 'retraso' | 'sin_hacer' | 'revision' | 'basura' | 'queja' | 'tuyo' | 'ayuda' | 'sacada' | 'extra';
 
 export interface Apunte {
   miembro: MiembroId;
@@ -13,10 +14,10 @@ export interface Apunte {
   ts: number;
   mes: string;
   clase: ClaseApunte;
-  provisional?: boolean; // sigue sumando (retraso aún sin marcar)
+  provisional?: boolean; // sigue sumando (retraso aún sin marcar) o aún se puede decir que no vale (extra)
 }
 
-export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], ahora: number): Apunte[] {
+export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], ahora: number, extras: Extra[] = []): Apunte[] {
   const nombre = (id: MiembroId) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
   const r: Apunte[] = [];
   for (const t of tareas) {
@@ -73,6 +74,12 @@ export function calcularApuntes(config: Config, normas: Normas, tareas: Tarea[],
     }
   }
   for (const a of tuyos) if (a.estado === 'multa') r.push({ miembro: a.para, puntos: normas.puntosEstoEsTuyo, motivo: `Sin recoger: ${a.que || 'lo que dejaste por ahí'}`, ts: a.limite, mes: mes(a.limite), clase: 'tuyo' });
+  // tareas extra: lo que suma de verdad (con las pegas y el máximo de la semana); mientras se puede decir «no vale», a
+  // prueba
+  for (const x of extras) {
+    if (x.cuenta <= 0) continue;
+    r.push({ miembro: x.quien, puntos: x.cuenta, motivo: `Extra: ${minus(x.que)}`, ts: x.evento.ts, mes: mes(x.evento.ts), clase: 'extra', provisional: ahora <= x.hasta });
+  }
   return r.sort((a, b) => b.ts - a.ts);
 }
 

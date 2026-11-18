@@ -11,6 +11,7 @@ import { claseColor, miembro, useCasa, type Hoja as TipoHoja } from './contexto'
 import { HojaBasura, HojaSacada } from './Basura';
 import { HojaFuera } from './Fuera';
 import { HojaComprado, HojaFalta } from './Compras';
+import { HojaExtra, HojaNoVale } from './Extras';
 import { LoLimpioOtro, PonermeBasura, PonermePiso } from './Cuadro';
 import { EstadoTarea, Jueces } from './Hoy';
 import { Avatar, BotonAccion, FotoRef, Hoja, Nombre, Placa, SelectorFotos } from './piezas';
@@ -26,6 +27,8 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
     case 'fuera': return <HojaFuera quien={hoja.quien} />;
     case 'falta': return <HojaFalta />;
     case 'comprado': return <HojaComprado falta={hoja.falta} />;
+    case 'extra': return <HojaExtra />;
+    case 'no-vale': return <HojaNoVale extra={hoja.extra} />;
     case 'tuyo': return <HojaTuyo />;
     case 'gasto': return <HojaGasto />;
     case 'detalle-gasto': return <HojaDetalleGasto gasto={hoja.gasto} />;

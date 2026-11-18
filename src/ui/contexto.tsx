@@ -1,4 +1,5 @@
 import type { Falta } from '../core/compras';
+import type { Extra } from '../core/extras';
 import { createContext, useContext } from 'react';
 import type { Mensaje } from '../core/chat';
 import type { Gasto, Transferencia } from '../core/cuentas';
@@ -21,6 +22,8 @@ export type Hoja =
   | { tipo: 'fuera'; quien?: MiembroId } // «Estoy fuera»: las fechas (tuyas o de otro)
   | { tipo: 'falta' } // «Se ha acabado…»
   | { tipo: 'comprado'; falta: Falta } // «Lo compré»: cuánto ha costado
+  | { tipo: 'extra' } // «Tarea extra»: lo que has hecho de más
+  | { tipo: 'no-vale'; extra: Extra } // «¿No vale?» (o «vale menos») el extra de otro
   | { tipo: 'tuyo' }
   | { tipo: 'gasto' }
   | { tipo: 'detalle-gasto'; gasto: Gasto }
@@ -62,6 +65,12 @@ export interface Acciones {
   faltaQuitada(id: string): Promise<void>;
   comprado(falta: string, cosa: string, importe: number): Promise<void>;
   comprasSuave(suave: boolean): Promise<void>;
+  /** Tareas extra: apuntar lo que has hecho de más (+1, +2 o +3), decir que el de otro no vale (o vale menos; 0 = no
+   *  vale), retirar tu pega y quitar el tuyo */
+  extra(que: string, puntos: number, fotos: string[]): Promise<void>;
+  extraNoVale(extra: string, puntos: number, porque?: string): Promise<void>;
+  extraRetirar(extra: string): Promise<void>;
+  extraQuitar(extra: string): Promise<void>;
   /** La foto de alguien (o, con `null`, quitarla) */
   ponerFoto(quien: MiembroId, foto: string | null): Promise<void>;
   /** Votar el piso de otro o, con `propia`, cambiarte tu nota («ya lo fregué») */

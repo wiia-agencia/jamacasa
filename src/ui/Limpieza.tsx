@@ -15,6 +15,7 @@ import { guardarCaras } from './caras';
 import { Casa3D, type BurbujaCasa, type ParteCasa } from './Casa3D';
 import { claseColor, miembro, useCasa } from './contexto';
 import { CuadroSemana, QuedarmeBasura } from './Cuadro';
+import { AtajoExtra } from './Extras';
 import { EstadoTarea } from './Hoy';
 import { Avatar, Placa, Seccion } from './piezas';
 
@@ -319,6 +320,8 @@ function PantallaJuego({ alFallar }: { alFallar: () => void }) {
               {mia ? <LoQueSeLimpia t={mia} empezar={empezar} alMarcar={() => { if (enParte) { setEnParte(false); setCuarto(null); } }} /> : <p className="peq suave">Esta semana no te toca piso.</p>}
               {/* debajo de la lista de tu piso, lo tuyo: se marca en verde y, al tocar un cuarto, sale en la casa */}
               <TuParte ver={cuartos.length ? verCuarto : undefined} foco={enParte ? cuarto : null} enLista={enLista} />
+              {/* lo que hayas hecho de más (Javi, 18 de noviembre) */}
+              {estado.empezado && <AtajoExtra />}
             </>
           ) : (
             <Secciones caras={caras} />
@@ -689,6 +692,7 @@ function ListaLimpieza() {
       </header>
       {estado.empezado && <TuPisoAhora />}
       <TuParte />
+      {estado.empezado && <AtajoExtra />}
       <Secciones />
     </div>
   );

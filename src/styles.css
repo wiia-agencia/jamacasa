@@ -1853,3 +1853,40 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 .foto-casa .avatar { width: 64px; height: 64px; font-size: 1.6rem; }
 .foto-casa b { font-size: 0.95rem; }
 .foto-casa .enlace { font-size: 0.82rem; }
+
+/* ——— Tareas extra (Javi, 18 de noviembre; lo pidió Josu) ——— */
+.tamanos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tamano {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  color: var(--texto);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 10px;
+  border-radius: 14px;
+  background: var(--papel-2);
+  box-shadow: inset 0 0 0 1.5px var(--linea);
+  cursor: pointer;
+  min-width: 0;
+}
+.tamano-cifra { font-size: 1.6rem; font-weight: 800; line-height: 1; color: var(--ouro-texto); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.tamano b { font-size: 0.9rem; line-height: 1.15; }
+.tamano > span:last-child { font-size: 0.74rem; color: var(--texto-2); line-height: 1.25; }
+.tamano[aria-pressed='true'] { background: var(--ouro-suave); box-shadow: inset 0 0 0 2.5px var(--ouro); }
+.extra-llevas { display: inline-flex; gap: 4px; }
+.extra-llevas i { width: 14px; height: 14px; border-radius: 50%; background: var(--papel-2); box-shadow: inset 0 0 0 1.5px var(--linea); }
+.extra-llevas i.lleno { background: var(--ouro); box-shadow: none; }
+.extra-semana-nota { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.extra-cabeza { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--linea); }
+.extra-cabeza .boton { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.extra-item { align-items: flex-start !important; gap: 10px; }
+.extra-item .avatar { margin-top: 2px; }
+.extra-item.no-vale > .crece > span:first-child { text-decoration: line-through; text-decoration-color: var(--texto-2); }
+.extra-derecha { align-items: flex-end; gap: 6px !important; flex: none; }
+.extra-puntos { font-weight: 800; font-size: 1.05rem; color: var(--ouro-texto); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.extra-puntos s { color: var(--texto-2); font-weight: 650; font-size: 0.85rem; margin-right: 5px; }
+.extra-puntos.rebajado { color: var(--vermello); }
+.atajo-extra small { display: block; color: var(--texto-2); font-size: 0.78rem; margin-top: 1px; }

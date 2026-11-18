@@ -5,6 +5,7 @@ import { Camera, Mic, Pause, Pin, Play, SendHorizontal, Trash2 } from 'lucide-re
 import { useEffect, useMemo, useRef, useState, type PointerEvent as EventoPuntero } from 'react';
 import { resumen, type Mensaje } from '../core/chat';
 import { avisosBasuraAbiertos, paraPuntuar, tuyosAbiertos } from '../core/estado';
+import { enPlazo } from '../core/extras';
 import type { Noticia } from '../core/noticias';
 import { diaLocal, fechaCorta, hora, nombreDia } from '../core/tiempo';
 import { claseColor, miembro, useCasa } from './contexto';
@@ -211,14 +212,14 @@ function NotaDeVoz({ refAudio, segundos }: { refAudio: string; segundos: number 
   );
 }
 
-const EMOJI: Record<string, string> = { h: '🧹', r: '✅', sh: '📢', b: '🗑️', q: '📢', s: '🗑️', t: '🧦', tr: '🧦', tm: '📢', g: '💶', p: '💸', cu: '🤝', bc: '🤝', ay: '🤝', sa: '🗑️', hp: '✏️' };
+const EMOJI: Record<string, string> = { h: '🧹', r: '✅', sh: '📢', b: '🗑️', q: '📢', s: '🗑️', t: '🧦', tr: '🧦', tm: '📢', g: '💶', p: '💸', cu: '🤝', bc: '🤝', ay: '🤝', sa: '🗑️', hp: '✏️', x: '✨', xn: '🙅', xm: '✋' };
 
 /** Lo que pasa en la casa, en medio de la conversación (con su botón si te toca hacer algo). */
 function EnCasa({ n }: { n: Noticia }) {
   const { estado, yo, abrir, acciones, avisar } = useCasa();
   const tipo = n.id.slice(n.id.lastIndexOf('-') + 1);
   const base = n.id.slice(0, n.id.lastIndexOf('-'));
-  let accion: { texto: string; hacer: () => void } | null = null;
+  let accion: { texto: string; hacer: () => void; suave?: boolean } | null = null;
   if (tipo === 'h') {
     const p = paraPuntuar(estado, yo).find((x) => x.intento.hecho.id === base);
     if (p) accion = { texto: 'Ponle nota', hacer: () => abrir({ tipo: 'puntuar', tarea: p.tarea, intento: p.intento }) };
@@ -228,6 +229,11 @@ function EnCasa({ n }: { n: Noticia }) {
   } else if (tipo === 't') {
     const a = tuyosAbiertos(estado, yo).find((x) => x.id === base);
     if (a) accion = { texto: 'Ya lo recogí', hacer: async () => { await acciones.recogido(a.id); avisar('Recogido. ¡Bien!'); } };
+  } else if (tipo === 'x') {
+    // una tarea extra de otro: 48 horas para decir que no vale (si ya dijiste algo, para cambiarlo)
+    const x = estado.extras.find((y) => y.id === base);
+    // (no hace falta hacer nada: cuenta solo; el botón es discreto)
+    if (x && x.quien !== yo && enPlazo(x, estado.ahora)) accion = { texto: x.noVale.some((p) => p.autor === yo) ? 'Cambiar' : '¿No vale?', hacer: () => abrir({ tipo: 'no-vale', extra: x }), suave: true };
   }
   const emoji = n.oficial ? '📢' : tipo === 'r' && /suspend/i.test(n.texto) ? '❌' : EMOJI[tipo] ?? '🏠';
   return (
@@ -243,7 +249,7 @@ function EnCasa({ n }: { n: Noticia }) {
         )}
       </span>
       {accion && (
-        <button type="button" className="boton mini dorado" onClick={accion.hacer}>
+        <button type="button" className={`boton mini ${accion.suave ? 'claro' : 'dorado'}`} onClick={accion.hacer}>
           {accion.texto}
         </button>
       )}

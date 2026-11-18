@@ -5,6 +5,7 @@ import type { Tarea } from './limpieza';
 import { cuando, nombreDia, nombreMes, semana as semanaDe } from './tiempo';
 import { rangoFuera, type Fuera } from './fuera';
 import { esSuper, type Falta } from './compras';
+import { minus, type Extra } from './extras';
 import type { Config, Evento, MiembroId, Normas } from './tipos';
 
 export interface Noticia {
@@ -20,7 +21,7 @@ const elegir = (id: string, opciones: string[]) => opciones[hash32(id) % opcione
 export const nota = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 1 });
 export const pt = (x: number) => (x > 0 ? '+' : x < 0 ? '−' : '') + nota(Math.abs(x));
 
-export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], cuentas: Cuentas, fueras: Fuera[] = [], faltas: Falta[] = []): Noticia[] {
+export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[], basura: SemanaBasura[], tuyos: AvisoTuyo[], cuentas: Cuentas, fueras: Fuera[] = [], faltas: Falta[] = [], extras: Extra[] = []): Noticia[] {
   const n = (id: MiembroId) => config.miembros.find((m) => m.id === id)?.nombre ?? id;
   const r: Noticia[] = [];
 
@@ -173,6 +174,18 @@ export function calcularNoticias(config: Config, normas: Normas, tareas: Tarea[]
     const T = (m: MiembroId) => (m === f.pide ? 'a él mismo' : `a ${n(m)}`);
     r.push({ id: `${f.id}-fa`, ts: f.desde, quien: f.pide, texto: `${n(f.pide)} avisa: se ha acabado ${f.cosa.toLowerCase()}. Le toca comprarlo ${T(f.pasaron[0] ?? f.toca)}.` });
     if (f.pasaron.length) r.push({ id: `${f.id}-fp`, ts: f.tocaDesde, quien: f.pasaron[f.pasaron.length - 1], texto: `${n(f.pasaron[f.pasaron.length - 1])} ahora no puede comprar ${f.cosa.toLowerCase()}: le toca a ${n(f.toca)}.` });
+  }
+  // tareas extra: lo que dijo quien lo hizo (y, si pasa del máximo de la semana, que no suma todo) y las pegas
+  for (const x of extras) {
+    if (x.anulado !== undefined) continue;
+    const que = minus(x.que);
+    const tope = x.tope ? (x.cuenta > 0 ? ` Suma ${pt(x.cuenta)}: ya llega a los ${normas.puntosExtraSemana} de la semana.` : ` No suma: ya tiene los ${normas.puntosExtraSemana} de la semana.`) : '';
+    r.push({ id: `${x.id}-x`, ts: x.evento.ts, quien: x.quien, texto: `${n(x.quien)} ha hecho un extra: ${que} (${pt(x.puntos)}).${tope}`, fotos: x.fotos.length ? x.fotos : undefined });
+    for (const p of x.noVale) {
+      const dice = p.puntos === 0 ? 'no vale' : `vale ${pt(p.puntos)}`;
+      // `xn`, no vale; `xm`, vale menos
+      r.push({ id: `${p.evento.id}-${p.puntos === 0 ? 'xn' : 'xm'}`, ts: p.ts, quien: p.autor, texto: `${n(p.autor)} dice que el extra de ${n(x.quien)} ${dice}: ${que}.${p.porque ? ` «${p.porque}»` : ''}` });
+    }
   }
   for (const p of cuentas.pagos) {
     if (p.anulado) continue;

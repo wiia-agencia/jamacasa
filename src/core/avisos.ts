@@ -10,6 +10,7 @@ import { apuntadaTarde, bolsasDe, cuandoSacada, desdeAntes, quienesAvisan, respo
 import { derivar, tareaDe } from './estado';
 import { calcularFuera, elDia, estaFuera, pisoLibre, rangoFuera, siguienteEnCasa } from './fuera';
 import { abierta, esSuper, horasRecuerdo } from './compras';
+import { minus } from './extras';
 import type { Intento, Tarea } from './limpieza';
 import { nota } from './noticias';
 import { HORA, cuando, diaLocal, duracion, fechaDeDia, instanteLocal, lunesDe, mes, mesesEntre, nombreDia, nombreMes, partes, semana } from './tiempo';
@@ -379,6 +380,32 @@ function avisosDe(config: Config, eventos: Evento[], e: Evento): Aviso[] {
         .map((x) => ({ para: x.id, titulo: `✈️ ${Q} está fuera ${rangoFuera(f, e.ts)}`, texto: partes.join(' ') || `Vuelve ${elDia(f.hasta)}.`, pantalla: 'hoy' as const, etiqueta: `fuera-${f.id}` }));
       if (f.quien !== e.autor) r.push({ para: f.quien, titulo: `✈️ ${yo} ha apuntado que estás fuera ${rangoFuera(f, e.ts)}`, texto: 'Mientras, no te llegan avisos.', pantalla: 'hoy', etiqueta: `fuera-${f.id}` });
       return r.filter((x) => x.para !== e.autor);
+    }
+    case 'extra': {
+      // una tarea extra: a los otros dos, que tienen 48 horas para decir que no vale
+      const x = estado.extras.find((y) => y.id === e.id);
+      if (!x || x.anulado !== undefined) return [];
+      const tope = x.tope ? (x.cuenta > 0 ? ` Suma ${pts(x.cuenta)}: ya llega a los ${n.puntosExtraSemana} de la semana.` : ` No suma: ya tiene los ${n.puntosExtraSemana} de la semana.`) : '';
+      return config.miembros
+        .filter((m) => m.id !== x.quien)
+        .map((m) => ({ para: m.id, titulo: `✨ ${yo} ha hecho un extra: ${minus(x.que)} (${pts(x.puntos)})`, texto: `Si no vale, tienes ${n.horasExtra} horas para decirlo.${tope}`, pantalla: 'juego' as const, etiqueta: `extra-${x.id}` }));
+    }
+    case 'extra_no_vale': {
+      // a quien lo hizo: «no vale», «vale +1» o, si lo retira, que vuelve a valer (solo si se dijo a tiempo)
+      const x = estado.extras.find((y) => y.id === e.datos?.extra);
+      if (!x || x.anulado !== undefined || e.autor === x.quien || e.ts > x.hasta) return [];
+      const que = minus(x.que);
+      const p = x.noVale.find((y) => y.evento.id === e.id);
+      const etiqueta = `extra-${x.id}`;
+      if (!p) {
+        // lo retira: solo si antes había dicho algo
+        const antes = eventos.some((y) => y.tipo === 'extra_no_vale' && y.autor === e.autor && y.datos?.extra === x.id && y.ts < e.ts && y.ts <= x.hasta && !y.datos?.deja);
+        if (!antes) return [];
+        return [{ para: x.quien, titulo: `👍 ${yo} retira su pega: ${que}`, texto: x.noVale.length ? 'Aún hay otra pega.' : `Vuelve a sumar ${pts(x.cuenta)}.`, pantalla: 'juego', etiqueta }];
+      }
+      const porque = p.porque ? `«${p.porque}»` : '';
+      if (p.puntos === 0) return [{ para: x.quien, titulo: `🙅 ${yo} dice que tu extra no vale: ${que}`, texto: porque || 'No suma.', pantalla: 'juego', etiqueta }];
+      return [{ para: x.quien, titulo: `✋ ${yo} dice que tu extra vale ${pts(p.puntos)}: ${que}`, texto: porque || `En vez de ${pts(x.puntos)}.`, pantalla: 'juego', etiqueta }];
     }
     case 'aviso_prueba':
       return [{ para: e.autor, titulo: '🔔 Así te llegarán los avisos', texto: 'La basura, las notas, «Esto es tuyo», las cuentas… Solo lo que te toca a ti.', pantalla: 'hoy', etiqueta: 'prueba' }];

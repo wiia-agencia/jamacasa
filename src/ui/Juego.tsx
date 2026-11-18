@@ -7,6 +7,7 @@ import { nota } from '../core/noticias';
 import { cuando, mesDeSemana, nombreMes, rangoSemana } from '../core/tiempo';
 import type { MiembroId } from '../core/tipos';
 import { useCasa } from './contexto';
+import { ExtrasSemana } from './Extras';
 import { Avatar, Nombre, Puntos, Seccion } from './piezas';
 
 export function Juego() {
@@ -47,6 +48,9 @@ export function Juego() {
           ))}
         </div>
       </section>
+
+      {/* tareas extra (Javi, 18 de noviembre): lo de esta semana, con «¿No vale?» para los otros */}
+      {estado.empezado && <ExtrasSemana />}
 
       <Seccion titulo="Títulos del mes">
         <div className="caja">
@@ -135,7 +139,7 @@ export function Juego() {
               <div key={k} className="item">
                 <span className="crece">
                   <span style={{ display: 'block' }}>{a.motivo}</span>
-                  <span className="peq tenue">{cuando(a.ts, estado.ahora)}</span>
+                  <span className="peq tenue">{cuando(a.ts, estado.ahora)}{a.clase === 'extra' && a.provisional ? ' · aún pueden decir que no vale' : ''}</span>
                 </span>
                 <Puntos valor={a.puntos} />
               </div>
@@ -193,6 +197,9 @@ export function Juego() {
             <Norma texto="Sin hacer el miércoles a las 23:59" valor={<Puntos valor={n.puntosSinHacer} />} />
             <Norma texto="Limpias el piso de otro («Lo limpio yo»)" valor="Su nota, para ti" />
             <Norma texto="Te quedas la basura de otro («Me la quedo yo»)" valor={<>Sus <Puntos valor={n.puntosBasuraSemana} />, para ti</>} />
+            <Norma texto="Tarea extra (lo grande que es lo dices tú)" valor={<><Puntos valor={1} />, <Puntos valor={2} /> o <Puntos valor={3} /></>} />
+            <Norma texto="Para decir que un extra no vale (o vale menos)" valor={`${n.horasExtra} h`} />
+            <Norma texto="Lo más que suman los extras" valor={`${n.puntosExtraSemana} a la semana`} />
           </div>
         </div>
         <p className="tenue mini">Son las normas de arranque. Más adelante las cambiaréis votando desde aquí: con dos de tres votos, se cambian.</p>
