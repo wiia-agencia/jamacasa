@@ -75,7 +75,7 @@ export interface Tarea {
   enCurso: boolean; // la semana aún no ha terminado
   limiteSinHacer: number;
   sinHacer: boolean;
-  /** Su dueño está fuera 4 días o más de esa semana («Estoy fuera», Javi, 17 de noviembre): queda libre, se queda sin
+  /** Su dueño está fuera 6 días o más de esa semana («Estoy fuera»; Javi, 18 de noviembre): queda libre, se queda sin
    *  limpiar y nadie pierde puntos por él (si alguien lo limpia, se lleva lo de siempre). */
   libre: boolean;
   nota?: number; // nota con la que se aprobó
