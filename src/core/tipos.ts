@@ -104,6 +104,7 @@ export type TipoEvento =
   | 'falta_paso' // «Ahora no puedo»: { falta }; pasa al siguiente
   | 'falta_quitada' // «Ya no hace falta»: { falta }
   | 'compras_suave' // { suave }: «Una vez al día» (sin el modo pesado de los recordatorios)
+  | 'foto_perfil' // { foto, quien? }: la foto de cada uno (sin foto, `null`: vuelve su silueta); vale la última
   | 'mensaje' // el chat de la casa
   | 'mensaje_fijado' // fija un mensaje arriba del chat (o lo quita, con mensaje: null)
   | 'mensaje_borrado' // su autor lo borra: queda «Mensaje borrado» en su sitio

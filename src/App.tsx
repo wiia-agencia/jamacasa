@@ -265,6 +265,7 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
       // «Lo compré»: un gasto del súper de casa (de turno: cuenta en el marcador, no es deuda) que resuelve lo que faltaba
       comprado: (falta, cosa, importe) => apuntar('gasto', { concepto: cosa, categoria: 'compra', importe, pagador: yo, participantes: config.miembros.map((m) => m.id), fecha: textoDeDia(diaLocal(Date.now())), fotos: [], falta }),
       comprasSuave: (suave) => apuntar('compras_suave', { suave }),
+      ponerFoto: (quien, foto) => apuntar('foto_perfil', { foto, ...(quien !== yo ? { quien } : {}) }),
       estoEsTuyo: (para, fotos, que) => apuntar('esto_es_tuyo', { para, fotos, que }),
       recogido: (aviso) => apuntar('recogido', { aviso }),
       gasto: (d) => apuntar('gasto', d),

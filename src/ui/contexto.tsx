@@ -62,6 +62,8 @@ export interface Acciones {
   faltaQuitada(id: string): Promise<void>;
   comprado(falta: string, cosa: string, importe: number): Promise<void>;
   comprasSuave(suave: boolean): Promise<void>;
+  /** La foto de alguien (o, con `null`, quitarla) */
+  ponerFoto(quien: MiembroId, foto: string | null): Promise<void>;
   /** Votar el piso de otro o, con `propia`, cambiarte tu nota («ya lo fregué») */
   puntuar(t: Tarea, i: Intento, nota: number, faltan: string[], fotos: string[], comentario?: string, propia?: boolean): Promise<void>;
   /** «Basura llena», con cuántas bolsas hay (si la tienes tú, es «Recuérdamelo») */

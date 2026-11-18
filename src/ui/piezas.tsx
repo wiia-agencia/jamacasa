@@ -15,11 +15,34 @@ export function Figura({ figura, letra }: { figura?: string; letra: string }) {
   return <span className="figura" style={{ ['--fig' as any]: `url("${img}")` }} aria-hidden="true" />;
 }
 
+const cacheUrls = new Map<string, string>();
+
+/** La dirección de una foto guardada (las del almacén caducan: se piden y se guardan un rato). */
+export function useUrlFoto(ref?: string): string {
+  const { almacen } = useCasa();
+  const [url, setUrl] = useState(ref ? cacheUrls.get(ref) ?? '' : '');
+  useEffect(() => {
+    let vivo = true;
+    if (!ref) { setUrl(''); return; }
+    const c = cacheUrls.get(ref);
+    if (c) { setUrl(c); return; }
+    almacen.urlFoto(ref).then((u) => {
+      if (!u) return;
+      if (!ref.startsWith('sb:')) cacheUrls.set(ref, u);
+      if (vivo) setUrl(u);
+    });
+    return () => { vivo = false; };
+  }, [ref, almacen]);
+  return url;
+}
+
 export function Avatar({ id, tam = '', corona = false, onClick }: { id: MiembroId; tam?: '' | 's' | 'l' | 'punto'; corona?: boolean; onClick?: () => void }) {
-  const { config } = useCasa();
+  const { config, estado } = useCasa();
   const m = miembro(config, id);
-  const clase = `avatar ${tam} ${claseColor(m.color)} ${corona ? 'corona' : ''}`;
-  const dentro = tam === 'punto' ? null : <Figura figura={m.figura} letra={m.nombre.slice(0, 1)} />;
+  // su foto, si la tiene (Javi, 18 de noviembre: fotos de verdad, no los muñecos); si no, su silueta
+  const foto = useUrlFoto(tam === 'punto' ? undefined : estado.fotos?.[id]);
+  const clase = `avatar ${tam} ${claseColor(m.color)} ${corona ? 'corona' : ''} ${foto ? 'con-foto' : ''}`;
+  const dentro = tam === 'punto' ? null : foto ? <img src={foto} alt="" /> : <Figura figura={m.figura} letra={m.nombre.slice(0, 1)} />;
   if (onClick) {
     return (
       <button type="button" className={clase} onClick={onClick} aria-label={`${m.nombre}: ajustes`}>
@@ -84,7 +107,6 @@ export function Hoja({ titulo, subtitulo, children, pie, onCerrar }: { titulo: R
   );
 }
 
-const cacheUrls = new Map<string, string>();
 
 export function FotoRef({ ref_, grande = false, onQuitar }: { ref_: string; grande?: boolean; onQuitar?: () => void }) {
   const { almacen } = useCasa();

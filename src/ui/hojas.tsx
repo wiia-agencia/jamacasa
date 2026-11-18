@@ -1,5 +1,5 @@
 import { Plus, Search, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { resumen, type Mensaje } from '../core/chat';
 import { euros, leerImporte, repartir, type Gasto, type Transferencia } from '../core/cuentas';
 import type { DefMedalla } from '../core/juego';
@@ -7,7 +7,7 @@ import type { Intento, Tarea } from '../core/limpieza';
 import { nota } from '../core/noticias';
 import { cuando, diaDeTexto, diaLocal, fechaCorta, nombreMes, rangoSemana, textoDeDia } from '../core/tiempo';
 import type { MiembroId, Zona } from '../core/tipos';
-import { claseColor, useCasa, type Hoja as TipoHoja } from './contexto';
+import { claseColor, miembro, useCasa, type Hoja as TipoHoja } from './contexto';
 import { HojaBasura, HojaSacada } from './Basura';
 import { HojaFuera } from './Fuera';
 import { HojaComprado, HojaFalta } from './Compras';
@@ -775,6 +775,53 @@ function AjusteAvisos({ prueba }: { prueba: boolean }) {
   );
 }
 
+/** Las fotos de los tres (Javi, 18 de noviembre: fuera de Limpieza, fotos de verdad y no los muñecos). Cualquiera
+ *  puede poner la de cualquiera; se ven en toda la app menos en la casa en 3D, que sigue con los muñecos. */
+function FotosDeLaCasa() {
+  const { config, yo, estado, almacen, acciones, avisar } = useCasa();
+  const [subiendo, setSubiendo] = useState<MiembroId | null>(null);
+  const [error, setError] = useState('');
+  const entrada = useRef<HTMLInputElement>(null);
+  const para = useRef<MiembroId | null>(null);
+  const elegir = async (lista: FileList | null) => {
+    const q = para.current;
+    if (!lista?.length || !q) return;
+    setError('');
+    setSubiendo(q);
+    try {
+      const ref = await almacen.subirFoto(lista[0]);
+      await acciones.ponerFoto(q, ref);
+      avisar(q === yo ? 'Tu foto, puesta.' : `Foto de ${miembro(config, q).nombre}, puesta.`);
+    } catch (e: any) {
+      setError(e?.message ?? 'No se pudo subir la foto.');
+    }
+    setSubiendo(null);
+    if (entrada.current) entrada.current.value = '';
+  };
+  return (
+    <div className="campo">
+      <span className="etiqueta">Las fotos de la casa</span>
+      <div className="fotos-casa">
+        {config.miembros.map((m) => (
+          <div key={m.id} className="foto-casa">
+            <Avatar id={m.id} tam="l" />
+            <b>{m.id === yo ? 'Tú' : m.nombre}</b>
+            <button type="button" className="enlace" disabled={subiendo !== null} onClick={() => { para.current = m.id; entrada.current?.click(); }}>
+              {subiendo === m.id ? 'Subiendo…' : estado.fotos[m.id] ? 'Cambiar' : 'Poner foto'}
+            </button>
+            {estado.fotos[m.id] && subiendo !== m.id && (
+              <button type="button" className="enlace tenue" onClick={async () => { await acciones.ponerFoto(m.id, null); avisar('Foto quitada.'); }}>Quitar</button>
+            )}
+          </div>
+        ))}
+      </div>
+      <input ref={entrada} type="file" accept="image/*" hidden onChange={(e) => elegir(e.target.files)} />
+      {error && <p className="error">{error}</p>}
+      <p className="tenue mini">Salen en toda la app. En la casa en 3D seguís siendo los muñecos.</p>
+    </div>
+  );
+}
+
 function HojaAjustes() {
   const { cerrar, almacen, yo, config, cambiarYo, tema, cambiarTema, reiniciarPrueba, salir } = useCasa();
   const [confirmar, setConfirmar] = useState(false);
@@ -797,6 +844,7 @@ function HojaAjustes() {
             <p className="tenue mini">Así puedes marcar un piso como uno y puntuarlo como otro.</p>
           </div>
         )}
+        <FotosDeLaCasa />
         <div className="campo">
           <span className="etiqueta">Apariencia</span>
           <div className="opciones">

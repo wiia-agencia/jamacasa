@@ -1844,3 +1844,12 @@ html.sin-scroll, html.sin-scroll body { overflow: hidden; overscroll-behavior: n
 :root[data-theme='dark'] .juguete-cabeza .marca { color: #eaf1f8; }
 :root[data-theme='dark'] .juguete-cabeza p { color: #a9b9cd; }
 :root[data-theme='dark'] .hoy-pagina-juguete .atajo { box-shadow: 0 5px 0 #0a1729, 0 12px 20px -14px rgba(0, 0, 0, 0.6); }
+
+/* ——— La foto de cada uno (Javi, 18 de noviembre: fotos de verdad, no los muñecos) ——— */
+.avatar.con-foto { overflow: hidden; background: var(--papel-2); box-shadow: 0 0 0 2px var(--c); }
+.avatar.con-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fotos-casa { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.foto-casa { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 16px; background: var(--papel-2); text-align: center; }
+.foto-casa .avatar { width: 64px; height: 64px; font-size: 1.6rem; }
+.foto-casa b { font-size: 0.95rem; }
+.foto-casa .enlace { font-size: 0.82rem; }

@@ -48,6 +48,8 @@ export interface Estado {
   fuera: Fuera[];
   /** El súper de casa: lo que ha aportado cada uno, a quién le toca comprar y lo que hace falta */
   super: Super;
+  /** La foto de cada uno (Javi, 18 de noviembre: fuera de Limpieza, fotos de verdad y no los muñecos) */
+  fotos: Partial<Record<MiembroId, string>>;
 }
 
 export function derivar(config: Config, eventos: Evento[], ahora: number): Estado {
@@ -68,6 +70,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
   const meses = mesesEntre(mesInicio, mes(ahora));
   const titulos = calcularTitulos(config, tareas, puntosMes, cuentas, tuyos, meses);
   const fuera = calcularFuera(config, ordenados);
+  const fotos = fotosDe(config, ordenados);
   const superCasa = calcularSuper(config, ordenados, cuentas.gastos, fuera, ahora);
   const noticias = calcularNoticias(config, normas, tareas, semanasBasura, tuyos, cuentas, fuera, superCasa.faltas);
   const chat = calcularChat(ordenados);
@@ -96,6 +99,7 @@ export function derivar(config: Config, eventos: Evento[], ahora: number): Estad
     espacio: calcularEspacio(ordenados, ahora),
     fuera,
     super: superCasa,
+    fotos,
   };
 }
 
@@ -121,6 +125,20 @@ export function semanaBasura(e: Estado, w: number): SemanaBasura | undefined {
 /** Avisos de basura abiertos ahora mismo (de la semana actual o de la anterior); con `para`, solo los que le tocan a él. */
 export function avisosBasuraAbiertos(e: Estado, para?: MiembroId): AvisoBasura[] {
   return e.semanasBasura.flatMap((s) => s.avisos).filter((a) => a.estado === 'abierto' && (!para || a.responsable === para));
+}
+
+/** La foto de cada uno: la última que se puso (`foto_perfil` { foto, quien? }; sin `quien`, la suya; `foto: null`, sin
+ *  foto). La puede poner cualquiera (Javi pone las de los tres). */
+export function fotosDe(config: Config, eventos: Evento[]): Partial<Record<MiembroId, string>> {
+  const r: Partial<Record<MiembroId, string>> = {};
+  for (const e of eventos) {
+    if (e.tipo !== 'foto_perfil') continue;
+    const q: MiembroId = typeof e.datos?.quien === 'string' && config.miembros.some((m) => m.id === e.datos.quien) ? e.datos.quien : e.autor;
+    if (!config.miembros.some((m) => m.id === q)) continue;
+    if (typeof e.datos?.foto === 'string' && e.datos.foto) r[q] = e.datos.foto;
+    else delete r[q];
+  }
+  return r;
 }
 
 export type NivelBasura = 'tranquila' | 'llena' | 'urgente';
