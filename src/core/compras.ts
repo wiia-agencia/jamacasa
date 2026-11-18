@@ -110,5 +110,7 @@ export function horasRecuerdo(dias: number, suave: boolean): number[] {
   return [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 }
 
-/** Las cosas que más se acaban, para avisar de un toque. */
-export const COSAS_DE_CASA = ['Aceite', 'Sal', 'Papel de váter', 'Papel de cocina', 'Lavavajillas', 'Detergente', 'Suavizante', 'Bolsas de basura', 'Fairy', 'Estropajos', 'Café', 'Leche'];
+/** Lo común de verdad, para avisar de un toque (Javi, 18 de noviembre: «el común común es aceite, sal, lavavajillas,
+ *  KH7, limpia hornos, limpia encimeras, fregasuelos, cosas así generales»; el café, la leche, el papel del váter, el
+ *  detergente o el suavizante no se compran en común). Lo demás, escrito. */
+export const COSAS_DE_CASA = ['Aceite', 'Sal', 'Lavavajillas', 'KH7', 'Limpiahornos', 'Limpia encimeras', 'Fregasuelos'];

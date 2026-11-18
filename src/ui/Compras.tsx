@@ -140,7 +140,7 @@ export function HojaFalta() {
         </div>
         <div className="campo">
           <label htmlFor="falta-cosa">U otra cosa</label>
-          <input id="falta-cosa" className="entrada" value={COSAS_DE_CASA.includes(cosa) ? '' : cosa} onChange={(e) => setCosa(e.target.value)} placeholder="Pastillas del lavavajillas, servilletas…" />
+          <input id="falta-cosa" className="entrada" value={COSAS_DE_CASA.includes(cosa) ? '' : cosa} onChange={(e) => setCosa(e.target.value)} placeholder="Otra cosa de las de todos" />
         </div>
       </div>
     </Hoja>

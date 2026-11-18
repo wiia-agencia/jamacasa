@@ -48,10 +48,13 @@ describe('Las fechas', () => {
     expect(vuelta[0].hasta).toBe(dia(4));
   });
 
-  it('4 días fuera de una semana (o más): su piso queda libre', () => {
-    const cuatro = calcularFuera(config, [ev('fuera', 'a', dia(0), { desde: inicio(3), hasta: fin(6) })]);
-    expect(diasFuera(cuatro, 'a', s)).toBe(4);
-    expect(pisoLibre(cuatro, 'a', s)).toBe(true);
+  it('6 días fuera de una semana (o más): su piso queda libre; si vuelve antes del finde, no', () => {
+    const seis = calcularFuera(config, [ev('fuera', 'a', dia(0), { desde: inicio(1), hasta: fin(6) })]);
+    expect(diasFuera(seis, 'a', s)).toBe(6);
+    expect(pisoLibre(seis, 'a', s)).toBe(true);
+    // de lunes a jueves (el caso de Javi, 18 de noviembre): el finde lo limpia él
+    const cuatro = calcularFuera(config, [ev('fuera', 'a', dia(0), { desde: inicio(0), hasta: fin(3) })]);
+    expect(pisoLibre(cuatro, 'a', s)).toBe(false);
     const tres = calcularFuera(config, [ev('fuera', 'a', dia(0), { desde: inicio(4), hasta: fin(6) })]);
     expect(pisoLibre(tres, 'a', s)).toBe(false);
     expect(estaFuera(tres, 'a', dia(5))).toBe(true);

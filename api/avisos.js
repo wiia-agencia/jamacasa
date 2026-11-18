@@ -6974,7 +6974,7 @@ function diasFuera(fueras, m, w) {
 }
 /** ¿Su piso de esa semana queda libre? (4 días fuera o más) */
 function pisoLibre(fueras, m, w) {
-	return diasFuera(fueras, m, w) >= 4;
+	return diasFuera(fueras, m, w) >= 6;
 }
 /** El siguiente que está en casa en ese momento (por el orden de la casa), para pasarle lo de quien se ha ido. */
 function siguienteEnCasa(config, fueras, m, t) {

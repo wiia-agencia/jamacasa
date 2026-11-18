@@ -1,6 +1,6 @@
 // «Estoy fuera» (Javi, 17 de noviembre: «aún no resolvimos bien lo de cuando Josu se vaya»): quien se va unos días lo
 // dice con sus fechas (o lo dice otro por él, como en el cuadro). Mientras está fuera no le llegan avisos y la basura
-// pasa al siguiente que esté en casa. Si está fuera 4 días o más de una semana, su piso de esa semana queda libre: se
+// pasa al siguiente que esté en casa. Si está fuera 6 días o más de una semana, su piso de esa semana queda libre: se
 // queda sin limpiar (lo eligió Javi) y nadie pierde puntos por él; si alguien lo limpia («Lo limpio yo»), se lleva lo
 // de siempre. Para corregirlo, otro evento: `fuera_anulado` («Ya he vuelto» antes de tiempo lleva `hasta`).
 import { diaLocal, fechaDeDia, inicioDia, lunesDe, nombreDia } from './tiempo';
@@ -15,8 +15,10 @@ export interface Fuera {
   por: MiembroId; // quién lo apuntó (él mismo u otro)
 }
 
-/** Con 4 días fuera (o más) de una semana, su piso de esa semana queda libre. */
-export const DIAS_LIBRE = 4;
+/** Con 6 días fuera (o más) de una semana, su piso de esa semana queda libre: casi toda la semana (Javi, 18 de
+ *  noviembre: si se va de lunes a jueves y vuelve el viernes, el finde lo limpia él; lo que no puede es sacar la
+ *  basura, y esa pasa al que está en casa aunque se vaya un solo día). */
+export const DIAS_LIBRE = 6;
 
 /** Las ausencias que valen: sin las anuladas y, si volvió antes, hasta que volvió. */
 export function calcularFuera(config: Config, eventos: Evento[]): Fuera[] {
