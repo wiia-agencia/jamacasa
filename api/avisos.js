@@ -8222,7 +8222,7 @@ function calcularNoticias(config, normas, tareas, basura, tuyos, cuentas, fueras
 		for (const p of x.noVale) {
 			const dice = p.puntos === 0 ? "no vale" : `vale ${pt(p.puntos)}`;
 			r.push({
-				id: `${p.evento.id}-xn`,
+				id: `${p.evento.id}-${p.puntos === 0 ? "xn" : "xm"}`,
 				ts: p.ts,
 				quien: p.autor,
 				texto: `${n(p.autor)} dice que el extra de ${n(x.quien)} ${dice}: ${que}.${p.porque ? ` «${p.porque}»` : ""}`
