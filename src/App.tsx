@@ -5,6 +5,7 @@ import { sinLeer } from './core/chat';
 import { diaLocal, textoDeDia } from './core/tiempo';
 import { avisosBasuraAbiertos, derivar, paraPuntuar, tuyosAbiertos } from './core/estado';
 import type { Evento, MiembroId, TipoEvento } from './core/tipos';
+import { esColorTema, esLuzTema, esOscuro, type ColorTema, type LuzTema } from './core/tema';
 import type { Almacen } from './datos/almacen';
 import { activarAvisos as pedirAvisos, estadoAvisos, renovarAvisos, type EstadoAvisos } from './datos/avisos';
 import { abrirCasa, casaDisponible } from './datos/casa';
@@ -22,7 +23,8 @@ import { Juego } from './ui/Juego';
 import { Limpieza } from './ui/Limpieza';
 import { Sorteo } from './ui/Sorteo';
 
-type Tema = 'auto' | 'claro' | 'oscuro';
+// tu tema (Javi, 19 de noviembre: «que lo elija cada uno»): la luz de toda la app y el color de Hoy, en cada móvil
+type Tema = LuzTema;
 
 
 let temaPuestoPorMi = false;
@@ -32,7 +34,9 @@ function aplicarTema(t: Tema) {
     if (temaPuestoPorMi) raiz.removeAttribute('data-theme');
     temaPuestoPorMi = false;
   } else {
-    raiz.setAttribute('data-theme', t === 'oscuro' ? 'dark' : 'light');
+    // con el sol: clara de día y oscura del atardecer al amanecer
+    const oscuro = t === 'sol' ? esOscuro('sol', false, Date.now()) : t === 'oscuro';
+    raiz.setAttribute('data-theme', oscuro ? 'dark' : 'light');
     temaPuestoPorMi = true;
   }
 }
@@ -40,9 +44,21 @@ function aplicarTema(t: Tema) {
 export default function App() {
   const [almacen, setAlmacen] = useState<Almacen | null>(null);
   const [fase, setFase] = useState<'cargando' | 'puerta' | 'dentro'>('cargando');
-  const [tema, setTema] = useState<Tema>(() => (leer('jamacasa-tema') as Tema) || 'auto');
+  const [tema, setTema] = useState<Tema>(() => {
+    const t = leer('jamacasa-tema');
+    return esLuzTema(t) ? t : 'auto';
+  });
+  const [color, setColor] = useState<ColorTema>(() => {
+    const c = leer('jamacasa-color');
+    return esColorTema(c) ? c : 'naranja';
+  });
 
-  useEffect(() => { aplicarTema(tema); }, [tema]);
+  useEffect(() => {
+    aplicarTema(tema);
+    if (tema !== 'sol') return;
+    const reloj = window.setInterval(() => aplicarTema('sol'), 60_000);
+    return () => clearInterval(reloj);
+  }, [tema]);
 
   useEffect(() => {
     (async () => {
@@ -86,6 +102,8 @@ export default function App() {
       almacen={almacen}
       tema={tema}
       cambiarTema={(t) => { setTema(t); guardar('jamacasa-tema', t === 'auto' ? null : t); }}
+      color={color}
+      cambiarColor={(c) => { setColor(c); guardar('jamacasa-color', c === 'naranja' ? null : c); }}
       salir={async () => {
         await almacen.salir();
         guardar('jamacasa-modo', null);
@@ -96,7 +114,7 @@ export default function App() {
   );
 }
 
-function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: Tema; cambiarTema: (t: Tema) => void; salir: () => void }) {
+function Casa({ almacen, tema, cambiarTema, color, cambiarColor, salir }: { almacen: Almacen; tema: Tema; cambiarTema: (t: Tema) => void; color: ColorTema; cambiarColor: (c: ColorTema) => void; salir: () => void }) {
   const config = almacen.config;
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [listo, setListo] = useState(false);
@@ -306,6 +324,8 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     cambiarYo: (m) => { almacen.cambiarYo?.(m); setYo(m); },
     tema,
     cambiarTema,
+    color,
+    cambiarColor,
     reiniciarPrueba: () => { almacen.reiniciar?.(); cargar(); avisar('Prueba reiniciada con el mes de ejemplo.'); },
     salir,
     avisos,

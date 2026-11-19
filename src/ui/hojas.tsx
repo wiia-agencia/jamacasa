@@ -1,3 +1,4 @@
+import { ElegirTema, HojaTema } from './Tema';
 import { Plus, Search, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { resumen, type Mensaje } from '../core/chat';
@@ -37,6 +38,7 @@ export function Hojas({ hoja }: { hoja: TipoHoja }) {
     case 'tarea': return <HojaTarea tarea={hoja.tarea} />;
     case 'medalla': return <HojaMedalla def={hoja.def} titulo={hoja.titulo} />;
     case 'ajustes': return <HojaAjustes />;
+    case 'tema': return <HojaTema />;
     case 'mensaje': return <HojaMensaje m={hoja.mensaje} />;
     default: return null;
   }
@@ -826,7 +828,7 @@ function FotosDeLaCasa() {
 }
 
 function HojaAjustes() {
-  const { cerrar, almacen, yo, config, cambiarYo, tema, cambiarTema, reiniciarPrueba, salir } = useCasa();
+  const { cerrar, almacen, yo, config, cambiarYo, reiniciarPrueba, salir } = useCasa();
   const [confirmar, setConfirmar] = useState(false);
   const prueba = almacen.modo === 'prueba';
   const nombre = config.miembros.find((m) => m.id === yo)?.nombre;
@@ -849,12 +851,8 @@ function HojaAjustes() {
         )}
         <FotosDeLaCasa />
         <div className="campo">
-          <span className="etiqueta">Apariencia</span>
-          <div className="opciones">
-            {([['auto', 'Como el móvil'], ['claro', 'Claro'], ['oscuro', 'Oscuro']] as const).map(([v, t]) => (
-              <button key={v} type="button" className="opcion" aria-pressed={tema === v} onClick={() => cambiarTema(v)}>{t}</button>
-            ))}
-          </div>
+          <span className="etiqueta">Tu tema</span>
+          <ElegirTema />
         </div>
         <div className="campo">
           <span className="etiqueta">Avisos al móvil</span>

@@ -2,6 +2,7 @@ import type { Falta } from '../core/compras';
 import type { Extra } from '../core/extras';
 import { createContext, useContext } from 'react';
 import type { Mensaje } from '../core/chat';
+import type { ColorTema, LuzTema } from '../core/tema';
 import type { Gasto, Transferencia } from '../core/cuentas';
 import type { Estado } from '../core/estado';
 import type { DefMedalla } from '../core/juego';
@@ -32,6 +33,7 @@ export type Hoja =
   | { tipo: 'tarea'; tarea: Tarea }
   | { tipo: 'medalla'; def: DefMedalla; titulo?: boolean }
   | { tipo: 'ajustes' }
+  | { tipo: 'tema' } // tu tema: el color de Hoy y la luz de la app (cada uno el suyo)
   | { tipo: 'mensaje'; mensaje: Mensaje }
   | { tipo: 'sorteo' };
 
@@ -113,8 +115,11 @@ export interface Ctx {
   abrirHistorial(dia?: number, vista?: 'dia' | 'mes'): void;
   avisar(texto: string): void;
   cambiarYo(m: MiembroId): void;
-  tema: 'auto' | 'claro' | 'oscuro';
-  cambiarTema(t: 'auto' | 'claro' | 'oscuro'): void;
+  /** Tu tema (en este móvil): la luz de toda la app y el color del fondo de Hoy */
+  tema: LuzTema;
+  cambiarTema(t: LuzTema): void;
+  color: ColorTema;
+  cambiarColor(c: ColorTema): void;
   reiniciarPrueba(): void;
   salir(): void;
   /** Avisos al móvil en este móvil */

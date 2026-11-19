@@ -2,12 +2,13 @@
 // con cristales que se tocan y abren su baldosa de «Para ti»; los pisos en tarjetas, una al lado de otra; y los atajos.
 // Vidrio cálido sobre un fondo que respira, oscuro o claro como el resto de la app; «lo tuyo», en tu color.
 // Las reglas (qué dice la frase, qué baldosas salen, qué dice cada tarjeta) están en src/core/hoy.ts.
-import { Armchair, Bath, Clock3, CookingPot, DoorOpen, Flame, Flower2, Footprints, Hand, Plane, ShoppingCart, Sofa, Sparkle, Sparkles, Star, Trash, Trash2, Wallet, type LucideIcon } from 'lucide-react';
+import { Armchair, Bath, Clock3, CookingPot, DoorOpen, Flame, Flower2, Footprints, Hand, Palette, Plane, ShoppingCart, Sofa, Sparkle, Sparkles, Star, Trash, Trash2, Wallet, type LucideIcon } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { tareaDe } from '../core/estado';
 import { fraseDeHoy, paraTi, tarjetasPisos, type AccionHoy, type Baldosa, type BotonHoy, type ColorHoy, type IconoHoy, type TarjetaPiso, type Trozo } from '../core/hoy';
 import { nombreDia, nombreMes, partes } from '../core/tiempo';
+import { esOscuro, momentoDelSol, type ColorTema, type LuzTema } from '../core/tema';
 import type { Config } from '../core/tipos';
 import { miembro, useCasa, type Hoja } from './contexto';
 import { verPiso } from './Cuadro';
@@ -32,25 +33,31 @@ function colorDe(c: ColorHoy, config: Config): string {
   return FIJOS[c] ?? GRIS.c;
 }
 
-/** ¿Va en oscuro? Lo mismo que el resto de la app: lo que diga Ajustes o, en automático, el móvil. */
-export function hoyOscuro(tema: 'auto' | 'claro' | 'oscuro'): boolean {
-  if (tema !== 'auto') return tema === 'oscuro';
+const movilOscuro = () => {
   try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch { return false; }
+};
+/** ¿Va en oscuro? Lo mismo que el resto de la app: tu tema (como el móvil, claro, oscuro o con el sol). */
+export function hoyOscuro(tema: LuzTema, ahora = Date.now()): boolean {
+  return esOscuro(tema, movilOscuro(), ahora);
 }
-/** El color de la barra de arriba del móvil en Hoy (el de arriba del fondo). */
-export const barraHoy = (oscuro: boolean) => (oscuro ? '#2a221c' : '#fbf3ea');
+/** El color de arriba del fondo de Hoy (para la barra de arriba del móvil), oscuro o claro, de cada color. */
+const ARRIBA: Record<ColorTema, [string, string]> = {
+  naranja: ['#2a221c', '#fbf3ea'], azul: ['#19243a', '#f1f6fd'], verde: ['#172b21', '#f0f8f2'],
+  morado: ['#261c37', '#f6f2fc'], rosa: ['#2e1c25', '#fdf2f5'], grafito: ['#252527', '#f5f5f6'],
+};
+export const barraHoy = (oscuro: boolean, color: ColorTema = 'naranja') => ARRIBA[color][oscuro ? 0 : 1];
 
 function useOscuro(): boolean {
-  const { tema } = useCasa();
-  const [oscuro, setOscuro] = useState(() => hoyOscuro(tema));
+  const { tema, ahora } = useCasa();
+  const [oscuro, setOscuro] = useState(() => hoyOscuro(tema, ahora));
   useEffect(() => {
-    setOscuro(hoyOscuro(tema));
+    setOscuro(hoyOscuro(tema, ahora));
     let mq: MediaQueryList | null = null;
     try { mq = matchMedia('(prefers-color-scheme: dark)'); } catch { /* sin media queries */ }
-    const cambia = () => setOscuro(hoyOscuro(tema));
+    const cambia = () => setOscuro(hoyOscuro(tema, Date.now()));
     mq?.addEventListener('change', cambia);
     return () => mq?.removeEventListener('change', cambia);
-  }, [tema]);
+  }, [tema, ahora]);
   return oscuro;
 }
 
@@ -310,15 +317,20 @@ function CabeceraHoy() {
           <span className="hoy2-racha"><Flame size={14} /> {estado.racha.actual} {estado.racha.actual === 1 ? 'semana' : 'semanas'} de racha</span>
         )}
       </p>
-      <Avatar id={yo} corona={rey.includes(yo)} onClick={() => abrir({ tipo: 'ajustes' })} />
+      <span className="hoy2-cab-d">
+        <button type="button" className="hoy2-redondo" aria-label="Tu tema: el color de Hoy y la luz" onClick={() => abrir({ tipo: 'tema' })}><Palette size={19} /></button>
+        <Avatar id={yo} corona={rey.includes(yo)} onClick={() => abrir({ tipo: 'ajustes' })} />
+      </span>
     </header>
   );
 }
 
 /** Hoy (la E2). `arriba`: lo que va debajo de la frase si hace falta (activar los avisos); `abajo`: lo de siempre. */
 export function HoyE2({ arriba, abajo }: { arriba?: ReactNode; abajo?: ReactNode }) {
-  const { config, estado, yo } = useCasa();
+  const { config, estado, yo, tema, color } = useCasa();
   const oscuro = useOscuro();
+  // con el sol, el fondo se tiñe al amanecer y al atardecer (y de noche, la luz de la luna)
+  const momento = tema === 'sol' ? momentoDelSol(estado.ahora) : null;
   const baldosas = useMemo(() => paraTi(config, estado, yo), [config, estado, yo]);
   const frase = useMemo(() => fraseDeHoy(config, estado, yo, baldosas), [config, estado, yo, baldosas]);
   const pisos = useMemo(() => tarjetasPisos(config, estado, yo), [config, estado, yo]);
@@ -342,12 +354,12 @@ export function HoyE2({ arriba, abajo }: { arriba?: ReactNode; abajo?: ReactNode
   };
   // la barra de arriba del móvil, del color de arriba del fondo
   useEffect(() => {
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', barraHoy(oscuro));
-  }, [oscuro]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', barraHoy(oscuro, color));
+  }, [oscuro, color]);
   const mio = COLORES[miembro(config, yo).color] ?? GRIS;
   const tuyo = { '--h-tuyo': mio.c, '--h-tuyo-osc': mio.osc, '--h-tuyo-claro': mio.claro } as CSSProperties;
   return (
-    <div className={`hoy2 ${oscuro ? 'hoy2-oscuro' : ''}`} ref={raiz} style={tuyo}>
+    <div className={`hoy2 hoy2-c-${color} ${oscuro ? 'hoy2-oscuro' : ''} ${momento ? `hoy2-${momento}` : ''}`} ref={raiz} style={tuyo}>
       <div className="hoy2-fondo" aria-hidden="true" />
       <div className="hoy2-dentro margen">
         <CabeceraHoy />

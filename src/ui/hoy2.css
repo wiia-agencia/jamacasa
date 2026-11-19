@@ -43,9 +43,25 @@
   --h-grano: 0.06;
 }
 
+/* Tu tema: el color del fondo (naranja, el de siempre, es el de arriba); «lo tuyo» sigue en tu color */
+.hoy2.hoy2-c-azul:not(.hoy2-oscuro) { --h-f1: #f1f6fd; --h-f2: #e5edf9; --h-f3: #d9e4f4; --h-fx: rgba(84, 146, 255, 0.34); --h-fx2: rgba(176, 204, 255, 0.55); --h-res: rgba(150, 190, 255, 0.3); }
+.hoy2.hoy2-oscuro.hoy2-c-azul { --h-f1: #19243a; --h-f2: #0f1628; --h-f3: #090e19; --h-fx: rgba(64, 128, 246, 0.44); --h-fx2: rgba(112, 80, 196, 0.3); --h-res: rgba(140, 186, 255, 0.24); --h-vidrio: rgba(25, 36, 58, 0.6); --h-carta1: #2f3a4e; --h-carta2: #1d2638; }
+.hoy2.hoy2-c-verde:not(.hoy2-oscuro) { --h-f1: #f0f8f2; --h-f2: #e4f1e8; --h-f3: #d7e9dd; --h-fx: rgba(70, 196, 124, 0.32); --h-fx2: rgba(176, 230, 196, 0.55); --h-res: rgba(140, 220, 170, 0.28); }
+.hoy2.hoy2-oscuro.hoy2-c-verde { --h-f1: #172b21; --h-f2: #0f1b15; --h-f3: #09110c; --h-fx: rgba(52, 176, 108, 0.38); --h-fx2: rgba(36, 112, 128, 0.3); --h-res: rgba(140, 230, 172, 0.2); --h-vidrio: rgba(23, 43, 33, 0.6); --h-carta1: #2d3f35; --h-carta2: #1e2b24; }
+.hoy2.hoy2-c-morado:not(.hoy2-oscuro) { --h-f1: #f6f2fc; --h-f2: #ede6f8; --h-f3: #e2d9f2; --h-fx: rgba(156, 112, 250, 0.32); --h-fx2: rgba(210, 190, 252, 0.55); --h-res: rgba(190, 160, 255, 0.28); }
+.hoy2.hoy2-oscuro.hoy2-c-morado { --h-f1: #261c37; --h-f2: #171125; --h-f3: #0e0a17; --h-fx: rgba(148, 104, 246, 0.42); --h-fx2: rgba(222, 92, 172, 0.22); --h-res: rgba(196, 166, 255, 0.24); --h-vidrio: rgba(38, 28, 55, 0.6); --h-carta1: #3a3149; --h-carta2: #261d33; }
+.hoy2.hoy2-c-rosa:not(.hoy2-oscuro) { --h-f1: #fdf2f5; --h-f2: #f7e5eb; --h-f3: #f0d8e1; --h-fx: rgba(244, 104, 148, 0.3); --h-fx2: rgba(252, 188, 206, 0.55); --h-res: rgba(255, 170, 196, 0.28); }
+.hoy2.hoy2-oscuro.hoy2-c-rosa { --h-f1: #2e1c25; --h-f2: #1c1117; --h-f3: #120b0f; --h-fx: rgba(236, 94, 140, 0.38); --h-fx2: rgba(255, 150, 108, 0.22); --h-res: rgba(255, 172, 196, 0.22); --h-vidrio: rgba(46, 28, 37, 0.6); --h-carta1: #423039; --h-carta2: #2c1f26; }
+.hoy2.hoy2-c-grafito:not(.hoy2-oscuro) { --h-f1: #f5f5f6; --h-f2: #ececee; --h-f3: #e1e1e4; --h-fx: rgba(255, 255, 255, 0.75); --h-fx2: rgba(196, 198, 210, 0.4); --h-res: rgba(255, 255, 255, 0.5); }
+.hoy2.hoy2-oscuro.hoy2-c-grafito { --h-f1: #252527; --h-f2: #171718; --h-f3: #0d0d0e; --h-fx: rgba(255, 255, 255, 0.11); --h-fx2: rgba(120, 132, 152, 0.18); --h-res: rgba(255, 255, 255, 0.08); --h-vidrio: rgba(37, 37, 39, 0.6); --h-carta1: #3a3a3c; --h-carta2: #262628; }
+/* Con el sol: dorado al amanecer, naranja y rojo al atardecer y, de noche, la luz de la luna */
+.hoy2-amanecer { --h-sol: rgba(255, 136, 96, 0.6); --h-sol2: rgba(255, 196, 160, 0.5); }
+.hoy2-atardecer { --h-sol: rgba(255, 98, 52, 0.62); --h-sol2: rgba(150, 70, 170, 0.34); }
+.hoy2-noche { --h-sol: rgba(110, 140, 255, 0.2); --h-sol2: rgba(40, 60, 130, 0.3); }
+
 /* El fondo: el color de la casa al atardecer, con su luz que respira */
 .hoy2-fondo { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
-  background: radial-gradient(120% 70% at 15% 6%, var(--h-fx), transparent 60%), radial-gradient(90% 60% at 100% 100%, var(--h-fx2), transparent 70%), linear-gradient(180deg, var(--h-f1) 0%, var(--h-f2) 55%, var(--h-f3) 100%); }
+  background: radial-gradient(130% 70% at 88% -6%, var(--h-sol, transparent), transparent 72%), radial-gradient(100% 50% at 0% 100%, var(--h-sol2, transparent), transparent 70%), radial-gradient(120% 70% at 15% 6%, var(--h-fx), transparent 60%), radial-gradient(90% 60% at 100% 100%, var(--h-fx2), transparent 70%), linear-gradient(180deg, var(--h-f1) 0%, var(--h-f2) 55%, var(--h-f3) 100%); }
 .hoy2-fondo::after { content: ''; position: absolute; inset: -10%; background: radial-gradient(40% 30% at 18% 8%, var(--h-res), transparent 70%); animation: hoy2-respira 7s ease-in-out infinite; }
 .hoy2-fondo::before { content: ''; position: absolute; inset: 0; opacity: var(--h-grano); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 @keyframes hoy2-respira { 50% { opacity: 0.55; } }
@@ -56,6 +72,10 @@
 .hoy2-fecha { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 15px; font-weight: 600; color: var(--h-t2); }
 .hoy2-racha { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 650; color: var(--h-realce); }
 .hoy2 .avatar { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.16); }
+.hoy2-cab-d { display: flex; align-items: center; gap: 10px; flex: none; }
+.hoy2-redondo { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 0; padding: 0; color: var(--h-t1); cursor: pointer;
+  background: var(--h-vidrio); -webkit-backdrop-filter: blur(20px) saturate(170%); backdrop-filter: blur(20px) saturate(170%); box-shadow: inset 0 0 0 0.5px var(--h-borde), inset 0 1px 0 var(--h-luz), var(--h-sombra); transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.hoy2-redondo:active { transform: scale(0.92); }
 
 /* La frase con cristales que se tocan */
 .hoy2-grande { margin: 0; font-size: 27px; line-height: 1.42; font-weight: 600; letter-spacing: -0.02em; text-wrap: pretty; }
@@ -180,3 +200,21 @@
 @media (prefers-reduced-motion: reduce) {
   .hoy2-fondo::after, .hoy2-grande.escribe .p { animation: none; }
 }
+
+/* Tu tema (en Ajustes y en la paleta de Hoy): los seis colores y la luz */
+.tema-elegir { display: flex; flex-direction: column; gap: 10px; }
+.tema-et { margin: 4px 0 0; font-size: var(--t-s); font-weight: 700; color: var(--texto-2); }
+.tema-colores { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.tema-color { appearance: none; border: 0; background: none; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 0.72rem; font-weight: 650; color: var(--texto-2); cursor: pointer; }
+.tema-color[aria-checked='true'] { color: var(--texto); }
+.tema-muestra { width: 46px; height: 46px; max-width: 100%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 32% 28%, var(--m1) 0 30%, transparent 64%), linear-gradient(160deg, var(--m2), var(--m3)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  transition: box-shadow 0.3s, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.tema-muestra svg { opacity: 0; transition: opacity 0.2s; }
+.tema-color:active .tema-muestra { transform: scale(0.92); }
+.tema-color[aria-checked='true'] .tema-muestra { box-shadow: 0 0 0 2.5px var(--papel), 0 0 0 4.5px var(--texto); transform: scale(1.04); }
+.tema-color[aria-checked='true'] .tema-muestra svg { opacity: 1; }
+.tema-luces { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 4px; border-radius: 18px; background: var(--papel-2); }
+.tema-luz { appearance: none; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 2px; border-radius: 14px; font-size: 0.75rem; font-weight: 700; line-height: 1.15; text-align: center; color: var(--texto-2); cursor: pointer; transition: background 0.3s, color 0.3s; }
+.tema-luz[aria-checked='true'] { background: var(--boton); color: var(--sobre-boton); }
+.tema-nota { margin: 2px 0 0; font-size: var(--t-xs); line-height: 1.4; color: var(--texto-3); }

@@ -133,3 +133,27 @@ describe('Hoy: la frase, «Para ti» y los pisos en tarjetas', () => {
     expect(f).toContain('está aprobado con un **9,5**');
   });
 });
+
+describe('tu tema: el color y la luz, con el sol', async () => {
+  const { esOscuro, momentoDelSol, esColorTema, esLuzTema } = await import('../src/core/tema');
+  const madrid = (iso: string) => Date.parse(`${iso}+01:00`);
+  it('con el sol: de día claro, al atardecer y de noche oscuro, al amanecer claro', () => {
+    expect(momentoDelSol(madrid('2026-11-19T13:00:00'))).toBe('dia');
+    expect(momentoDelSol(madrid('2026-11-19T22:00:00'))).toBe('noche');
+    expect(momentoDelSol(madrid('2026-11-19T17:55:00'))).toBe('atardecer');
+    expect(momentoDelSol(madrid('2026-11-19T08:15:00'))).toBe('amanecer');
+    expect(esOscuro('sol', false, madrid('2026-11-19T13:00:00'))).toBe(false);
+    expect(esOscuro('sol', false, madrid('2026-11-19T22:00:00'))).toBe(true);
+    expect(esOscuro('sol', true, madrid('2026-11-19T08:15:00'))).toBe(false);
+  });
+  it('como el móvil, claro u oscuro; y lo guardado se comprueba', () => {
+    expect(esOscuro('auto', true, 0)).toBe(true);
+    expect(esOscuro('auto', false, 0)).toBe(false);
+    expect(esOscuro('oscuro', false, 0)).toBe(true);
+    expect(esOscuro('claro', true, 0)).toBe(false);
+    expect(esColorTema('morado')).toBe(true);
+    expect(esColorTema('fucsia')).toBe(false);
+    expect(esLuzTema('sol')).toBe(true);
+    expect(esLuzTema(null)).toBe(false);
+  });
+});
