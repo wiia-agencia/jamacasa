@@ -17,6 +17,7 @@ import { Entrada } from './ui/Entrada';
 import { Historial } from './ui/Historial';
 import { Hojas } from './ui/hojas';
 import { Hoy } from './ui/Hoy';
+import { estiloHoy } from './ui/HoyArriba';
 import { Juego } from './ui/Juego';
 import { Limpieza } from './ui/Limpieza';
 import { Sorteo } from './ui/Sorteo';
@@ -179,9 +180,11 @@ function Casa({ almacen, tema, cambiarTema, salir }: { almacen: Almacen; tema: T
     const meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) return;
     if (pantalla === 'limpieza' && !historial) return;
+    // en Hoy (la E2) la pone la propia pantalla: el color de arriba de su fondo, oscuro o claro
+    if (pantalla === 'hoy' && !historial && estado.empezado && !estiloHoy()) return;
     const fondo = getComputedStyle(document.documentElement).getPropertyValue('--seran').trim();
     meta.setAttribute('content', pantalla === 'hoy' && !historial ? '#e86569' : fondo || '#edf1f6');
-  }, [pantalla, tema, historial]);
+  }, [pantalla, tema, historial, estado.empezado]);
 
   // Chat: hasta dónde se ha leído en este móvil (la primera vez, desde ahora)
   const claveLeido = `jamacasa-chat-leido-${almacen.modo}-${yo}`;

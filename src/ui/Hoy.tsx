@@ -14,12 +14,29 @@ import { AtajoExtra } from './Extras';
 import { ChapaEstado } from './Limpieza';
 import { PortadaHoy } from './PortadaHoy';
 import { HoyArriba, estiloHoy } from './HoyArriba';
+import { HoyE2 } from './HoyNuevo';
 import { Avatar, FotoRef, Nombre, Placa, Puntos, Seccion } from './piezas';
 
 export function Hoy() {
   // tres estilos para elegir (Javi, 17 de noviembre): en la vista previa, «?estilo=juguete|marcador|plastilina»
   const { estado } = useCasa();
   const estilo = estado.empezado ? estiloHoy() : null;
+  // la E2 (Javi, 19 de noviembre): la frase con cristales, «Para ti», los pisos en tarjetas en fila y los atajos.
+  // Lo de «Te toca puntuar», «Te queda de antes», «Te han pillado algo», el súper y la basura van en «Para ti».
+  if (estado.empezado && !estilo) {
+    return (
+      <HoyE2
+        arriba={<ActivarAvisos />}
+        abajo={
+          <>
+            <AvisoFuera />
+            <RankingMini />
+            <LoUltimo />
+          </>
+        }
+      />
+    );
+  }
   return (
     <div className={`pila ${estilo ? `hoy-pagina-${estilo}` : ''}`}>
       {estilo ? (

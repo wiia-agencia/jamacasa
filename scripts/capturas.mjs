@@ -32,6 +32,13 @@ await foto('03-sorteo');
 await p.getByRole('button', { name: 'Vamos' }).click();
 await p.waitForTimeout(500);
 await foto('04-hoy', true);
+// Hoy (la E2): al tocar el primer cristal de la frase se abre su baldosa de «Para ti»
+const cristal = p.locator('.hoy2-cristal').first();
+if (await cristal.count()) {
+  await cristal.click();
+  await p.waitForTimeout(700);
+  await foto('04b-hoy-abierta');
+}
 const puntuar = p.getByRole('button', { name: 'Puntuar' }).first();
 if (await puntuar.count()) {
   await puntuar.click();
@@ -46,10 +53,16 @@ if (await puntuar.count()) {
   await foto('05-puntuar');
   await p.getByRole('button', { name: 'Cerrar' }).click();
 }
-await p.getByRole('button', { name: 'Marcar como hecho' }).first().click();
-await p.waitForTimeout(400);
-await foto('06-marcar');
-await p.getByRole('button', { name: 'Cerrar' }).click();
+// «Ya está limpio»: en la baldosa de tu piso (si ya has empezado) o, en la Hoy de antes, «Marcar como hecho»
+const piso = p.locator('.hoy2-baldosa', { hasText: 'Piso' }).first();
+if (await piso.count()) { await piso.click(); await p.waitForTimeout(600); }
+const hecho = p.getByRole('button', { name: /Ya está limpio|Marcar como hecho/ }).first();
+if (await hecho.count()) {
+  await hecho.click();
+  await p.waitForTimeout(400);
+  await foto('06-marcar');
+  await p.getByRole('button', { name: 'Cerrar' }).click();
+} else console.log('sin «Ya está limpio» a la vista: el piso aún no está empezado');
 for (const [n, nombre] of [['07-limpieza', 'Limpieza'], ['08-cuentas', 'Cuentas'], ['09-ranking', 'Ranking']]) {
   await p.getByRole('navigation').getByRole('button', { name: nombre }).click();
   await p.waitForTimeout(400);
